@@ -1,0 +1,10 @@
+# Build (/Make)
+build
+*.o
+*.d
+ifj26c
+
+# Editor
+# Vim
+*.swp
+*.vim
