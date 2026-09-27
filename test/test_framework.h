@@ -31,38 +31,52 @@ static int m_currentFailed = 0;
 // assert that the integer val equals reference ref
 #define ASSERT_INT_EQ(val, ref)                                                \
   do {                                                                         \
-    return;                                                                    \
+    if ((val) != (ref)) {                                                      \
+      printf("[FAIL] %s, %d: Expected %s (%d) equal %s (%d)\n", __FILE__,      \
+             __LINE__, #val, (val), #ref, (ref));                              \
+      m_currentFailed = 1;                                                     \
+      return;                                                                  \
+    }                                                                          \
   } while (0)
 
 // assert that string str equals reference ref
 #define ASSERT_STR_EQ(str, ref)                                                \
   do {                                                                         \
-    return;                                                                    \
+    if (strcmp((str), (ref)) != 0) {                                           \
+      printf("[FAIL] %s, %d: Expected %s (%s) match %s (%s)\n", __FILE__,      \
+             __LINE__, #str, (str), #ref, (ref));                              \
+      m_currentFailed = 1;                                                     \
+      return;                                                                  \
+    }                                                                          \
   } while (0)
 
 // assert that pointer ptr is not null
 #define ASSERT_NOT_NULL(ptr)                                                   \
   do {                                                                         \
-    return;                                                                    \
+    if ((ptr) == NULL) {                                                       \
+      printf("[FAIL] %s, %d: Pointer %s is NULL\n", __FILE__, __LINE__, #ptr); \
+      m_currentFailed = 1;                                                     \
+      return;                                                                  \
+    }                                                                          \
   } while (0)
 
-// call a unit test function test_func
+// call a unit test function TestFunc
 // update test status variables
-void run_test(void (*test_func)(void), char *test_name) {
+void RunTest(void (*TestFunc)(void), char *testName) {
   m_currentFailed = 0; // reset for a new test
   m_testsTotal++;
 
-  test_func(); // call unit test function
+  TestFunc(); // call unit test function
 
   if (m_currentFailed == 1) {
     m_testsFailed++;
   } else {
     m_testsPassed++;
-    printf("[PASS] %s\n", test_name);
+    printf("[PASS] %s\n", testName);
   }
 }
 
-void print_summary(void) {
+void PrintSummary(void) {
   printf("\n==========TESTS FINISHED==========\n");
 
   printf("PASSED: %d\n", m_testsPassed);

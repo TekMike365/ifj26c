@@ -5,19 +5,25 @@
 #include "test_framework.h"
 #include "tests.h" // contains tests declarations
 
-// THESE TWO ARE JUST FOR ILLUSTRATION
-// THEIR DECLARATIONS SHOULD BE IN tests.h
-// THEIR DEFINITIONS SHOULD BE IN A SEPARATE
-// SOURCE FILE (i.e. dummy_pass.c)
-void dummy_pass() { ASSERT_TRUE(1); }
-void dummy_fail() { ASSERT_TRUE(0); }
+// THESE ARE JUST FOR ILLUSTRATION
+// REAL TEST SHOULD BE DECLARED IN tests.h
+// AND DEFINED IN A SEPARATE SOURCE FILE
+// (i.e. dummy_pass.c)
+void DummyPass(void) { ASSERT_TRUE(1); }
+void DummyFail(void) { ASSERT_TRUE(0); }
+void TestIntEq(void) { ASSERT_INT_EQ(2, 3); }
+void TestNull(void) { ASSERT_NOT_NULL(NULL); }
+void TestStrEq(void) { ASSERT_STR_EQ("ab", "ab"); }
 
 int main(void) {
   printf("\n==========RUNNING TESTS==========\n");
 
-  run_test(dummy_pass, "dummy pass");
-  run_test(dummy_fail, "dummy fail");
+  RunTest(DummyPass, "dummy pass");
+  RunTest(DummyFail, "dummy fail");
+  RunTest(TestIntEq, "int eq");
+  RunTest(TestNull, "test null");
+  RunTest(TestStrEq, "str eq");
 
-  print_summary();
+  PrintSummary();
   return 0;
 }
