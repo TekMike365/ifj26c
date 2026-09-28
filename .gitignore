@@ -4,6 +4,14 @@ build
 *.d
 ifj26c
 
+# Docs
+*.pdf
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.toc
+
 # Editor
 # Vim
 *.swp
