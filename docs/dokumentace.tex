@@ -8,7 +8,11 @@
 \usepackage[slovak]{babel}
 \usepackage[T1]{fontenc}
 
+\setlength\parskip{1em}
+\setlength\parindent{0pt}
+
 \usepackage{tabularx}
+\usepackage[hidelinks]{hyperref}
 
 \def\variant{vv-BVS}
 \def\repo{https://github.com/TekMike365/ifj26c.git}
@@ -57,6 +61,73 @@
   % stručný popis způsobu spolupráce, kultury code review a schvalování PR (max.
   % jednotky vět či odrážek); stručný popis využitých forem testování (max.
   % jednotky vět či odrážek); zvolený styl formátování kódu;
+
+  Spolupráca je organizovaná primárne skrz \textit{discord skupinu}
+  (komunikácia) a \textit{trello board} (rozdelenie úloh).
+
+  Každý modul musí začínať hlavičkou:
+
+  \begin{verbatim}
+    /* Implementace překladače imperativního jazyka IFJ26.
+     * Author[s]: Full Name <xlogin>
+     *            Full Name <xlogin>
+     */
+  \end{verbatim}
+
+  \subsection{Repozitár}
+
+  Pravidlá pomenovávanie commitov sú založené na \textit{Conventional
+  Commits}\footnotemark.
+  \footnotetext{https://www.conventionalcommits.org/en/v1.0.0/\#summary}
+
+  Pravidlá pracovania s vetvami v repozitári sú:
+  \begin{itemize}
+    \item Vetva \textbf{master} je svätá a nesmie sa modifikovať inak ako skrz
+      \textit{PR}. \textit{master} nemá konkrétneho správcu.
+    \item \textbf{PR} musia byť schválené aspoň jedným (1) ďalším členom tímu
+      iným ako vlastníkom \textit{PR} a všetky poznámky musia byť vyriešené.
+    \item Každá vetva (okrem vetvy \textit{master}) musí byť \textit{prefixovaná
+      xloginom} člena tímu ktorý ju vytvoril. Tento člen sa stáva jej správcom.
+    \item Kontribúcia do vetiev (okrem vetvy \textit{master}) je určená jej
+      správcom. Preferuje sa kontribúcia skrz \textit{PR}.
+  \end{itemize}
+
+  Pod skratkou \textit{PR} sa rozumie \textit{Pull Request}.
+
+  \subsection{Formátovanie a konvencie pomenovávania}
+
+  Kód je formátovaný odporúčaným programom \texttt{clang-format} so štýlom
+  \texttt{-{}-style=LLVM} zvoleným arbitrárne. Štýl je nastavený skrz súbor
+  \texttt{.clang-format}.
+
+  Konvencie pomenovávania sú znázornené v kóde nižšie. Konvencie boli zvolené
+  kvôli ľahkému rozoznávaniu funkcií, premenných a ich rozsahu, makier, typov,
+  ap.
+
+  \begin{verbatim}
+    #define NICE_NUMBER 69
+    #define MAKE_NICE(x) x##69
+
+    /* Comment */
+    // Or Comment
+
+    typedef int NewType_t;
+
+    int g_globalVariable;
+    static int m_memberVariable;
+
+    enum { ENUM_VALUE, };
+
+    void SomeFunction(void) {
+      static int s_staticVariable;
+      int variableName;
+    }
+
+    /* if for some reason we need a namespace */
+    void Namespace_SomeNamespaceFunction(void);
+
+    // When in doubt, use 'cammelCase'.
+  \end{verbatim}
 
   \section{Architektúra}
   % blokové schéma architektury vašeho řešení, které bude obsahovat jednotlivé
