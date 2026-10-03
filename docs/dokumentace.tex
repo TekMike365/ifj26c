@@ -1,0 +1,158 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[
+  top=2.5cm,
+  bottom=2.5cm,
+  left=2.5cm,
+  right=1.5cm,
+]{geometry}
+\usepackage[slovak]{babel}
+\usepackage[T1]{fontenc}
+
+\setlength\parskip{1em}
+\setlength\parindent{0pt}
+
+\usepackage{tabularx}
+\usepackage[hidelinks]{hyperref}
+
+\def\variant{vv-BVS}
+\def\repo{https://github.com/TekMike365/ifj26c.git}
+\def\extensions{}
+
+\begin{document}
+  \begin{titlepage}
+    \vspace*{40mm}
+
+    \centering \Huge
+    \textbf{Dokumentácia \texttt{ifj26c}}
+    \vspace{1.25em}
+
+    \centering \Large
+    \begin{tabularx}{\textwidth}{||r X}
+           Varianta: &\variant \\
+      Git repozitár: &\repo \\
+         Rozšírenia: &\extensions \\
+    \end{tabularx}
+
+    \vfill
+
+    \raggedleft \Large
+    \begin{tabular}{l l r|r}
+      \hline\hline
+                       &           &       & body [\%] \\
+      Sklenka Michael, &xsklenm00, &281936 & 25 \\
+      Makuka Dominik,  &xmakukd00, &281937 & 25 \\
+
+      \bfseries Dedič Ondrej, &\bfseries xdedico00, &\bfseries 282358
+      & \bfseries 25 \\
+
+      Blšták Richard,  &xblstar00, &282097 & 25 \\
+    \end{tabular}
+  \end{titlepage}
+
+  \tableofcontents
+  \newpage
+
+  \section{Rozdelenie prác}
+  % stručný popis rozdělení práce mezi členy týmu (uveďte výčtem nebo několika
+  % větami, kdo a jak se podílel na jednotlivých částech projektu; povinně
+  % zdůvodněte odchylky od rovnoměrného rozdělení bodů);
+
+  \section{Spolupráca a kvalita kódu}
+  % stručný popis způsobu spolupráce, kultury code review a schvalování PR (max.
+  % jednotky vět či odrážek); stručný popis využitých forem testování (max.
+  % jednotky vět či odrážek); zvolený styl formátování kódu;
+
+  Spolupráca je organizovaná primárne skrz \textit{discord skupinu}
+  (komunikácia) a \textit{trello board} (rozdelenie úloh).
+
+  Každý modul musí začínať hlavičkou:
+
+  \begin{verbatim}
+    /* Implementace překladače imperativního jazyka IFJ26.
+     * Author[s]: Full Name <xlogin>
+     *            Full Name <xlogin>
+     */
+  \end{verbatim}
+
+  \subsection{Repozitár}
+
+  Pravidlá pomenovávanie commitov sú založené na \textit{Conventional
+  Commits}\footnotemark.
+  \footnotetext{https://www.conventionalcommits.org/en/v1.0.0/\#summary}
+
+  Pravidlá pracovania s vetvami v repozitári sú:
+  \begin{itemize}
+    \item Vetva \textbf{master} je svätá a nesmie sa modifikovať inak ako skrz
+      \textit{PR}. \textit{master} nemá konkrétneho správcu.
+    \item \textbf{PR} musia byť schválené aspoň jedným (1) ďalším členom tímu
+      iným ako vlastníkom \textit{PR} a všetky poznámky musia byť vyriešené.
+    \item Každá vetva (okrem vetvy \textit{master}) musí byť \textit{prefixovaná
+      xloginom} člena tímu ktorý ju vytvoril. Tento člen sa stáva jej správcom.
+    \item Kontribúcia do vetiev (okrem vetvy \textit{master}) je určená jej
+      správcom. Preferuje sa kontribúcia skrz \textit{PR}.
+  \end{itemize}
+
+  Pod skratkou \textit{PR} sa rozumie \textit{Pull Request}.
+
+  \subsection{Formátovanie a konvencie pomenovávania}
+
+  Kód je formátovaný odporúčaným programom \texttt{clang-format} so štýlom
+  \texttt{-{}-style=LLVM} zvoleným arbitrárne. Štýl je nastavený skrz súbor
+  \texttt{.clang-format}.
+
+  Konvencie pomenovávania sú znázornené v kóde nižšie. Konvencie boli zvolené
+  kvôli ľahkému rozoznávaniu funkcií, premenných a ich rozsahu, makier, typov,
+  ap.
+
+  \begin{verbatim}
+    #define NICE_NUMBER 69
+    #define MAKE_NICE(x) x##69
+
+    /* Comment */
+    // Or Comment
+
+    typedef int NewType_t;
+
+    int g_globalVariable;
+    static int m_memberVariable;
+
+    enum { ENUM_VALUE, };
+
+    void SomeFunction(void) {
+      static int s_staticVariable;
+      int variableName;
+    }
+
+    /* if for some reason we need a namespace */
+    void Namespace_SomeNamespaceFunction(void);
+
+    // When in doubt, use 'cammelCase'.
+  \end{verbatim}
+
+  \section{Architektúra}
+  % blokové schéma architektury vašeho řešení, které bude obsahovat jednotlivé
+  % moduly překla- dače (např. lexikální, syntaktická, sémantická analýza atp.)
+  % a musí zobrazovat i datové toky mezi jednotlivými komponentami –
+  % specifikujte, v jakých strukturách (např. tokeny, AST, me- zikód) si
+  % komponenty předávají informace. Z diagramu a jeho textového popisu musí být
+  % jasné vstupy, výstupy, význam komponent a jejich propojení;
+
+  \section{Lexikálny analyzátor}
+  % diagram automatu, který specifikuje lexikální analyzátor (podle konvencí
+  % přednášených v IFJ; s případným slovním popisem odchylek od standardního
+  % modelu konečného automatu);
+
+  \section{Syntaktický analyzátor}
+  % LL gramatiku a z ní vycházející LL tabulku; a precedenční tabulku, podle
+  % kterých jste imple- mentovali syntaktický analyzátor;
+
+  \section{Moduly}
+  % stručný popis každého modulu (informačně obhacující věta na dvojici .c/.h);
+
+  % TODO: bibliography
+  % bibliografické citace všech převzatých zdrojů (vč. kódu, algoritmů);
+
+  \section{Využitie AI}
+  % popis využití prostředků AI (viz sekci 4 v zadaní).
+
+\end{document}
