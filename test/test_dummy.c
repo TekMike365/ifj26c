@@ -3,12 +3,8 @@
  */
 
 #include "test_framework.h"
-#include "tests.h" // contains tests declarations
 
 // THESE ARE JUST FOR ILLUSTRATION
-// REAL TEST SHOULD BE DECLARED IN tests.h
-// AND DEFINED IN A SEPARATE SOURCE FILE
-// (i.e. dummy_pass.c)
 void DummyPass(void) { ASSERT_TRUE(1); }
 void DummyFail(void) { ASSERT_TRUE(0); }
 void TestIntEq(void) { ASSERT_INT_EQ(2, 3); }
