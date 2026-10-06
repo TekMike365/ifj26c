@@ -2,20 +2,25 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
-#ifndef TEST_FRAMEWORK_H
-#define TEST_FRAMEWORK_H
+#ifndef TESTER_H
+#define TESTER_H
 
 #include <stdio.h>
 #include <string.h>
 
 // these are used to increment test status
-static int m_testsPassed = 0;
-static int m_testsFailed = 0;
-static int m_testsTotal = 0;
+extern int m_testsPassed;
+extern int m_testsFailed;
+extern int m_testsTotal;
 
 // signals whether current test failed
 // ASSERT macros change its value to 1 on FAIL
-static int m_currentFailed = 0;
+extern int m_currentFailed;
+
+// runs a unit test
+void RunTest(void (*TestFunc)(void), char *testName);
+
+void PrintSummary(void);
 
 // assert that the expression expr is true
 #define ASSERT_TRUE(expr)                                                      \
@@ -59,29 +64,5 @@ static int m_currentFailed = 0;
       return;                                                                  \
     }                                                                          \
   } while (0)
-
-// call a unit test function TestFunc
-// update test status variables
-void RunTest(void (*TestFunc)(void), char *testName) {
-  m_currentFailed = 0; // reset for a new test
-  m_testsTotal++;
-
-  TestFunc(); // call unit test function
-
-  if (m_currentFailed == 1) {
-    m_testsFailed++;
-  } else {
-    m_testsPassed++;
-    printf("[PASS] %s\n", testName);
-  }
-}
-
-void PrintSummary(void) {
-  printf("\n==========TESTS FINISHED==========\n");
-
-  printf("PASSED: %d\n", m_testsPassed);
-  printf("FAILED: %d\n", m_testsFailed);
-  printf("TOTAL:  %d\n", m_testsTotal);
-}
 
 #endif
