@@ -10,7 +10,7 @@ SRCDIR	:= src
 
 # Target
 TARGET	:= ifj26c
-SRCS	:= $(wildcard $(SRCDIR)/*)
+SRCS	:= $(wildcard $(SRCDIR)/*.c)
 OBJS	:= $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 DEPS	:= $(SRCS:$(SRCDIR)/%.c=$(OBJDIR)/%.d)
 
