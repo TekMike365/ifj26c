@@ -2,7 +2,7 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
-#include "test_framework.h"
+#include "tester.h"
 
 // THESE ARE JUST FOR ILLUSTRATION
 void DummyPass(void) { ASSERT_TRUE(1); }
