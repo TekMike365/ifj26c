@@ -50,26 +50,27 @@ format: $(shell find . -regex ".*\.[ch]")
 test: $(TEST_TARGETS)
 	@for test in $^; do ./$$test; done
 
+
 # Target rules
 $(TARGET): $(OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 $(OBJDIR_SRC)/%.o: $(SRCDIR)/%.c | $(OBJDIR_SRC)
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) -c $(CFLAGS) $< -o $@	
 
-$(OBJDIR_SRC):
-	mkdir -p $@
-	
 
 # Test target rules
-$(OBJDIR)/%: $(OBJDIR_TEST)/%.o $(TESTER_OBJ) $(LIB_OBJS)
+
+# Static pattern rule to 
+# prevent make from auto-deleting test objs
+$(TEST_TARGETS): $(OBJDIR)/%: $(OBJDIR_TEST)/%.o $(TESTER_OBJ) $(LIB_OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 
 $(OBJDIR_TEST)/%.o: $(TESTDIR)/%.c | $(OBJDIR_TEST)
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(OBJDIR_TEST):
+$(OBJDIR_SRC) $(OBJDIR_TEST):
 	mkdir -p $@
 
 -include $(DEPS) $(TEST_DEPS) $(TESTER_DEP)
