@@ -12,7 +12,7 @@ void TestNull(void) { ASSERT_NOT_NULL(NULL); }
 void TestStrEq(void) { ASSERT_STR_EQ("ab", "ab"); }
 
 int main(void) {
-  printf("\n==========RUNNING TESTS==========\n");
+  printf("\n========== RUNNING TEST SUITE ==========\n");
 
   RunTest(DummyPass, "dummy pass");
   RunTest(DummyFail, "dummy fail");

@@ -30,7 +30,7 @@ void RunTest(void (*TestFunc)(void), const char *testName) {
 }
 
 void PrintSummary(void) {
-  printf("\n==========TESTS FINISHED==========\n");
+  printf("\n========== SUITE FINISHED ==========\n");
 
   printf("PASSED: %d\n", g_testsPassed);
   printf("FAILED: %d\n", g_testsFailed);
