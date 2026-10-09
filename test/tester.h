@@ -17,8 +17,11 @@ extern int g_testsTotal;
 // ASSERT macros change its value to 1 on FAIL
 extern int g_currentFailed;
 
-// runs a unit test
+// call a unit test function TestFunc
 void RunTest(void (*TestFunc)(void), const char *testName);
+
+// print RUNNING SUITE: testName
+void SuiteInit(const char *testName);
 
 void PrintSummary(void);
 

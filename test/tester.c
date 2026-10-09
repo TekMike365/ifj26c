@@ -3,6 +3,7 @@
  */
 
 #include "tester.h"
+#include <stdio.h>
 
 // these are used to increment test status
 int g_testsPassed = 0;
@@ -29,8 +30,12 @@ void RunTest(void (*TestFunc)(void), const char *testName) {
   }
 }
 
+void SuiteInit(const char *testName) {
+  printf("\n========== RUNNING TEST SUITE: %s ==========\n", testName);
+}
+
 void PrintSummary(void) {
-  printf("\n========== SUITE FINISHED ==========\n");
+  puts("\n========== SUITE FINISHED ==========\n");
 
   printf("PASSED: %d\n", g_testsPassed);
   printf("FAILED: %d\n", g_testsFailed);
