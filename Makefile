@@ -46,9 +46,12 @@ debug: $(TARGET)
 format: $(shell find . -regex ".*\.[ch]")
 	clang-format -i $^
 
+.PHONY: build-tests
+build-tests: $(TEST_TARGETS)
+
 .PHONY: test
-test: $(TEST_TARGETS)
-	@for test in $^; do ./$$test; done
+test: build-tests
+	@for test in $(TEST_TARGETS); do ./$$test; done
 
 
 # Target rules
