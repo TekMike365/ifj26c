@@ -1,7 +1,7 @@
 # General
 CC	:= gcc
 CFLAGS	:= -std=c11 -pedantic -Wall -Wextra -MMD -MP -O2
-CDFLAGS	:= -g -O0
+CDFLAGS	:= -g -O0 -DDEBUG
 LDFLAGS	:=
 LDLIBS	:=
 
