@@ -66,7 +66,7 @@ $(OBJDIR_SRC)/%.o: $(SRCDIR)/%.c | $(OBJDIR_SRC)
 
 # Static pattern rule to 
 # prevent make from auto-deleting test objs
-$(TEST_TARGETS): $(OBJDIR)/%: $(OBJDIR_TEST)/%.o $(TESTER_OBJ) $(LIB_OBJS)
+$(OBJDIR)/%: $(OBJDIR_TEST)/%.o $(TESTER_OBJ) $(LIB_OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 
