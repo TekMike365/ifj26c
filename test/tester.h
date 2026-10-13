@@ -29,7 +29,7 @@ void PrintSummary(void);
 #define ASSERT_TRUE(expr)                                                      \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      printf("[FAIL] %s, %d: Expected TRUE for %s\n", __FILE__, __LINE__,      \
+      printf("[FAIL] %s, %d: Expected TRUE for '%s'\n", __FILE__, __LINE__,    \
              #expr);                                                           \
       g_currentFailed = 1;                                                     \
       return;                                                                  \
@@ -40,7 +40,7 @@ void PrintSummary(void);
 #define ASSERT_INT_EQ(val, ref)                                                \
   do {                                                                         \
     if ((val) != (ref)) {                                                      \
-      printf("[FAIL] %s, %d: Expected %s (%d) equal %s (%d)\n", __FILE__,      \
+      printf("[FAIL] %s, %d: Expected '%s' (%d) equal '%s' (%d)\n", __FILE__,  \
              __LINE__, #val, (val), #ref, (ref));                              \
       g_currentFailed = 1;                                                     \
       return;                                                                  \
@@ -51,7 +51,7 @@ void PrintSummary(void);
 #define ASSERT_STR_EQ(str, ref)                                                \
   do {                                                                         \
     if (strcmp((str), (ref)) != 0) {                                           \
-      printf("[FAIL] %s, %d: Expected %s (%s) match %s (%s)\n", __FILE__,      \
+      printf("[FAIL] %s, %d: Expected '%s' (%s) match '%s' (%s)\n", __FILE__,  \
              __LINE__, #str, (str), #ref, (ref));                              \
       g_currentFailed = 1;                                                     \
       return;                                                                  \
@@ -62,7 +62,8 @@ void PrintSummary(void);
 #define ASSERT_NOT_NULL(ptr)                                                   \
   do {                                                                         \
     if ((ptr) == NULL) {                                                       \
-      printf("[FAIL] %s, %d: Pointer %s is NULL\n", __FILE__, __LINE__, #ptr); \
+      printf("[FAIL] %s, %d: Pointer '%s' is NULL\n", __FILE__, __LINE__,      \
+             #ptr);                                                            \
       g_currentFailed = 1;                                                     \
       return;                                                                  \
     }                                                                          \

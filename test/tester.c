@@ -19,6 +19,7 @@ int g_currentFailed = 0;
 void RunTest(void (*TestFunc)(void), const char *testName) {
   g_currentFailed = 0; // reset for a new test
   g_testsTotal++;
+  printf("%s: ", testName);
 
   TestFunc(); // call unit test function
 
@@ -26,7 +27,7 @@ void RunTest(void (*TestFunc)(void), const char *testName) {
     g_testsFailed++;
   } else {
     g_testsPassed++;
-    printf("[PASS] %s\n", testName);
+    printf("[PASS]\n");
   }
 }
 
