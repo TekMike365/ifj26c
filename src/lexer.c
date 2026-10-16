@@ -14,30 +14,27 @@
  */
 
 // ASCII chars grouped into types for mapping
-#define X_CHAR_TYPE(X)                                                         \
-  X(CHAR_ALPHA)                                                                \
-  X(CHAR_NUM)                                                                  \
-  X(CHAR_EQ)                                                                   \
-  X(CHAR_GREATER)                                                              \
-  X(CHAR_LESS)                                                                 \
-  X(CHAR_LPAR)                                                                 \
-  X(CHAR_RPAR)                                                                 \
-  X(CHAR_PLUS)                                                                 \
-  X(CHAR_MINUS)                                                                \
-  X(CHAR_STAR)                                                                 \
-  X(CHAR_SLASH)                                                                \
-  X(CHAR_DOT)                                                                  \
-  X(CHAR_UNDERSCORE)                                                           \
-  X(CHAR_QUOTE)                                                                \
-  X(CHAR_WHITESPACE)                                                           \
-  X(CHAR_NULL)                                                                 \
-  X(CHAR_NEWLINE)                                                              \
-  X(CHAR_OTHER)                                                                \
-  X(CHAR_TYPE_CNT)
-
-#define X(type) type,
-typedef enum { X_CHAR_TYPE(X) } CharType_t;
-#undef X
+typedef enum {
+  CHAR_ALPHA,
+  CHAR_NUM,
+  CHAR_EQ,
+  CHAR_GREATER,
+  CHAR_LESS,
+  CHAR_LPAR,
+  CHAR_RPAR,
+  CHAR_PLUS,
+  CHAR_MINUS,
+  CHAR_STAR,
+  CHAR_SLASH,
+  CHAR_DOT,
+  CHAR_UNDERSCORE,
+  CHAR_QUOTE,
+  CHAR_WHITESPACE,
+  CHAR_NULL,
+  CHAR_NEWLINE,
+  CHAR_OTHER,
+  CHAR_TYPE_CNT
+} CharType_t;
 
 #define ASCII_LENGTH 256
 
@@ -100,45 +97,42 @@ static inline CharType_t MapChar(unsigned char c) { return m_ASCIIMap[c]; }
  * String/Multiline s. -> STATE_QUOTE
  *
  */
-#define X_STATE(X)                                                             \
-  X(STATE_END)                                                                 \
-  X(STATE_ERROR)                                                               \
-  X(STATE_START)                                                               \
-  X(STATE_IDENTIFIER)                                                          \
-  X(STATE_LPAR)                                                                \
-  X(STATE_RPAR)                                                                \
-  X(STATE_EQ)                                                                  \
-  X(STATE_DOUBLE_EQ)                                                           \
-  X(STATE_GREATER)                                                             \
-  X(STATE_GREATER_EQ)                                                          \
-  X(STATE_LESS)                                                                \
-  X(STATE_LESS_EQ)                                                             \
-  X(STATE_STAR)                                                                \
-  X(STATE_PLUS)                                                                \
-  X(STATE_MINUS)                                                               \
-  X(STATE_SLASH)                                                               \
-  X(STATE_COMMENT)                                                             \
-  X(STATE_BLOCK_COMMENT)                                                       \
-  X(STATE_DOT)                                                                 \
-  X(STATE_INT)                                                                 \
-  X(STATE_INT_UNDERSCORE)                                                      \
-  X(STATE_START_EXPONENT)                                                      \
-  X(STATE_SIGN)                                                                \
-  X(STATE_EXPONENT)                                                            \
-  X(STATE_EXPONENT_UNDERSCORE)                                                 \
-  X(STATE_START_DOUBLE)                                                        \
-  X(STATE_DOUBLE)                                                              \
-  X(STATE_DOUBLE_UNDERSCORE)                                                   \
-  X(STATE_END_DOUBLE)                                                          \
-  X(STATE_QUOTE)                                                               \
-  X(STATE_ESCAPE)                                                              \
-  X(STATE_STRING)                                                              \
-  X(STATE_END_STRING)                                                          \
-  X(STATE_CNT)
-
-#define X(state) state,
-typedef enum { X_STATE(X) } State_t;
-#undef X
+typedef enum {
+  STATE_END,
+  STATE_ERROR,
+  STATE_START,
+  STATE_IDENTIFIER,
+  STATE_LPAR,
+  STATE_RPAR,
+  STATE_EQ,
+  STATE_DOUBLE_EQ,
+  STATE_GREATER,
+  STATE_GREATER_EQ,
+  STATE_LESS,
+  STATE_LESS_EQ,
+  STATE_STAR,
+  STATE_PLUS,
+  STATE_MINUS,
+  STATE_SLASH,
+  STATE_COMMENT,
+  STATE_BLOCK_COMMENT,
+  STATE_DOT,
+  STATE_INT,
+  STATE_INT_UNDERSCORE,
+  STATE_START_EXPONENT,
+  STATE_SIGN,
+  STATE_EXPONENT,
+  STATE_EXPONENT_UNDERSCORE,
+  STATE_START_DOUBLE,
+  STATE_DOUBLE,
+  STATE_DOUBLE_UNDERSCORE,
+  STATE_END_DOUBLE,
+  STATE_QUOTE,
+  STATE_ESCAPE,
+  STATE_STRING,
+  STATE_END_STRING,
+  STATE_CNT
+} State_t;
 
 // FSM transitions: (current, char type, next)
 #define X_TRANSITION(X)                                                        \
