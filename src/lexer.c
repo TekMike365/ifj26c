@@ -51,7 +51,7 @@ typedef struct {
 } CharRange_t;
 
 /** global map which maps char to CharType_t
- *  i.e. m_ASCIIMap[char c] = CharType_t of c
+ *  i.e. m_ASCIIMap[unsigned char c] = CharType_t of c
  */
 static CharType_t m_ASCIIMap[ASCII_LENGTH];
 
@@ -64,7 +64,7 @@ static void ASCIIMapInit(void) {
 
   // define types for ranges
   CharRange_t ranges[] = {
-      {'a', 'z', CHAR_ALPHA},        {'A', 'z', CHAR_ALPHA},
+      {'a', 'z', CHAR_ALPHA},        {'A', 'Z', CHAR_ALPHA},
       {'0', '9', CHAR_NUM},          {'=', '=', CHAR_EQ},
       {'>', '>', CHAR_GREATER},      {'<', '<', CHAR_LESS},
       {'.', '.', CHAR_DOT},          {'_', '_', CHAR_UNDERSCORE},
@@ -88,7 +88,7 @@ static void ASCIIMapInit(void) {
 }
 
 /*
-static inline CharType_t MapChar(char c) { return m_ASCIIMap[c]; }
+static inline CharType_t MapChar(unsigned char c) { return m_ASCIIMap[c]; }
 */
 
 // FSM states
