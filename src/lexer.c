@@ -53,9 +53,7 @@ typedef struct {
 /** global map which maps char to CharType_t
  *  i.e. m_ASCIIMap[char c] = CharType_t of c
  */
-/* not used yet - error
 static CharType_t m_ASCIIMap[ASCII_LENGTH];
-
 
 // populates the ASCIIMap with corresponding types
 static void ASCIIMapInit(void) {
@@ -88,6 +86,9 @@ static void ASCIIMapInit(void) {
     }
   }
 }
+
+/*
+static inline CharType_t MapChar(char c) { return m_ASCIIMap[c]; }
 */
 
 // FSM states
@@ -160,14 +161,22 @@ typedef enum { X_STATE(X) } State_t;
   X(STATE_GREATER, CHAR_EQ, STATE_GREATER_EQ)                                  \
   X(STATE_LESS, CHAR_EQ, STATE_LESS_EQ)
 
-/* so far not used - error
 static State_t m_transitionTable[STATE_CNT][CHAR_TYPE_CNT] = {STATE_END};
 
-static void m_transitionTableInit(void) {
+static void TransitionTableInit(void) {
+  // initially set all states to STATE_END
   for (int idx = 0; idx < STATE_CNT; idx++) {
     for (int idy = 0; idy < CHAR_TYPE_CNT; idy++) {
+      // except for STATE_START
+      // because unexpected character -> no known token start
+      // -> error
       if (idx == STATE_START) {
         m_transitionTable[idx][idy] = STATE_ERROR;
+      }
+      // STATE_COMMENT
+      // everything is a comment until CHAR_QUOTE
+      else if (idx == STATE_COMMENT) {
+        m_transitionTable[idx][idy] = STATE_COMMENT;
       } else {
         m_transitionTable[idx][idy] = STATE_END;
       }
@@ -178,4 +187,20 @@ static void m_transitionTableInit(void) {
   X_TRANSITION(X)
 #undef X
 }
-*/
+
+/** initialize a lexer struct
+ * lexer - pointer to a lexer struct
+ * src - pointer to buffer to scan
+ */
+void LexerInit(Lexer_t *lexer, const char *src) {
+  if (!lexer) {
+    return;
+  }
+  lexer->source = src;
+  lexer->offset = 0;
+  lexer->line = 1; // first line
+
+  // initialize the map and transition table
+  ASCIIMapInit();
+  TransitionTableInit();
+}
