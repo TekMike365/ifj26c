@@ -7,6 +7,10 @@
 /**TODO:
  * e, E, d, D need separate type (letter v exponent/double)
  * change in state transitions therefore needed
+ * transition table init to STATE_END
+ * next state after STATE_START to STATE_ERROR, then overwrite
+ * next state after STATE_COMMENT is COMMENT except upon CHAR_QUOTE
+ * STATE_COMMENT needs separate handling
  */
 
 // ASCII chars grouped into types for mapping
@@ -29,18 +33,13 @@
   X(CHAR_NULL)                                                                 \
   X(CHAR_NEWLINE)                                                              \
   X(CHAR_OTHER)                                                                \
-  X(CHAR_TOTAL)
+  X(CHAR_TYPE_CNT)
 
 #define X(type) type,
 typedef enum { X_CHAR_TYPE(X) } CharType_t;
 #undef X
 
 #define ASCII_LENGTH 256
-
-/** global map which maps char to CharType_t
- *  i.e. m_ASCIIMap[char c] = CharType_t of c
- */
-static CharType_t m_ASCIIMap[ASCII_LENGTH];
 
 /* specifies a range of chars of type 'type'
  * i.e. start='a', end='z' specifies CHAR_ALPHA
@@ -50,6 +49,13 @@ typedef struct {
   unsigned char end;
   CharType_t type;
 } CharRange_t;
+
+/** global map which maps char to CharType_t
+ *  i.e. m_ASCIIMap[char c] = CharType_t of c
+ */
+/* not used yet - error
+static CharType_t m_ASCIIMap[ASCII_LENGTH];
+
 
 // populates the ASCIIMap with corresponding types
 static void ASCIIMapInit(void) {
@@ -73,7 +79,7 @@ static void ASCIIMapInit(void) {
       {'\r', '\r', CHAR_WHITESPACE}};
 
   // for each range
-  for (int typeCnt = 0; typeCnt < CHAR_TOTAL; typeCnt++) {
+  for (int typeCnt = 0; typeCnt < CHAR_TYPE_CNT; typeCnt++) {
     // for each char in that range
     for (unsigned char idx = ranges[typeCnt].start; idx <= ranges[typeCnt].end;
          idx++) {
@@ -82,6 +88,7 @@ static void ASCIIMapInit(void) {
     }
   }
 }
+*/
 
 // FSM states
 // MISSING: MULTILINE STRING, COMMENT not complete
@@ -97,8 +104,8 @@ static void ASCIIMapInit(void) {
   X(STATE_ERROR)                                                               \
   X(STATE_START)                                                               \
   X(STATE_IDENTIFIER)                                                          \
-  X(STATE_LPAREN)                                                              \
-  X(STATE_RPAREN)                                                              \
+  X(STATE_LPAR)                                                                \
+  X(STATE_RPAR)                                                                \
   X(STATE_EQ)                                                                  \
   X(STATE_DOUBLE_EQ)                                                           \
   X(STATE_GREATER)                                                             \
@@ -125,8 +132,50 @@ static void ASCIIMapInit(void) {
   X(STATE_QUOTE)                                                               \
   X(STATE_ESCAPE)                                                              \
   X(STATE_STRING)                                                              \
-  X(STATE_END_STRING)
+  X(STATE_END_STRING)                                                          \
+  X(STATE_CNT)
 
 #define X(state) state,
 typedef enum { X_STATE(X) } State_t;
 #undef X
+
+// FSM transitions: (current, char type, next)
+#define X_TRANSITION(X)                                                        \
+  X(STATE_START, CHAR_ALPHA, STATE_IDENTIFIER)                                 \
+  X(STATE_START, CHAR_LPAR, STATE_LPAR)                                        \
+  X(STATE_START, CHAR_RPAR, STATE_RPAR)                                        \
+  X(STATE_START, CHAR_EQ, STATE_EQ)                                            \
+  X(STATE_START, CHAR_GREATER, STATE_GREATER)                                  \
+  X(STATE_START, CHAR_LESS, STATE_LESS)                                        \
+  X(STATE_START, CHAR_STAR, STATE_STAR)                                        \
+  X(STATE_START, CHAR_PLUS, STATE_PLUS)                                        \
+  X(STATE_START, CHAR_MINUS, STATE_MINUS)                                      \
+  X(STATE_START, CHAR_SLASH, STATE_SLASH)                                      \
+  X(STATE_START, CHAR_NUM, STATE_INT)                                          \
+  X(STATE_START, CHAR_QUOTE, STATE_QUOTE)                                      \
+  X(STATE_START, CHAR_DOT, STATE_DOT)                                          \
+  X(STATE_IDENTIFIER, CHAR_ALPHA, STATE_IDENTIFIER)                            \
+  X(STATE_IDENTIFIER, CHAR_NUM, STATE_IDENTIFIER)                              \
+  X(STATE_EQ, CHAR_EQ, STATE_DOUBLE_EQ)                                        \
+  X(STATE_GREATER, CHAR_EQ, STATE_GREATER_EQ)                                  \
+  X(STATE_LESS, CHAR_EQ, STATE_LESS_EQ)
+
+/* so far not used - error
+static State_t transitionTable[STATE_CNT][CHAR_TYPE_CNT] = {STATE_END};
+
+static void transitionTableInit(void) {
+  for (int idx = 0; idx < STATE_CNT; idx++) {
+    for (int idy = 0; idy < CHAR_TYPE_CNT; idy++) {
+      if (idx == STATE_START) {
+        transitionTable[idx][idy] = STATE_ERROR;
+      } else {
+        transitionTable[idx][idy] = STATE_END;
+      }
+    }
+  }
+
+#define X(curr, ch, next) transitionTable[curr][ch] = next;
+  X_TRANSITION(X)
+#undef X
+}
+*/
