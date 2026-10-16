@@ -73,12 +73,12 @@ static void ASCIIMapInit(void) {
       {'\r', '\r', CHAR_WHITESPACE}};
 
   // for each range
-  for (int type_cnt = 0; type_cnt < CHAR_TOTAL; type_cnt++) {
+  for (int typeCnt = 0; typeCnt < CHAR_TOTAL; typeCnt++) {
     // for each char in that range
-    for (unsigned char idx = ranges[type_cnt].start;
-         idx <= ranges[type_cnt].end; idx++) {
+    for (unsigned char idx = ranges[typeCnt].start; idx <= ranges[typeCnt].end;
+         idx++) {
       // overwrite CHAR_OTHER with the specified type
-      m_ASCIIMap[idx] = ranges[type_cnt].type;
+      m_ASCIIMap[idx] = ranges[typeCnt].type;
     }
   }
 }
