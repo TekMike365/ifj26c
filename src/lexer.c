@@ -161,20 +161,20 @@ typedef enum { X_STATE(X) } State_t;
   X(STATE_LESS, CHAR_EQ, STATE_LESS_EQ)
 
 /* so far not used - error
-static State_t transitionTable[STATE_CNT][CHAR_TYPE_CNT] = {STATE_END};
+static State_t m_transitionTable[STATE_CNT][CHAR_TYPE_CNT] = {STATE_END};
 
-static void transitionTableInit(void) {
+static void m_transitionTableInit(void) {
   for (int idx = 0; idx < STATE_CNT; idx++) {
     for (int idy = 0; idy < CHAR_TYPE_CNT; idy++) {
       if (idx == STATE_START) {
-        transitionTable[idx][idy] = STATE_ERROR;
+        m_transitionTable[idx][idy] = STATE_ERROR;
       } else {
-        transitionTable[idx][idy] = STATE_END;
+        m_transitionTable[idx][idy] = STATE_END;
       }
     }
   }
 
-#define X(curr, ch, next) transitionTable[curr][ch] = next;
+#define X(curr, ch, next) m_transitionTable[curr][ch] = next;
   X_TRANSITION(X)
 #undef X
 }
