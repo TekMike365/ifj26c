@@ -10,24 +10,25 @@
 typedef enum {
   TOKEN_IDENTIFIER,
   TOKEN_KEYWORD,
-  TOKEN_OPERATOR
+  TOKEN_OPERATOR,
+  TOKEN_ERROR
 
 } TokenType_t;
 
 typedef struct {
-  const char *start;
+  char *start;
   size_t len;
   size_t line;
   TokenType_t type;
 } Token_t;
 
 typedef struct {
-  const char *source; // points at buffer start
-  size_t offset;      // offset in that buffer
-  size_t line;        // counts newlines
+  char *source;  // points at buffer start
+  size_t offset; // offset in that buffer
+  size_t line;   // counts newlines
 } Lexer_t;
 
-void LexerInit(Lexer_t *lexer, const char *src);
+void LexerInit(Lexer_t *lexer, char *src);
 
 Token_t NextToken(Lexer_t *lexer);
 
