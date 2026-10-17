@@ -17,7 +17,11 @@ typedef enum {
 } TokenType_t;
 
 typedef struct {
-  char *start; // TODO: change to union
+  union {
+    int lexemeI;
+    double lexemeD;
+    char *lexemeS;
+  };
   size_t len;
   size_t line;
   TokenType_t type;

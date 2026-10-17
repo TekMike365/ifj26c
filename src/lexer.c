@@ -256,6 +256,7 @@ void LexerInit(Lexer_t *lexer, char *src) {
 
 /** TODO
  * count newlines
+ * string pool
  * map: STATE -> TOKEN TYPE ???
  */
 Token_t NextToken(Lexer_t *lexer) {
