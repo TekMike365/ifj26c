@@ -220,8 +220,8 @@ static void TransitionTableInit(void) {
       // same for multiline string
       // all CHARS default to MULTILINE_STR except on '"'
       // CHAR_QUOTE handled in transitions macro
-      else if (idx == STATE_MULTILINE_STR || STATE_END_QUOTE ||
-               STATE_END_DQUOTE) {
+      else if (idx == STATE_MULTILINE_STR || idx == STATE_END_QUOTE ||
+               idx == STATE_END_DQUOTE) {
         m_transitionTable[idx][idy] = STATE_MULTILINE_STR;
       } else {
         m_transitionTable[idx][idy] = STATE_END;
