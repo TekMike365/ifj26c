@@ -3,6 +3,7 @@
  */
 
 #include "lexer.h"
+#include <assert.h>
 
 /**TODO:
  * e, E, d, D need separate type (letter v exponent/double)
@@ -26,6 +27,7 @@ typedef enum {
   CHAR_MINUS,
   CHAR_STAR,
   CHAR_SLASH,
+  CHAR_BACKSLASH,
   CHAR_DOT,
   CHAR_UNDERSCORE,
   CHAR_QUOTE,
@@ -68,10 +70,10 @@ static void ASCIIMapInit(void) {
       {'"', '"', CHAR_QUOTE},        {'(', '(', CHAR_LPAR},
       {')', ')', CHAR_RPAR},         {'+', '+', CHAR_PLUS},
       {'-', '-', CHAR_MINUS},        {'*', '*', CHAR_STAR},
-      {'/', '/', CHAR_SLASH},        {'\0', '\0', CHAR_NULL},
-      {'\n', '\n', CHAR_NEWLINE},    {' ', ' ', CHAR_WHITESPACE},
-      {'\t', '\t', CHAR_WHITESPACE}, {'\v', '\v', CHAR_WHITESPACE},
-      {'\r', '\r', CHAR_WHITESPACE}};
+      {'/', '/', CHAR_SLASH},        {'\\', '\\', CHAR_BACKSLASH},
+      {'\0', '\0', CHAR_NULL},       {'\n', '\n', CHAR_NEWLINE},
+      {' ', ' ', CHAR_WHITESPACE},   {'\t', '\t', CHAR_WHITESPACE},
+      {'\v', '\v', CHAR_WHITESPACE}, {'\r', '\r', CHAR_WHITESPACE}};
 
   // for each range
   for (int typeCnt = 0; typeCnt < CHAR_TYPE_CNT; typeCnt++) {
@@ -131,12 +133,18 @@ typedef enum {
   STATE_ESCAPE,
   STATE_STRING,
   STATE_END_STRING,
+  STATE_DQUOTE, // double quote
+  STATE_MULTILINE_STR,
+  STATE_END_QUOTE,
+  STATE_END_DQUOTE,
+  STATE_END_MULTILINE_STR,
   STATE_CNT
 } State_t;
 
 // FSM transitions: (current, char type, next)
-#define X_TRANSITION(X)                                                        \
+#define X_TRANSITIONS(X)                                                       \
   X(STATE_START, CHAR_ALPHA, STATE_IDENTIFIER)                                 \
+  X(STATE_START, CHAR_UNDERSCORE, STATE_IDENTIFIER)                            \
   X(STATE_START, CHAR_LPAR, STATE_LPAR)                                        \
   X(STATE_START, CHAR_RPAR, STATE_RPAR)                                        \
   X(STATE_START, CHAR_EQ, STATE_EQ)                                            \
@@ -149,11 +157,44 @@ typedef enum {
   X(STATE_START, CHAR_NUM, STATE_INT)                                          \
   X(STATE_START, CHAR_QUOTE, STATE_QUOTE)                                      \
   X(STATE_START, CHAR_DOT, STATE_DOT)                                          \
+                                                                               \
   X(STATE_IDENTIFIER, CHAR_ALPHA, STATE_IDENTIFIER)                            \
+  X(STATE_IDENTIFIER, CHAR_UNDERSCORE, STATE_IDENTIFIER)                       \
   X(STATE_IDENTIFIER, CHAR_NUM, STATE_IDENTIFIER)                              \
+                                                                               \
   X(STATE_EQ, CHAR_EQ, STATE_DOUBLE_EQ)                                        \
   X(STATE_GREATER, CHAR_EQ, STATE_GREATER_EQ)                                  \
-  X(STATE_LESS, CHAR_EQ, STATE_LESS_EQ)
+  X(STATE_LESS, CHAR_EQ, STATE_LESS_EQ)                                        \
+                                                                               \
+  X(STATE_SLASH, CHAR_SLASH, STATE_COMMENT)                                    \
+  X(STATE_SLASH, CHAR_STAR, STATE_BLOCK_COMMENT)                               \
+                                                                               \
+  X(STATE_INT, CHAR_UNDERSCORE, STATE_INT_UNDERSCORE)                          \
+  X(STATE_INT, CHAR_DOT, STATE_START_DOUBLE)                                   \
+                                                                               \
+  X(STATE_DOT, CHAR_NUM, STATE_DOUBLE)                                         \
+                                                                               \
+  X(STATE_QUOTE, CHAR_QUOTE, STATE_DQUOTE)                                     \
+  X(STATE_QUOTE, CHAR_BACKSLASH, STATE_ESCAPE)                                 \
+                                                                               \
+  X(STATE_STRING, CHAR_QUOTE, STATE_END_STRING)                                \
+  X(STATE_STRING, CHAR_BACKSLASH, STATE_ESCAPE)                                \
+                                                                               \
+  X(STATE_START_EXPONENT, CHAR_PLUS, STATE_SIGN)                               \
+  X(STATE_START_EXPONENT, CHAR_MINUS, STATE_SIGN)                              \
+  X(STATE_START_EXPONENT, CHAR_NUM, STATE_EXPONENT)                            \
+                                                                               \
+  X(STATE_EXPONENT, CHAR_NUM, STATE_EXPONENT)                                  \
+  X(STATE_EXPONENT, CHAR_UNDERSCORE, STATE_EXPONENT_UNDERSCORE)                \
+  X(STATE_EXPONENT_UNDERSCORE, CHAR_NUM, STATE_EXPONENT)                       \
+                                                                               \
+  X(STATE_DOUBLE, CHAR_UNDERSCORE, STATE_DOUBLE_UNDERSCORE)                    \
+  X(STATE_DOUBLE_UNDERSCORE, CHAR_NUM, STATE_DOUBLE)                           \
+                                                                               \
+  X(STATE_DQUOTE, CHAR_QUOTE, STATE_MULTILINE_STR)                             \
+  X(STATE_MULTILINE_STR, CHAR_QUOTE, STATE_END_QUOTE)                          \
+  X(STATE_END_QUOTE, CHAR_QUOTE, STATE_END_DQUOTE)                             \
+  X(STATE_END_DQUOTE, CHAR_QUOTE, STATE_END_MULTILINE_STR)
 
 static State_t m_transitionTable[STATE_CNT][CHAR_TYPE_CNT] = {STATE_END};
 
@@ -167,10 +208,18 @@ static void TransitionTableInit(void) {
       if (idx == STATE_START) {
         m_transitionTable[idx][idy] = STATE_ERROR;
       }
-      // STATE_COMMENT
-      // everything is a comment until CHAR_QUOTE
-      else if (idx == STATE_COMMENT) {
-        m_transitionTable[idx][idy] = STATE_COMMENT;
+      // STATE_STRING
+      // all CHARS constitute the string except CHAR_QUOTE
+      // CHAR_QUOTE handled in transitions macro
+      else if (idx == STATE_STRING) {
+        m_transitionTable[idx][idy] = STATE_STRING;
+      }
+      // same for multiline string
+      // all CHARS default to MULTILINE_STR except on '"'
+      // CHAR_QUOTE handled in transitions macro
+      else if (idx == STATE_MULTILINE_STR || STATE_END_QUOTE ||
+               STATE_END_DQUOTE) {
+        m_transitionTable[idx][idy] = STATE_MULTILINE_STR;
       } else {
         m_transitionTable[idx][idy] = STATE_END;
       }
@@ -178,7 +227,7 @@ static void TransitionTableInit(void) {
   }
 
 #define X(curr, ch, next) m_transitionTable[curr][ch] = next;
-  X_TRANSITION(X)
+  X_TRANSITIONS(X)
 #undef X
 }
 
@@ -187,9 +236,8 @@ static void TransitionTableInit(void) {
  * src - pointer to buffer to scan
  */
 void LexerInit(Lexer_t *lexer, const char *src) {
-  if (!lexer) {
-    return;
-  }
+  assert(lexer != NULL);
+
   lexer->source = src;
   lexer->offset = 0;
   lexer->line = 1; // first line
