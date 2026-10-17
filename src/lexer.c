@@ -10,6 +10,8 @@
  * COMMENT - single line, block
  * HARD WITH FSM
  *
+ * START:WHITESPACE -> START?
+ *
  * all with e,E - exponent transitions
  * all with d,D - double markers
  * STATE_ESCAPE - handle escape sequences
