@@ -89,9 +89,7 @@ static void ASCIIMapInit(void) {
   }
 }
 
-/*
 static inline CharType_t MapChar(unsigned char c) { return m_ASCIIMap[c]; }
-*/
 
 // FSM states
 // MISSING: MULTILINE STRING, COMMENT not complete
@@ -234,11 +232,15 @@ static void TransitionTableInit(void) {
 #undef X
 }
 
+static inline State_t NextState(State_t curr, CharType_t type) {
+  return m_transitionTable[curr][type];
+}
+
 /** initialize a lexer struct
  * lexer - pointer to a lexer struct
  * src - pointer to buffer to scan
  */
-void LexerInit(Lexer_t *lexer, const char *src) {
+void LexerInit(Lexer_t *lexer, char *src) {
   assert(lexer != NULL);
 
   lexer->source = src;
@@ -248,4 +250,44 @@ void LexerInit(Lexer_t *lexer, const char *src) {
   // initialize the map and transition table
   ASCIIMapInit();
   TransitionTableInit();
+}
+
+/** TODO
+ * count newlines
+ * map: STATE -> TOKEN TYPE ???
+ */
+Token_t NextToken(Lexer_t *lexer) {
+
+  Token_t new = {.len = 0, .line = 1};
+
+  State_t current = STATE_START;
+  State_t next;
+
+  size_t read_cnt = 0;
+  char *cursor = lexer->source;
+
+  while (1) {
+    unsigned char c = *(cursor + read_cnt);
+    CharType_t type = MapChar(c);
+
+    next = NextState(current, type);
+    if (next == STATE_END) {
+      break;
+    }
+    current = next;
+    read_cnt++;
+  }
+
+  switch (current) {
+  case STATE_IDENTIFIER:
+    new.type = TOKEN_IDENTIFIER;
+    break;
+  default:
+    new.type = TOKEN_ERROR;
+    break;
+  }
+
+  lexer->offset += read_cnt;
+
+  return new;
 }
