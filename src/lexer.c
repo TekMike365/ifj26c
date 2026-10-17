@@ -6,12 +6,15 @@
 #include <assert.h>
 
 /**TODO:
- * e, E, d, D need separate type (letter v exponent/double)
- * change in state transitions therefore needed
- * transition table init to STATE_END
- * next state after STATE_START to STATE_ERROR, then overwrite
- * next state after STATE_COMMENT is COMMENT except upon CHAR_QUOTE
- * STATE_COMMENT needs separate handling
+ * FSM states requiring separate handling:
+ * COMMENT - single line, block
+ * HARD WITH FSM
+ *
+ * all with e,E - exponent transitions
+ * all with d,D - double markers
+ * STATE_ESCAPE - handle escape sequences
+ * SEPARATE FUNCTIONS NEEDED
+ * ELSE NEW CHAR TYPES = INFLATED TRANSITION TABLE
  */
 
 // ASCII chars grouped into types for mapping
