@@ -11,12 +11,13 @@ typedef enum {
   TOKEN_IDENTIFIER,
   TOKEN_KEYWORD,
   TOKEN_OPERATOR,
+  TOKEN_INT,
   TOKEN_ERROR
 
 } TokenType_t;
 
 typedef struct {
-  char *start;
+  char *start; // TODO: change to union
   size_t len;
   size_t line;
   TokenType_t type;

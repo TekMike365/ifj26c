@@ -282,6 +282,11 @@ Token_t NextToken(Lexer_t *lexer) {
   case STATE_IDENTIFIER:
     new.type = TOKEN_IDENTIFIER;
     break;
+
+  case STATE_INT:
+    new.type = TOKEN_INT;
+    // something ala strtol() to convert
+    break;
   default:
     new.type = TOKEN_ERROR;
     break;
