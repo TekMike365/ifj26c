@@ -258,15 +258,19 @@ void LexerInit(Lexer_t *lexer, char *src) {
  */
 Token_t NextToken(Lexer_t *lexer) {
 
+  // replace with init function
   Token_t new = {.len = 0, .line = 1};
 
   State_t current = STATE_START;
   State_t next;
 
+  // count of processed chars
   size_t read_cnt = 0;
+  // pointer to current position
   char *cursor = lexer->source;
 
   while (1) {
+    // advance pointer
     unsigned char c = *(cursor + read_cnt);
     CharType_t type = MapChar(c);
 
@@ -274,12 +278,17 @@ Token_t NextToken(Lexer_t *lexer) {
     if (next == STATE_END) {
       break;
     }
+
     current = next;
     read_cnt++;
   }
 
+  // TODO: modify by another map
+  // to prevent typing out +,-,*,/ for operator
+  // etc
   switch (current) {
   case STATE_IDENTIFIER:
+    // IsKeyword()
     new.type = TOKEN_IDENTIFIER;
     break;
 
@@ -292,6 +301,9 @@ Token_t NextToken(Lexer_t *lexer) {
     break;
   }
 
+  // update lexer`s position
+  // TODO: something ala ungetc
+  // now consumes lexeme + 1 char
   lexer->offset += read_cnt;
 
   return new;
