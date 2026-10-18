@@ -24,6 +24,8 @@
 // ASCII chars grouped into types for mapping
 typedef enum {
   CHAR_ALPHA,
+  CHAR_D, // d and D in double
+  CHAR_E, // e end E in exponent
   CHAR_NUM,
   CHAR_EQ,
   CHAR_GREATER,
@@ -69,18 +71,32 @@ static void ASCIIMapInit(void) {
   }
 
   // define types for ranges
-  CharRange_t ranges[] = {
-      {'a', 'z', CHAR_ALPHA},        {'A', 'Z', CHAR_ALPHA},
-      {'0', '9', CHAR_NUM},          {'=', '=', CHAR_EQ},
-      {'>', '>', CHAR_GREATER},      {'<', '<', CHAR_LESS},
-      {'.', '.', CHAR_DOT},          {'_', '_', CHAR_UNDERSCORE},
-      {'"', '"', CHAR_QUOTE},        {'(', '(', CHAR_LPAR},
-      {')', ')', CHAR_RPAR},         {'+', '+', CHAR_PLUS},
-      {'-', '-', CHAR_MINUS},        {'*', '*', CHAR_STAR},
-      {'/', '/', CHAR_SLASH},        {'\\', '\\', CHAR_BACKSLASH},
-      {'\0', '\0', CHAR_NULL},       {'\n', '\n', CHAR_NEWLINE},
-      {' ', ' ', CHAR_WHITESPACE},   {'\t', '\t', CHAR_WHITESPACE},
-      {'\v', '\v', CHAR_WHITESPACE}, {'\r', '\r', CHAR_WHITESPACE}};
+  CharRange_t ranges[] = {{'a', 'z', CHAR_ALPHA},
+                          {'A', 'Z', CHAR_ALPHA},
+                          {'d', 'd', CHAR_D},
+                          {'D', 'D', CHAR_D},
+                          {'e', 'e', CHAR_E},
+                          {'E', 'E', CHAR_E},
+                          {'0', '9', CHAR_NUM},
+                          {'=', '=', CHAR_EQ},
+                          {'>', '>', CHAR_GREATER},
+                          {'<', '<', CHAR_LESS},
+                          {'.', '.', CHAR_DOT},
+                          {'_', '_', CHAR_UNDERSCORE},
+                          {'"', '"', CHAR_QUOTE},
+                          {'(', '(', CHAR_LPAR},
+                          {')', ')', CHAR_RPAR},
+                          {'+', '+', CHAR_PLUS},
+                          {'-', '-', CHAR_MINUS},
+                          {'*', '*', CHAR_STAR},
+                          {'/', '/', CHAR_SLASH},
+                          {'\\', '\\', CHAR_BACKSLASH},
+                          {'\0', '\0', CHAR_NULL},
+                          {'\n', '\n', CHAR_NEWLINE},
+                          {' ', ' ', CHAR_WHITESPACE},
+                          {'\t', '\t', CHAR_WHITESPACE},
+                          {'\v', '\v', CHAR_WHITESPACE},
+                          {'\r', '\r', CHAR_WHITESPACE}};
 
   // for each range
   for (int typeCnt = 0; typeCnt < CHAR_TYPE_CNT; typeCnt++) {
@@ -149,6 +165,8 @@ typedef enum {
 // FSM transitions: (current, char type, next)
 #define X_TRANSITIONS(X)                                                       \
   X(STATE_START, CHAR_ALPHA, STATE_IDENTIFIER)                                 \
+  X(STATE_START, CHAR_D, STATE_IDENTIFIER)                                     \
+  X(STATE_START, CHAR_E, STATE_IDENTIFIER)                                     \
   X(STATE_START, CHAR_UNDERSCORE, STATE_IDENTIFIER)                            \
   X(STATE_START, CHAR_LPAR, STATE_LPAR)                                        \
   X(STATE_START, CHAR_RPAR, STATE_RPAR)                                        \
@@ -164,6 +182,8 @@ typedef enum {
   X(STATE_START, CHAR_DOT, STATE_DOT)                                          \
                                                                                \
   X(STATE_IDENTIFIER, CHAR_ALPHA, STATE_IDENTIFIER)                            \
+  X(STATE_IDENTIFIER, CHAR_D, STATE_IDENTIFIER)                                \
+  X(STATE_IDENTIFIER, CHAR_E, STATE_IDENTIFIER)                                \
   X(STATE_IDENTIFIER, CHAR_UNDERSCORE, STATE_IDENTIFIER)                       \
   X(STATE_IDENTIFIER, CHAR_NUM, STATE_IDENTIFIER)                              \
                                                                                \
