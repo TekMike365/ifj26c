@@ -194,8 +194,10 @@ typedef enum {
   X(STATE_SLASH, CHAR_SLASH, STATE_COMMENT)                                    \
   X(STATE_SLASH, CHAR_STAR, STATE_BLOCK_COMMENT)                               \
                                                                                \
+  X(STATE_INT, CHAR_NUM, STATE_INT)                                            \
   X(STATE_INT, CHAR_UNDERSCORE, STATE_INT_UNDERSCORE)                          \
   X(STATE_INT, CHAR_DOT, STATE_START_DOUBLE)                                   \
+  X(STATE_INT, CHAR_E, STATE_START_EXPONENT)                                   \
                                                                                \
   X(STATE_DOT, CHAR_NUM, STATE_DOUBLE)                                         \
                                                                                \
@@ -211,9 +213,13 @@ typedef enum {
                                                                                \
   X(STATE_EXPONENT, CHAR_NUM, STATE_EXPONENT)                                  \
   X(STATE_EXPONENT, CHAR_UNDERSCORE, STATE_EXPONENT_UNDERSCORE)                \
+  X(STATE_EXPONENT, CHAR_D, STATE_END_DOUBLE)                                  \
   X(STATE_EXPONENT_UNDERSCORE, CHAR_NUM, STATE_EXPONENT)                       \
                                                                                \
+  X(STATE_DOUBLE, CHAR_NUM, STATE_DOUBLE)                                      \
   X(STATE_DOUBLE, CHAR_UNDERSCORE, STATE_DOUBLE_UNDERSCORE)                    \
+  X(STATE_DOUBLE, CHAR_E, STATE_START_EXPONENT)                                \
+  X(STATE_DOUBLE, CHAR_D, STATE_END_DOUBLE)                                    \
   X(STATE_DOUBLE_UNDERSCORE, CHAR_NUM, STATE_DOUBLE)                           \
                                                                                \
   X(STATE_DQUOTE, CHAR_QUOTE, STATE_MULTILINE_STR)                             \
