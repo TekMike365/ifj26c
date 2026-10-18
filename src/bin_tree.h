@@ -5,27 +5,35 @@
 #ifndef BIN_TREE_H
 #define BIN_TREE_H
 
-typedef enum Color {
-    BLACK,
-    RED
-} Color;
+#include <stdbool.h>
+#include <stddef.h>
 
-typedef struct Node {
-    int value;
+typedef enum Color { BLACK, RED } Color;
+
+typedef struct Symbol {
+    char *identifier;
     Color color;
-    struct Node *left;
-    struct Node *right;
-    struct Node *parent;
-} Node;
+    size_t left;
+    size_t right;
+    size_t parent;
+} Symbol;
 
-typedef enum Direction {
-    LEFT,
-    RIGHT
-} Direction;
+typedef struct SymbolStack {
+    Symbol *items;
+    size_t size;
+    size_t capacity;
+    size_t root;
+} SymbolStack;
 
-Node *append(Node *root, int value);
-Node *deleteNode(Node *root, int value);
-void rotate(Node **root, Node *node, Direction direction);
-void draw(Node *root);
+typedef enum Direction { LEFT, RIGHT } Direction;
+
+bool symbolStackInit(SymbolStack *stack);
+void symbolStackDestroy(SymbolStack *stack);
+bool symbolStackPush(SymbolStack *stack, const char *identifier);
+bool symbolStackPop(SymbolStack *stack);
+const Symbol *symbolStackSearch(const SymbolStack *stack,
+                                const char *identifier);
+void rotate(SymbolStack *stack, size_t node, Direction direction);
+void draw(const SymbolStack *stack);
 
 #endif

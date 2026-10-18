@@ -2,202 +2,218 @@
  * Author[s]: Richard Blšták <xblstar00>
  */
 
+#include "bin_tree.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "bin_tree.h"
 
-static void insertFixup(Node **root, Node *node);
-static void deleteFixup(Node **root, Node *node, Node *parent, int nodeIsLeft);
-static void drawNode(Node *node, const char *prefix, size_t prefixLength,
-                     int isLast, int isRoot);
+#define NO_NODE SIZE_MAX
 
-Node *append(Node *root, int value)
-{
-    Node *parent = NULL;
-    Node *current = root;
+static void insertFixup(SymbolStack *stack, size_t node);
+static void deleteFixup(SymbolStack *stack, size_t node, size_t parent,
+                        int nodeIsLeft);
+static void deleteAt(SymbolStack *stack, size_t node);
+static size_t minimumNode(const SymbolStack *stack, size_t node);
+static Color colorOf(const SymbolStack *stack, size_t node);
+static void setColor(SymbolStack *stack, size_t node, Color color);
+static void drawNode(const SymbolStack *stack, size_t node, const char *prefix,
+                     size_t prefixLength, int isLast, int isRoot);
 
-    while (current != NULL) {
-        parent = current;
-        if (value < current->value) {
-            current = current->left;
+bool symbolStackInit(SymbolStack *stack) {
+    if (stack == NULL) {
+        return false;
+    }
+
+    stack->items = NULL;
+    stack->size = 0;
+    stack->capacity = 0;
+    stack->root = NO_NODE;
+    return true;
+}
+
+void symbolStackDestroy(SymbolStack *stack) {
+    if (stack == NULL) {
+        return;
+    }
+
+    for (size_t index = 0; index < stack->size; index++) {
+        free(stack->items[index].identifier);
+    }
+    free(stack->items);
+    stack->items = NULL;
+    stack->size = 0;
+    stack->capacity = 0;
+    stack->root = NO_NODE;
+}
+
+const Symbol *symbolStackSearch(const SymbolStack *stack,
+                                const char *identifier) {
+    if (stack == NULL || identifier == NULL) {
+        return NULL;
+    }
+
+    size_t node = stack->root;
+    while (node != NO_NODE && node < stack->size) {
+        int comparison = strcmp(identifier, stack->items[node].identifier);
+        if (comparison == 0) {
+            return &stack->items[node];
+        }
+        node =
+            comparison < 0 ? stack->items[node].left : stack->items[node].right;
+    }
+    return NULL;
+}
+
+bool symbolStackPush(SymbolStack *stack, const char *identifier) {
+    if (stack == NULL || identifier == NULL ||
+        symbolStackSearch(stack, identifier) != NULL) {
+        return false;
+    }
+
+    size_t newCapacity = stack->capacity;
+    if (stack->size == stack->capacity) {
+        if (newCapacity == 0) {
+            newCapacity = 8;
         } else {
-            current = current->right;
+            if (newCapacity > SIZE_MAX / 2) {
+                return false;
+            }
+            newCapacity *= 2;
+        }
+        if (newCapacity > SIZE_MAX / sizeof *stack->items) {
+            return false;
         }
     }
 
-    Node *node = malloc(sizeof *node);
-    if (node == NULL) {
-        return root;
+    size_t identifierLength = strlen(identifier);
+    if (identifierLength == SIZE_MAX) {
+        return false;
+    }
+    char *identifierCopy = malloc(identifierLength + 1);
+    if (identifierCopy == NULL) {
+        return false;
+    }
+    memcpy(identifierCopy, identifier, identifierLength + 1);
+
+    if (newCapacity != stack->capacity) {
+        Symbol *newItems =
+            realloc(stack->items, newCapacity * sizeof *stack->items);
+        if (newItems == NULL) {
+            free(identifierCopy);
+            return false;
+        }
+        stack->items = newItems;
+        stack->capacity = newCapacity;
     }
 
-    node->value = value;
-    node->color = parent == NULL ? BLACK : RED;
-    node->left = NULL;
-    node->right = NULL;
-    node->parent = parent;
+    size_t node = stack->size;
+    Symbol *symbol = &stack->items[node];
+    symbol->identifier = identifierCopy;
+    symbol->color = RED;
+    symbol->left = NO_NODE;
+    symbol->right = NO_NODE;
+    symbol->parent = NO_NODE;
 
-    if (parent == NULL) {
-        return node;
-    }
-
-    if (value < parent->value) {
-        parent->left = node;
+    if (stack->root == NO_NODE) {
+        stack->root = node;
     } else {
-        parent->right = node;
-    }
-
-    insertFixup(&root, node);
-    return root;
-}
-
-static void transplant(Node **root, Node *oldNode, Node *newNode)
-{
-    if (oldNode->parent == NULL) {
-        *root = newNode;
-    } else if (oldNode == oldNode->parent->left) {
-        oldNode->parent->left = newNode;
-    } else {
-        oldNode->parent->right = newNode;
-    }
-
-    if (newNode != NULL) {
-        newNode->parent = oldNode->parent;
-    }
-}
-
-static Node *minimumNode(Node *node)
-{
-    while (node->left != NULL) {
-        node = node->left;
-    }
-    return node;
-}
-
-Node *deleteNode(Node *root, int value)
-{
-    Node *node = root;
-    while (node != NULL && node->value != value) {
-        node = value < node->value ? node->left : node->right;
-    }
-    if (node == NULL) {
-        return root;
-    }
-
-    Node *replacement;
-    Node *replacementParent;
-    int replacementIsLeft;
-    Color removedColor;
-
-    if (node->left == NULL) {
-        replacement = node->right;
-        replacementParent = node->parent;
-        replacementIsLeft = replacementParent != NULL && node == replacementParent->left;
-        removedColor = node->color;
-        transplant(&root, node, replacement);
-    } else if (node->right == NULL) {
-        replacement = node->left;
-        replacementParent = node->parent;
-        replacementIsLeft = replacementParent != NULL && node == replacementParent->left;
-        removedColor = node->color;
-        transplant(&root, node, replacement);
-    } else {
-        Node *successor = minimumNode(node->right);
-        removedColor = successor->color;
-        replacement = successor->right;
-        if (successor->parent != node) {
-            replacementParent = successor->parent;
-            replacementIsLeft = successor == replacementParent->left;
-            transplant(&root, successor, successor->right);
-            successor->right = node->right;
-            successor->right->parent = successor;
-        } else {
-            replacementParent = successor;
-            replacementIsLeft = 0;
-            if (replacement != NULL) {
-                replacement->parent = successor;
+        size_t parent = stack->root;
+        for (;;) {
+            int comparison =
+                strcmp(identifier, stack->items[parent].identifier);
+            if (comparison < 0) {
+                if (stack->items[parent].left == NO_NODE) {
+                    stack->items[parent].left = node;
+                    symbol->parent = parent;
+                    break;
+                }
+                parent = stack->items[parent].left;
+            } else {
+                if (stack->items[parent].right == NO_NODE) {
+                    stack->items[parent].right = node;
+                    symbol->parent = parent;
+                    break;
+                }
+                parent = stack->items[parent].right;
             }
         }
-        transplant(&root, node, successor);
-        successor->left = node->left;
-        successor->left->parent = successor;
-        successor->color = node->color;
     }
 
-    free(node);
-    if (removedColor == BLACK) {
-        deleteFixup(&root, replacement, replacementParent, replacementIsLeft);
-    }
-    if (root != NULL) {
-        root->color = BLACK;
-    }
-    return root;
+    stack->size++;
+    insertFixup(stack, node);
+    return true;
 }
 
-void rotate(Node **root, Node *node, Direction direction)
-{
-    if (root == NULL || node == NULL) {
+bool symbolStackPop(SymbolStack *stack) {
+    if (stack == NULL || stack->size == 0) {
+        return false;
+    }
+
+    deleteAt(stack, stack->size - 1);
+    return true;
+}
+
+void rotate(SymbolStack *stack, size_t node, Direction direction) {
+    if (stack == NULL || node >= stack->size) {
         return;
     }
 
-    Node *pivot;
-    Node **nodeChild;
-    Node **pivotChild;
+    size_t pivot;
     if (direction == LEFT) {
-        pivot = node->right;
-        if (pivot == NULL) {
+        pivot = stack->items[node].right;
+        if (pivot == NO_NODE) {
             return;
         }
-        nodeChild = &node->right;
-        pivotChild = &pivot->left;
+        stack->items[node].right = stack->items[pivot].left;
+        if (stack->items[node].right != NO_NODE) {
+            stack->items[stack->items[node].right].parent = node;
+        }
+        stack->items[pivot].left = node;
     } else if (direction == RIGHT) {
-        pivot = node->left;
-        if (pivot == NULL) {
+        pivot = stack->items[node].left;
+        if (pivot == NO_NODE) {
             return;
         }
-        nodeChild = &node->left;
-        pivotChild = &pivot->right;
+        stack->items[node].left = stack->items[pivot].right;
+        if (stack->items[node].left != NO_NODE) {
+            stack->items[stack->items[node].left].parent = node;
+        }
+        stack->items[pivot].right = node;
     } else {
         return;
     }
 
-    *nodeChild = *pivotChild;
-    if (*nodeChild != NULL) {
-        (*nodeChild)->parent = node;
-    }
-
-    pivot->parent = node->parent;
-    if (node->parent == NULL) {
-        *root = pivot;
-    } else if (node == node->parent->left) {
-        node->parent->left = pivot;
+    size_t parent = stack->items[node].parent;
+    stack->items[pivot].parent = parent;
+    if (parent == NO_NODE) {
+        stack->root = pivot;
+    } else if (node == stack->items[parent].left) {
+        stack->items[parent].left = pivot;
     } else {
-        node->parent->right = pivot;
+        stack->items[parent].right = pivot;
     }
-
-    *pivotChild = node;
-    node->parent = pivot;
+    stack->items[node].parent = pivot;
 }
 
-void draw(Node *root)
-{
-    if (root == NULL) {
+void draw(const SymbolStack *stack) {
+    if (stack == NULL || stack->root == NO_NODE) {
         puts("(empty tree)");
         return;
     }
 
-    drawNode(root, "", 0, 1, 1);
+    drawNode(stack, stack->root, "", 0, 1, 1);
 }
 
-static void drawNode(Node *node, const char *prefix, size_t prefixLength,
-                     int isLast, int isRoot)
-{
-    const char *color = node->color == RED ? "RED" : "BLACK";
+static void drawNode(const SymbolStack *stack, size_t node, const char *prefix,
+                     size_t prefixLength, int isLast, int isRoot) {
+    const Symbol *symbol = &stack->items[node];
+    const char *color = symbol->color == RED ? "RED" : "BLACK";
     if (isRoot) {
-        printf("%d [%s]\n", node->value, color);
+        printf("%s [%s]\n", symbol->identifier, color);
     } else {
-        printf("%s%s%d [%s]\n", prefix, isLast ? "\\-- " : "|-- ",
-               node->value, color);
+        printf("%s%s%s [%s]\n", prefix, isLast ? "\\-- " : "|-- ",
+               symbol->identifier, color);
     }
 
     size_t childPrefixLength = prefixLength;
@@ -213,171 +229,226 @@ static void drawNode(Node *node, const char *prefix, size_t prefixLength,
         childPrefixLength += 4;
     }
 
-    if (node->left != NULL) {
-        drawNode(node->left, childPrefix, childPrefixLength,
-                 node->right == NULL, 0);
+    if (symbol->left != NO_NODE) {
+        drawNode(stack, symbol->left, childPrefix, childPrefixLength,
+                 symbol->right == NO_NODE, 0);
     }
-    if (node->right != NULL) {
-        drawNode(node->right, childPrefix, childPrefixLength, 1, 0);
+    if (symbol->right != NO_NODE) {
+        drawNode(stack, symbol->right, childPrefix, childPrefixLength, 1, 0);
     }
 }
 
-static Color colorOf(Node *node)
-{
-    return node == NULL ? BLACK : node->color;
+static Color colorOf(const SymbolStack *stack, size_t node) {
+    return node == NO_NODE || node >= stack->size ? BLACK
+                                                  : stack->items[node].color;
 }
 
-static void insertFixup(Node **root, Node *node)
-{
-    while (node != *root && node->parent->color == RED) {
-        Node *parent = node->parent;
-        Node *grandparent = parent->parent;
+static void setColor(SymbolStack *stack, size_t node, Color color) {
+    if (node != NO_NODE && node < stack->size) {
+        stack->items[node].color = color;
+    }
+}
 
-        if (parent == grandparent->left) {
-            Node *uncle = grandparent->right;
-            if (colorOf(uncle) == RED) {
-                parent->color = BLACK;
-                uncle->color = BLACK;
-                grandparent->color = RED;
+static void insertFixup(SymbolStack *stack, size_t node) {
+    while (node != stack->root &&
+           colorOf(stack, stack->items[node].parent) == RED) {
+        size_t parent = stack->items[node].parent;
+        size_t grandparent = stack->items[parent].parent;
+
+        if (parent == stack->items[grandparent].left) {
+            size_t uncle = stack->items[grandparent].right;
+            if (colorOf(stack, uncle) == RED) {
+                setColor(stack, parent, BLACK);
+                setColor(stack, uncle, BLACK);
+                setColor(stack, grandparent, RED);
                 node = grandparent;
             } else {
-                if (node == parent->right) {
+                if (node == stack->items[parent].right) {
                     node = parent;
-                    rotate(root, node, LEFT);
+                    rotate(stack, node, LEFT);
+                    parent = stack->items[node].parent;
+                    grandparent = stack->items[parent].parent;
                 }
-                node->parent->color = BLACK;
-                node->parent->parent->color = RED;
-                rotate(root, node->parent->parent, RIGHT);
+                setColor(stack, parent, BLACK);
+                setColor(stack, grandparent, RED);
+                rotate(stack, grandparent, RIGHT);
             }
         } else {
-            Node *uncle = grandparent->left;
-            if (colorOf(uncle) == RED) {
-                parent->color = BLACK;
-                uncle->color = BLACK;
-                grandparent->color = RED;
+            size_t uncle = stack->items[grandparent].left;
+            if (colorOf(stack, uncle) == RED) {
+                setColor(stack, parent, BLACK);
+                setColor(stack, uncle, BLACK);
+                setColor(stack, grandparent, RED);
                 node = grandparent;
             } else {
-                if (node == parent->left) {
+                if (node == stack->items[parent].left) {
                     node = parent;
-                    rotate(root, node, RIGHT);
+                    rotate(stack, node, RIGHT);
+                    parent = stack->items[node].parent;
+                    grandparent = stack->items[parent].parent;
                 }
-                node->parent->color = BLACK;
-                node->parent->parent->color = RED;
-                rotate(root, node->parent->parent, LEFT);
+                setColor(stack, parent, BLACK);
+                setColor(stack, grandparent, RED);
+                rotate(stack, grandparent, LEFT);
             }
         }
     }
 
-    (*root)->color = BLACK;
+    setColor(stack, stack->root, BLACK);
 }
 
-static void deleteFixup(Node **root, Node *node, Node *parent, int nodeIsLeft)
-{
-    while (node != *root && colorOf(node) == BLACK) {
-        if (parent == NULL) {
+static void transplant(SymbolStack *stack, size_t oldNode, size_t newNode) {
+    size_t parent = stack->items[oldNode].parent;
+    if (parent == NO_NODE) {
+        stack->root = newNode;
+    } else if (oldNode == stack->items[parent].left) {
+        stack->items[parent].left = newNode;
+    } else {
+        stack->items[parent].right = newNode;
+    }
+
+    if (newNode != NO_NODE) {
+        stack->items[newNode].parent = parent;
+    }
+}
+
+static size_t minimumNode(const SymbolStack *stack, size_t node) {
+    while (stack->items[node].left != NO_NODE) {
+        node = stack->items[node].left;
+    }
+    return node;
+}
+
+static void deleteAt(SymbolStack *stack, size_t node) {
+    size_t moved = node;
+    Color movedColor = stack->items[moved].color;
+    size_t replacement;
+    size_t replacementParent;
+    int replacementIsLeft;
+
+    if (stack->items[node].left == NO_NODE) {
+        replacement = stack->items[node].right;
+        replacementParent = stack->items[node].parent;
+        replacementIsLeft = replacementParent != NO_NODE &&
+                            node == stack->items[replacementParent].left;
+        transplant(stack, node, replacement);
+    } else if (stack->items[node].right == NO_NODE) {
+        replacement = stack->items[node].left;
+        replacementParent = stack->items[node].parent;
+        replacementIsLeft = replacementParent != NO_NODE &&
+                            node == stack->items[replacementParent].left;
+        transplant(stack, node, replacement);
+    } else {
+        moved = minimumNode(stack, stack->items[node].right);
+        movedColor = stack->items[moved].color;
+        replacement = stack->items[moved].right;
+        if (stack->items[moved].parent != node) {
+            replacementParent = stack->items[moved].parent;
+            replacementIsLeft = moved == stack->items[replacementParent].left;
+            transplant(stack, moved, replacement);
+            stack->items[moved].right = stack->items[node].right;
+            stack->items[stack->items[moved].right].parent = moved;
+        } else {
+            replacementParent = moved;
+            replacementIsLeft = 0;
+            if (replacement != NO_NODE) {
+                stack->items[replacement].parent = moved;
+            }
+        }
+        transplant(stack, node, moved);
+        stack->items[moved].left = stack->items[node].left;
+        stack->items[stack->items[moved].left].parent = moved;
+        stack->items[moved].color = stack->items[node].color;
+    }
+
+    free(stack->items[node].identifier);
+    if (movedColor == BLACK) {
+        deleteFixup(stack, replacement, replacementParent, replacementIsLeft);
+    }
+    stack->size--;
+    setColor(stack, stack->root, BLACK);
+}
+
+static void deleteFixup(SymbolStack *stack, size_t node, size_t parent,
+                        int nodeIsLeft) {
+    while (node != stack->root && colorOf(stack, node) == BLACK) {
+        if (parent == NO_NODE) {
             break;
         }
-        if (node != NULL) {
-            nodeIsLeft = node == parent->left;
+        if (node != NO_NODE) {
+            nodeIsLeft = node == stack->items[parent].left;
         }
 
         if (nodeIsLeft) {
-            Node *sibling = parent->right;
-            if (colorOf(sibling) == RED) {
-                sibling->color = BLACK;
-                parent->color = RED;
-                rotate(root, parent, LEFT);
-                sibling = parent->right;
+            size_t sibling = stack->items[parent].right;
+            if (colorOf(stack, sibling) == RED) {
+                setColor(stack, sibling, BLACK);
+                setColor(stack, parent, RED);
+                rotate(stack, parent, LEFT);
+                sibling = stack->items[parent].right;
             }
 
-            if (colorOf(sibling == NULL ? NULL : sibling->left) == BLACK &&
-                colorOf(sibling == NULL ? NULL : sibling->right) == BLACK) {
-                if (sibling != NULL) {
-                    sibling->color = RED;
-                }
+            size_t siblingLeft =
+                sibling == NO_NODE ? NO_NODE : stack->items[sibling].left;
+            size_t siblingRight =
+                sibling == NO_NODE ? NO_NODE : stack->items[sibling].right;
+            if (colorOf(stack, siblingLeft) == BLACK &&
+                colorOf(stack, siblingRight) == BLACK) {
+                setColor(stack, sibling, RED);
                 node = parent;
-                parent = node->parent;
+                parent = stack->items[node].parent;
             } else {
-                if (colorOf(sibling->right) == BLACK) {
-                    sibling->left->color = BLACK;
-                    sibling->color = RED;
-                    rotate(root, sibling, RIGHT);
-                    sibling = parent->right;
+                if (colorOf(stack, siblingRight) == BLACK) {
+                    setColor(stack, siblingLeft, BLACK);
+                    setColor(stack, sibling, RED);
+                    rotate(stack, sibling, RIGHT);
+                    sibling = stack->items[parent].right;
                 }
-                sibling->color = parent->color;
-                parent->color = BLACK;
-                if (sibling->right != NULL) {
-                    sibling->right->color = BLACK;
+                setColor(stack, sibling, colorOf(stack, parent));
+                setColor(stack, parent, BLACK);
+                if (sibling != NO_NODE) {
+                    setColor(stack, stack->items[sibling].right, BLACK);
                 }
-                rotate(root, parent, LEFT);
-                node = *root;
-                parent = NULL;
+                rotate(stack, parent, LEFT);
+                node = stack->root;
+                parent = NO_NODE;
             }
         } else {
-            Node *sibling = parent->left;
-            if (colorOf(sibling) == RED) {
-                sibling->color = BLACK;
-                parent->color = RED;
-                rotate(root, parent, RIGHT);
-                sibling = parent->left;
+            size_t sibling = stack->items[parent].left;
+            if (colorOf(stack, sibling) == RED) {
+                setColor(stack, sibling, BLACK);
+                setColor(stack, parent, RED);
+                rotate(stack, parent, RIGHT);
+                sibling = stack->items[parent].left;
             }
 
-            if (colorOf(sibling == NULL ? NULL : sibling->right) == BLACK &&
-                colorOf(sibling == NULL ? NULL : sibling->left) == BLACK) {
-                if (sibling != NULL) {
-                    sibling->color = RED;
-                }
+            size_t siblingRight =
+                sibling == NO_NODE ? NO_NODE : stack->items[sibling].right;
+            size_t siblingLeft =
+                sibling == NO_NODE ? NO_NODE : stack->items[sibling].left;
+            if (colorOf(stack, siblingRight) == BLACK &&
+                colorOf(stack, siblingLeft) == BLACK) {
+                setColor(stack, sibling, RED);
                 node = parent;
-                parent = node->parent;
+                parent = stack->items[node].parent;
             } else {
-                if (colorOf(sibling->left) == BLACK) {
-                    sibling->right->color = BLACK;
-                    sibling->color = RED;
-                    rotate(root, sibling, LEFT);
-                    sibling = parent->left;
+                if (colorOf(stack, siblingLeft) == BLACK) {
+                    setColor(stack, siblingRight, BLACK);
+                    setColor(stack, sibling, RED);
+                    rotate(stack, sibling, LEFT);
+                    sibling = stack->items[parent].left;
                 }
-                sibling->color = parent->color;
-                parent->color = BLACK;
-                if (sibling->left != NULL) {
-                    sibling->left->color = BLACK;
+                setColor(stack, sibling, colorOf(stack, parent));
+                setColor(stack, parent, BLACK);
+                if (sibling != NO_NODE) {
+                    setColor(stack, stack->items[sibling].left, BLACK);
                 }
-                rotate(root, parent, RIGHT);
-                node = *root;
-                parent = NULL;
+                rotate(stack, parent, RIGHT);
+                node = stack->root;
+                parent = NO_NODE;
             }
         }
     }
 
-    if (node != NULL) {
-        node->color = BLACK;
-    }
+    setColor(stack, node, BLACK);
 }
-
-static void showAppend(Node **root, int value)
-{
-    printf("\nAppend %d\nBefore:\n", value);
-    draw(*root);
-    *root = append(*root, value);
-    puts("After:");
-    draw(*root);
-}
-
-static void showDelete(Node **root, int value)
-{
-    printf("\nDelete %d\nBefore:\n", value);
-    draw(*root);
-    *root = deleteNode(*root, value);
-    puts("After:");
-    draw(*root);
-}
-
-static void freeTree(Node *root)
-{
-    if (root == NULL) {
-        return;
-    }
-    freeTree(root->left);
-    freeTree(root->right);
-    free(root);
-}
-
