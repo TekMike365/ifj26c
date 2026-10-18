@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 typedef enum {
+  TOKEN_NONE, // initial
   TOKEN_IDENTIFIER,
   TOKEN_KEYWORD,
   TOKEN_OPERATOR,

@@ -12,11 +12,13 @@
  *
  * START:WHITESPACE -> START?
  *
- * all with e,E - exponent transitions
- * all with d,D - double markers
- * STATE_ESCAPE - handle escape sequences
- * SEPARATE FUNCTIONS NEEDED
- * ELSE NEW CHAR TYPES = INFLATED TRANSITION TABLE
+ * seperate type:
+ * e,E - exponent transitions
+ * d,D - double markers
+ * n,r,s,t,v - escape seq
+ *
+ * make TRANSITION TABLE 1D
+ * macro for ascii map?
  */
 
 // ASCII chars grouped into types for mapping
