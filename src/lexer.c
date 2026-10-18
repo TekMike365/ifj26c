@@ -12,14 +12,20 @@
  *
  * START:WHITESPACE -> START?
  *
- * seperate type:
- * e,E - exponent transitions
- * d,D - double markers
+ * IsKeyword(char *str)
+ *
+ * seperate type?:
  * n,r,s,t,v - escape seq
  *
  * make TRANSITION TABLE 1D
  * macro for ascii map?
  */
+
+// ##############################################################
+//                        ASCII MAP STUFF
+// ##############################################################
+
+#define ASCII_LENGTH 256
 
 // ASCII chars grouped into types for mapping
 typedef enum {
@@ -47,8 +53,6 @@ typedef enum {
   CHAR_TYPE_CNT
 } CharType_t;
 
-#define ASCII_LENGTH 256
-
 /* specifies a range of chars of type 'type'
  * i.e. start='a', end='z' specifies CHAR_ALPHA
  */
@@ -58,7 +62,7 @@ typedef struct {
   CharType_t type;
 } CharRange_t;
 
-/** global map which maps char to CharType_t
+/* maps char to CharType_t
  *  i.e. m_ASCIIMap[unsigned char c] = CharType_t of c
  */
 static CharType_t m_ASCIIMap[ASCII_LENGTH];
@@ -109,17 +113,17 @@ static void ASCIIMapInit(void) {
   }
 }
 
+/* maps an unsigned char to its corresponding CharType via ASCIIMap
+ * c - unsigned char
+ * return - CharType of c
+ */
 static inline CharType_t MapChar(unsigned char c) { return m_ASCIIMap[c]; }
 
+// ##############################################################
+//                        FSM STUFF
+// ##############################################################
+
 // FSM states
-// MISSING: MULTILINE STRING, COMMENT not complete
-/** renamed (diagram -> macro):
- * Comment/Divide -> STATE_SLASH
- * Dot/Double -> STATE_DOT
- * Int/Double -> STATE_INT
- * String/Multiline s. -> STATE_QUOTE
- *
- */
 typedef enum {
   STATE_END,
   STATE_ERROR,
@@ -227,24 +231,30 @@ typedef enum {
   X(STATE_END_QUOTE, CHAR_QUOTE, STATE_END_DQUOTE)                             \
   X(STATE_END_DQUOTE, CHAR_QUOTE, STATE_END_MULTILINE_STR)
 
+// arrray where indexing by tuple (STATE_CUR, CHAR_TYPE) yields STATE_NEXT
+// initially set to STATE_END
 static State_t m_transitionTable[STATE_CNT][CHAR_TYPE_CNT] = {STATE_END};
 
+// overwrite values at specific indices
 static void TransitionTableInit(void) {
   // initially set all states to STATE_END
   for (int idx = 0; idx < STATE_CNT; idx++) {
     for (int idy = 0; idy < CHAR_TYPE_CNT; idy++) {
+
       // except for STATE_START
       // because unexpected character -> no known token start
       // -> error
       if (idx == STATE_START) {
         m_transitionTable[idx][idy] = STATE_ERROR;
       }
+
       // STATE_STRING
       // all CHARS constitute the string except CHAR_QUOTE
       // CHAR_QUOTE handled in transitions macro
       else if (idx == STATE_STRING) {
         m_transitionTable[idx][idy] = STATE_STRING;
       }
+
       // same for multiline string
       // all CHARS default to MULTILINE_STR except on '"'
       // CHAR_QUOTE handled in transitions macro
@@ -262,9 +272,18 @@ static void TransitionTableInit(void) {
 #undef X
 }
 
+/* maps the tuple (curr, type) to the next state
+ * curr - current state
+ * type - type of the current char
+ * return - next state
+ */
 static inline State_t NextState(State_t curr, CharType_t type) {
   return m_transitionTable[curr][type];
 }
+
+// ##############################################################
+//                    LEXER.H IMPLEMENTATION
+// ##############################################################
 
 /** initialize a lexer struct
  * lexer - pointer to a lexer struct
@@ -282,7 +301,7 @@ void LexerInit(Lexer_t *lexer, char *src) {
   TransitionTableInit();
 }
 
-/** TODO
+/* TODO
  * count newlines
  * string pool
  * map: STATE -> TOKEN TYPE ???
