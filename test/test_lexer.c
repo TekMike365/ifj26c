@@ -4,22 +4,41 @@
 
 #include "lexer.h"
 #include "tester.h"
+#include <stdio.h>
+#include <string.h>
 
 void RecognizeIdentifier(void) {
+
+  FILE *tmp = tmpfile();
+  ASSERT_TRUE(tmp != NULL);
+
+  fputs("myVar", tmp);
+
+  rewind(tmp);
+
   Lexer_t lexer;
-  LexerInit(&lexer, "myVar");
+  LexerInit(&lexer, tmp);
 
   Token_t next = NextToken(&lexer);
 
+  fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
 }
 
 void RecognizeInt(void) {
+  FILE *tmp = tmpfile();
+  ASSERT_TRUE(tmp != NULL);
+
+  fputs("12343", tmp);
+
+  rewind(tmp);
+
   Lexer_t lexer;
-  LexerInit(&lexer, "12343");
+  LexerInit(&lexer, tmp);
 
   Token_t next = NextToken(&lexer);
 
+  fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
 }
 

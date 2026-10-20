@@ -6,6 +6,7 @@
 #define LEXER_H
 
 #include <stddef.h>
+#include <stdio.h>
 
 typedef enum {
   TOKEN_NONE, // initial
@@ -29,12 +30,12 @@ typedef struct {
 } Token_t;
 
 typedef struct {
-  char *source;  // points at buffer start
+  FILE *src;     // source file
   size_t offset; // offset in that buffer
   size_t line;   // counts newlines
 } Lexer_t;
 
-void LexerInit(Lexer_t *lexer, char *src);
+void LexerInit(Lexer_t *lexer, FILE *src);
 
 Token_t NextToken(Lexer_t *lexer);
 

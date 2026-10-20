@@ -14,9 +14,6 @@
  *
  * IsKeyword(char *str)
  *
- * seperate type?:
- * n,r,s,t,v - escape seq
- *
  * make TRANSITION TABLE 1D
  * macro for ascii map?
  */
@@ -289,10 +286,10 @@ static inline State_t NextState(State_t curr, CharType_t type) {
  * lexer - pointer to a lexer struct
  * src - pointer to buffer to scan
  */
-void LexerInit(Lexer_t *lexer, char *src) {
+void LexerInit(Lexer_t *lexer, FILE *src) {
   assert(lexer != NULL);
 
-  lexer->source = src;
+  lexer->src = src;
   lexer->offset = 0;
   lexer->line = 1; // first line
 
@@ -304,7 +301,6 @@ void LexerInit(Lexer_t *lexer, char *src) {
 /* TODO
  * count newlines
  * string pool
- * map: STATE -> TOKEN TYPE ???
  */
 Token_t NextToken(Lexer_t *lexer) {
 
@@ -316,12 +312,10 @@ Token_t NextToken(Lexer_t *lexer) {
 
   // count of processed chars
   size_t read_cnt = 0;
-  // pointer to current position
-  char *cursor = lexer->source;
 
-  while (1) {
-    // advance pointer
-    unsigned char c = *(cursor + read_cnt);
+  int c;
+  while ((c = fgetc(lexer->src)) != EOF) {
+
     CharType_t type = MapChar(c);
 
     next = NextState(current, type);
@@ -334,8 +328,6 @@ Token_t NextToken(Lexer_t *lexer) {
   }
 
   // TODO: modify by another map
-  // to prevent typing out +,-,*,/ for operator
-  // etc
   switch (current) {
   case STATE_IDENTIFIER:
     // IsKeyword()
