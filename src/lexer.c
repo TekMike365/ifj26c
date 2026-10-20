@@ -327,17 +327,55 @@ Token_t NextToken(Lexer_t *lexer) {
     read_cnt++;
   }
 
-  // TODO: modify by another map
   switch (current) {
+
   case STATE_IDENTIFIER:
     // IsKeyword()
     new.type = TOKEN_IDENTIFIER;
+    break;
+
+  case STATE_EQ:
+  case STATE_DOUBLE_EQ:
+  case STATE_GREATER:
+  case STATE_GREATER_EQ:
+  case STATE_LESS:
+  case STATE_LESS_EQ:
+  case STATE_STAR:
+  case STATE_PLUS:
+  case STATE_MINUS:
+  case STATE_SLASH:
+    new.type = TOKEN_OPERATOR;
+    break;
+
+  case STATE_LPAR:
+    new.type = TOKEN_LPAR;
+    break;
+
+  case STATE_RPAR:
+    new.type = TOKEN_RPAR;
     break;
 
   case STATE_INT:
     new.type = TOKEN_INT;
     // something ala strtol() to convert
     break;
+
+  case STATE_DOUBLE:
+  case STATE_EXPONENT:
+  case STATE_END_DOUBLE:
+    new.type = TOKEN_DOUBLE;
+    // strtod()
+    break;
+
+  case STATE_DOT:
+    new.type = TOKEN_DOT;
+    break;
+
+  case STATE_END_STRING:
+  case STATE_END_MULTILINE_STR:
+    new.type = TOKEN_STRING;
+    break;
+
   default:
     new.type = TOKEN_ERROR;
     break;
