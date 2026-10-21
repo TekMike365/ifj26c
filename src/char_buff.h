@@ -21,7 +21,11 @@ typedef struct {
 
 void CharBuffInit(CharBuff_t *buff);
 
-_Bool CharBuffInsert(CharBuff_t *buff, char c);
+bool CharBuffInsert(CharBuff_t *buff, char c);
+
+void CharBuffClear(CharBuff_t *buff);
+
+// void CharBuffReset(CharBuff_t *buff);
 
 void CharBuffTerminate(CharBuff_t *buff);
 
