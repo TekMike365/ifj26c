@@ -312,6 +312,16 @@ static inline State_t NextState(State_t curr, CharType_t type) {
 }
 
 // ##############################################################
+//                 OTHER  LEXER.C INTERNAL STUFF
+// ##############################################################
+
+TokenType_t parseIdentifier(char *str) {
+  (void)str;
+  // hash
+  return TOKEN_IDENTIFIER;
+}
+
+// ##############################################################
 //                    LEXER.H IMPLEMENTATION
 // ##############################################################
 
