@@ -346,6 +346,11 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   TransitionTableInit();
 }
 
+Token_t CreateToken(void) {
+  Token_t new = {.lexemeS = NULL, .line = 0, .len = 0, .type = TOKEN_NONE};
+  return new;
+}
+
 /* TODO
  * count newlines
  * string buff
@@ -353,8 +358,8 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
  */
 Token_t NextToken(Lexer_t *lexer) {
 
-  // replace with init function
-  Token_t new = {.len = 0, .line = 1};
+  // create new token
+  Token_t new = CreateToken();
 
   State_t current = STATE_START;
   State_t next;

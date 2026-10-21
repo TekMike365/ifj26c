@@ -46,6 +46,10 @@ typedef struct {
 
 void LexerInit(Lexer_t *lexer, FILE *src);
 
+void LexerTerminate(Lexer_t *lexer);
+
+Token_t CreateToken(void);
+
 Token_t NextToken(Lexer_t *lexer);
 
 #endif /* ifndef LEXER_H */
