@@ -315,10 +315,15 @@ static inline State_t NextState(State_t curr, CharType_t type) {
 //                 OTHER  LEXER.C INTERNAL STUFF
 // ##############################################################
 
-TokenType_t parseIdentifier(char *str) {
+TokenType_t ParseIdentifier(char *str) {
   (void)str;
   // hash
   return TOKEN_IDENTIFIER;
+}
+
+char *InStringpool(char *str) {
+  (void)str;
+  return NULL;
 }
 
 // ##############################################################
@@ -371,6 +376,7 @@ Token_t NextToken(Lexer_t *lexer) {
     read_cnt++;
   }
 
+  // can be optimized by STATE->TOKEN_TYPE map
   switch (current) {
 
   case STATE_IDENTIFIER:
@@ -379,6 +385,7 @@ Token_t NextToken(Lexer_t *lexer) {
     break;
 
   case STATE_EQ:
+  case STATE_NOT_EQ:
   case STATE_DOUBLE_EQ:
   case STATE_GREATER:
   case STATE_GREATER_EQ:
@@ -399,6 +406,10 @@ Token_t NextToken(Lexer_t *lexer) {
     new.type = TOKEN_RPAR;
     break;
 
+  case STATE_UNIT:
+    new.type = TOKEN_UNIT;
+    break;
+
   case STATE_INT:
     new.type = TOKEN_INT;
     // something ala strtol() to convert
@@ -413,6 +424,18 @@ Token_t NextToken(Lexer_t *lexer) {
 
   case STATE_DOT:
     new.type = TOKEN_DOT;
+    break;
+
+  case STATE_SEMICOLON:
+    new.type = TOKEN_SEMICOLON;
+    break;
+
+  case STATE_COMMA:
+    new.type = TOKEN_COMMA;
+    break;
+
+  case STATE_COLON:
+    new.type = TOKEN_COLON;
     break;
 
   case STATE_END_STRING:
