@@ -8,32 +8,37 @@
 /**TODO:
  * FSM states requiring separate handling:
  * COMMENT - single line, block
- * HARD WITH FSM
  *
  * START:WHITESPACE -> START?
  *
- * IsKeyword(char *str)
+ * parseIdentifier(char *str)
  *
  * make TRANSITION TABLE 1D
- * macro for ascii map?
  */
 
 // ##############################################################
 //                        ASCII MAP STUFF
 // ##############################################################
 
-#define ASCII_LENGTH 256
+#define ASCII_LENGTH 128
 
 // ASCII chars grouped into types for mapping
 typedef enum {
   CHAR_ALPHA,
   CHAR_D, // d and D in double
   CHAR_E, // e end E in exponent
+  CHAR_N, // escape newline
+  CHAR_R, // -- carriage return
+  CHAR_T, // -- tabulator
   CHAR_NUM,
   CHAR_EQ,
   CHAR_GREATER,
   CHAR_LESS,
   CHAR_LPAR,
+  CHAR_EXCL_MARK,
+  CHAR_SEMICOLON,
+  CHAR_COMMA,
+  CHAR_COLON,
   CHAR_RPAR,
   CHAR_PLUS,
   CHAR_MINUS,
@@ -78,6 +83,9 @@ static void ASCIIMapInit(void) {
                           {'D', 'D', CHAR_D},
                           {'e', 'e', CHAR_E},
                           {'E', 'E', CHAR_E},
+                          {'n', 'n', CHAR_N},
+                          {'r', 'r', CHAR_R},
+                          {'t', 't', CHAR_T},
                           {'0', '9', CHAR_NUM},
                           {'=', '=', CHAR_EQ},
                           {'>', '>', CHAR_GREATER},
@@ -300,6 +308,7 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
 
 /* TODO
  * count newlines
+ * string buff
  * string pool
  */
 Token_t NextToken(Lexer_t *lexer) {
