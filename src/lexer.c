@@ -3,6 +3,7 @@
  */
 
 #include "lexer.h"
+#include "char_buff.h"
 #include <assert.h>
 
 /**TODO:
@@ -338,12 +339,24 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   assert(lexer != NULL);
 
   lexer->src = src;
+  CharBuffInit(&lexer->buff);
   lexer->offset = 0;
   lexer->line = 1; // first line
 
   // initialize the map and transition table
   ASCIIMapInit();
   TransitionTableInit();
+}
+
+void LexerTerminate(Lexer_t *lexer) {
+  if (lexer == NULL) {
+    return;
+  }
+
+  lexer->src = NULL;
+  CharBuffTerminate(&lexer->buff);
+  lexer->line = 1;
+  lexer->offset = 0;
 }
 
 Token_t CreateToken(void) {
