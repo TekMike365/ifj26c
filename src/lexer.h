@@ -5,7 +5,7 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-#include "char_buff.h"
+#include "char_buf.h"
 #include <stddef.h>
 #include <stdio.h>
 
@@ -41,7 +41,7 @@ typedef struct {
 
 typedef struct {
   FILE *src; // source file
-  CharBuff_t buff;
+  CharBuf_t buf;
   size_t offset; // file offset
   size_t line;   // counts newlines
 } Lexer_t;

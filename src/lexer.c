@@ -3,7 +3,7 @@
  */
 
 #include "lexer.h"
-#include "char_buff.h"
+#include "char_buf.h"
 #include <assert.h>
 
 /**TODO:
@@ -339,7 +339,7 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   assert(lexer != NULL);
 
   lexer->src = src;
-  CharBuffInit(&lexer->buff);
+  CharBufInit(&lexer->buf);
   lexer->offset = 0;
   lexer->line = 1; // first line
 
@@ -354,7 +354,7 @@ void LexerTerminate(Lexer_t *lexer) {
   }
 
   lexer->src = NULL;
-  CharBuffTerminate(&lexer->buff);
+  CharBufTerminate(&lexer->buf);
   lexer->line = 1;
   lexer->offset = 0;
 }
