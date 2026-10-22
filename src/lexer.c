@@ -19,7 +19,7 @@
  */
 
 // ##############################################################
-//                 OTHER  LEXER.C INTERNAL STUFF
+//                    LEXER.C INTERNAL STUFF
 // ##############################################################
 
 TokenType_t ParseIdentifier(char *str) {
