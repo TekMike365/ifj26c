@@ -25,6 +25,23 @@ void RecognizeIdentifier(void) {
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
   LexerTerminate(&lexer);
 }
+void RecognizeKeyword(void) {
+  FILE *tmp = tmpfile();
+  ASSERT_TRUE(tmp != NULL);
+
+  fputs("for", tmp);
+
+  rewind(tmp);
+
+  Lexer_t lexer;
+  LexerInit(&lexer, tmp);
+
+  Token_t next = NextToken(&lexer);
+
+  fclose(tmp);
+  ASSERT_INT_EQ(next.type, TOKEN_KEYWORD);
+  LexerTerminate(&lexer);
+}
 
 void RecognizeInt(void) {
   FILE *tmp = tmpfile();
@@ -48,6 +65,7 @@ int main(void) {
   SuiteInit("lexer");
 
   RunTest(RecognizeIdentifier, "Recognize identifier");
+  RunTest(RecognizeKeyword, "Recongize keyword");
   RunTest(RecognizeInt, "Recognize int");
 
   PrintSummary();
