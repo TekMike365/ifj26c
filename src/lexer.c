@@ -6,6 +6,7 @@
 #include "char_buf.h"
 #include "lexer_fsm.h"
 #include <assert.h>
+#include <string.h>
 
 /**TODO:
  * FSM states requiring separate handling:
@@ -22,9 +23,116 @@
 //                    LEXER.C INTERNAL STUFF
 // ##############################################################
 
-TokenType_t ParseIdentifier(char *str) {
-  (void)str;
-  // hash
+static inline TokenType_t matchKeywordSuffix(const char *str, const char *ref,
+                                             size_t len) {
+
+  if (memcmp(str, ref, len) == 0) {
+    return TOKEN_KEYWORD;
+  }
+
+  return TOKEN_IDENTIFIER;
+}
+
+/* decides whether str is identifier or keyword
+ * implemented using length-partition followed by trie matching
+ * str - pointer to a char array
+ * return - TOKEN_NONE on str == NULL, TOKEN_KEYWORD on keyword, else
+ * TOKEN_IDENTIFIER
+ */
+static TokenType_t ParseIdentifier(const char *str) {
+  if (!str)
+    return TOKEN_NONE;
+
+  size_t len = strlen(str);
+
+  // shortest keyword (do/if) has len 2
+  // longest (extension) has 9
+  if (len < 2 || len > 9) {
+    return TOKEN_IDENTIFIER;
+  }
+  // partition keyword set by length
+  switch (len) {
+  case 2:
+    // trie search
+    switch (str[0]) {
+    case 'd':
+      // match the rest with "o" as in "do"
+      //                    rest has len 1 ---v
+      return matchKeywordSuffix(str + 1, "o", 1); // 'do'
+    case 'i':
+      return matchKeywordSuffix(str + 1, "f", 1); // 'if'
+    }
+    break;
+  case 3:
+    switch (str[0]) {
+    case 'd':
+      return matchKeywordSuffix(str + 1, "ef", 2); // 'def'
+    case 'f':
+      return matchKeywordSuffix(str + 1, "or", 2); // 'for'
+    case 'I':
+      return matchKeywordSuffix(str + 1, "nt", 2); // 'Int'
+    case 'v':
+      switch (str[1]) {
+        // annoying, both ('var'/'val') start as 'va' and have length 3 :(
+        // kept switch for consistency
+      case 'a':
+        switch (str[2]) {
+        case 'l':
+          return TOKEN_KEYWORD; // 'val'
+
+        case 'r':
+          return TOKEN_KEYWORD; // 'var'
+        }
+      }
+    }
+    break;
+
+  case 4:
+    switch (str[0]) {
+    case 'c':
+      return matchKeywordSuffix(str + 1, "ase", 3); // 'case'
+    case 'e':
+      return matchKeywordSuffix(str + 1, "lse", 3); // 'else'
+    case 'L':
+      return matchKeywordSuffix(str + 1, "ist", 3); // 'List'
+    case 't':
+      return matchKeywordSuffix(str + 1, "ype", 3); // 'type'
+    case 'U':
+      return matchKeywordSuffix(str + 1, "nit", 3); // 'Unit'
+    }
+    break;
+
+  case 5:
+    switch (str[0]) {
+    case 'c':
+      return matchKeywordSuffix(str + 1, "lass", 4); // 'class'
+    case 'm':
+      return matchKeywordSuffix(str + 1, "atch", 5); // 'match'
+    case 'w':
+      return matchKeywordSuffix(str + 1, "hile", 4); // 'while'
+    }
+    break;
+  case 6:
+    switch (str[0]) {
+    case 'i':
+      return matchKeywordSuffix(str + 1, "mport", 5); // 'import'
+    case 'r':
+      return matchKeywordSuffix(str + 1, "eturn", 5); // 'return'
+    case 'S':
+      return matchKeywordSuffix(str + 1, "tring", 5); // 'String'
+    }
+    break;
+  case 7:
+    return matchKeywordSuffix(str + 0, "Boolean", 7); // 'Boolean'
+    // no keyword with length 8
+  case 8:
+    return TOKEN_IDENTIFIER;
+  case 9:
+    return matchKeywordSuffix(str + 0, "extension", 9); // 'extension'
+
+  default:
+    return TOKEN_IDENTIFIER;
+  }
   return TOKEN_IDENTIFIER;
 }
 
@@ -104,7 +212,7 @@ Token_t NextToken(Lexer_t *lexer) {
   switch (current) {
 
   case STATE_IDENTIFIER:
-    // IsKeyword()
+    ParseIdentifier(NULL);
     new.type = TOKEN_IDENTIFIER;
     break;
 
