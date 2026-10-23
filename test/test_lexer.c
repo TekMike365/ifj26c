@@ -23,6 +23,7 @@ void RecognizeIdentifier(void) {
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  LexerTerminate(&lexer);
 }
 
 void RecognizeInt(void) {
@@ -40,6 +41,7 @@ void RecognizeInt(void) {
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
+  LexerTerminate(&lexer);
 }
 
 int main(void) {

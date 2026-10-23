@@ -188,6 +188,9 @@ Token_t NextToken(Lexer_t *lexer) {
   // create new token
   Token_t new = CreateToken();
 
+  // reset buffer
+  CharBufClear(&lexer->buf);
+
   State_t current = STATE_START;
   State_t next;
 
@@ -199,6 +202,8 @@ Token_t NextToken(Lexer_t *lexer) {
 
     CharType_t type = MapChar(c);
 
+    CharBufInsert(&lexer->buf, c);
+
     next = NextState(current, type);
     if (next == STATE_END) {
       break;
@@ -208,11 +213,14 @@ Token_t NextToken(Lexer_t *lexer) {
     read_cnt++;
   }
 
+  // null-terminate
+  CharBufInsert(&lexer->buf, '\0');
+
   // can be optimized by STATE->TOKEN_TYPE map
   switch (current) {
 
   case STATE_IDENTIFIER:
-    ParseIdentifier(NULL);
+    ParseIdentifier(lexer->buf.buf);
     new.type = TOKEN_IDENTIFIER;
     break;
 
