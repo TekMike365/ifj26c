@@ -180,7 +180,6 @@ Token_t CreateToken(void) {
 
 /* TODO
  * count newlines
- * string buff
  * string pool
  */
 Token_t NextToken(Lexer_t *lexer) {
@@ -216,12 +215,16 @@ Token_t NextToken(Lexer_t *lexer) {
   // null-terminate
   CharBufInsert(&lexer->buf, '\0');
 
+  // new.lexemeS = InStringpool()
+
   // can be optimized by STATE->TOKEN_TYPE map
   switch (current) {
 
   case STATE_IDENTIFIER:
-    ParseIdentifier(lexer->buf.buf);
-    new.type = TOKEN_IDENTIFIER;
+    // IF STRING POOL CONTAINED STRING+METADATA i.e. TOKEN POOL
+    // Token type could be a part of it?
+    // Parse not needed?
+    new.type = ParseIdentifier(lexer->buf.buf);
     break;
 
   case STATE_EQ:
