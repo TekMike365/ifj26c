@@ -249,6 +249,10 @@ Token_t NextToken(Lexer_t *lexer) {
     new.type = TOKEN_RPAR;
     break;
 
+  case STATE_AT:
+    new.type = TOKEN_AT;
+    break;
+
   case STATE_UNIT:
     new.type = TOKEN_UNIT;
     break;

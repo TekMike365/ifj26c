@@ -25,6 +25,7 @@ typedef enum {
   CHAR_LESS,
   CHAR_LPAR,
   CHAR_EXCL_MARK,
+  CHAR_AT,
   CHAR_SEMICOLON,
   CHAR_COMMA,
   CHAR_COLON,
@@ -85,6 +86,7 @@ static void ASCIIMapInit(void) {
                           {'(', '(', CHAR_LPAR},
                           {')', ')', CHAR_RPAR},
                           {'!', '!', CHAR_EXCL_MARK},
+                          {'@', '@', CHAR_AT},
                           {';', ';', CHAR_SEMICOLON},
                           {',', ',', CHAR_COMMA},
                           {':', ':', CHAR_COLON},
@@ -130,6 +132,7 @@ typedef enum {
   STATE_LPAR,
   STATE_RPAR,
   STATE_EXCL_MARK,
+  STATE_AT,
   STATE_NOT_EQ,
   STATE_UNIT,
   STATE_SEMICOLON,
@@ -196,6 +199,7 @@ typedef enum {
   X(STATE_START, CHAR_QUOTE, STATE_QUOTE)                                      \
   X(STATE_START, CHAR_DOT, STATE_DOT)                                          \
   X(STATE_START, CHAR_EXCL_MARK, STATE_EXCL_MARK)                              \
+  X(STATE_START, CHAR_AT, STATE_AT)                                            \
   X(STATE_START, CHAR_SEMICOLON, STATE_SEMICOLON)                              \
   X(STATE_START, CHAR_SEMICOLON, STATE_COMMA)                                  \
   X(STATE_START, CHAR_SEMICOLON, STATE_COLON)                                  \
