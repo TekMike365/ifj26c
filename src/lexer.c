@@ -96,7 +96,15 @@ static TokenType_t ParseIdentifier(const char *str) {
     case 'L':
       return MatchKeywordSuffix(str + 1, "ist", 3); // 'List'
     case 't':
-      return MatchKeywordSuffix(str + 1, "ype", 3); // 'type'
+      switch (str[1]) {
+      case 'h':
+        return MatchKeywordSuffix(str + 2, "en", 2); // 'then'
+      case 'y':
+        return MatchKeywordSuffix(str + 2, "pe", 2); // 'type'
+
+      default:
+        return TOKEN_IDENTIFIER;
+      }
     case 'U':
       return MatchKeywordSuffix(str + 1, "nit", 3); // 'Unit'
     }
@@ -107,13 +115,15 @@ static TokenType_t ParseIdentifier(const char *str) {
     case 'c':
       return MatchKeywordSuffix(str + 1, "lass", 4); // 'class'
     case 'm':
-      return MatchKeywordSuffix(str + 1, "atch", 5); // 'match'
+      return MatchKeywordSuffix(str + 1, "atch", 4); // 'match'
     case 'w':
       return MatchKeywordSuffix(str + 1, "hile", 4); // 'while'
     }
     break;
   case 6:
     switch (str[0]) {
+    case 'D':
+      return MatchKeywordSuffix(str + 1, "ouble", 5); // Double
     case 'i':
       return MatchKeywordSuffix(str + 1, "mport", 5); // 'import'
     case 'r':
