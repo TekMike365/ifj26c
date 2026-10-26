@@ -39,7 +39,7 @@ void RecognizeKeyword(void) {
   Token_t next = NextToken(&lexer);
 
   fclose(tmp);
-  ASSERT_INT_EQ(next.type, TOKEN_KEYWORD);
+  ASSERT_INT_EQ(next.type, TOKEN_KEYWORD_FOR);
   LexerTerminate(&lexer);
 }
 
