@@ -223,6 +223,7 @@ typedef enum {
   X(STATE_INT, CHAR_UNDERSCORE, STATE_INT_UNDERSCORE)                          \
   X(STATE_INT, CHAR_DOT, STATE_START_DOUBLE)                                   \
   X(STATE_INT, CHAR_E, STATE_START_EXPONENT)                                   \
+  X(STATE_INT_UNDERSCORE, CHAR_NUM, STATE_INT)                                 \
                                                                                \
   X(STATE_DOT, CHAR_NUM, STATE_DOUBLE)                                         \
                                                                                \
