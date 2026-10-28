@@ -43,7 +43,7 @@ static inline TokenType_t MatchKeywordSuffix(const char *str, const char *ref,
 /* decides whether str is identifier or keyword
  * implemented using length-partition followed by trie matching
  * str - pointer to a char array
- * return - TOKEN_NONE on str == NULL, TOKEN_KEYWORD on keyword, else
+ * return - TOKEN_NONE on str == NULL, TOKEN_KEYWORD_X on keyword X, else
  * TOKEN_IDENTIFIER
  */
 static TokenType_t ParseIdentifier(const char *str) {
@@ -173,6 +173,38 @@ char *InStringpool(char *str) {
   return NULL;
 }
 
+/* Converts a string [-][0-9_]* into a decimal int
+ * nptr - pointer to the start of the number string
+ * end - (may be NULL) pointer to the last read char
+ * return - coverted int
+ */
+int StrToInt(const char *restrict nptr, char **restrict end) {
+  char c;
+  // is first char is +/-, set sign to 1/-1 and advance the pointer, else set
+  // sign to 0
+  int sign = (*nptr == '-' ? nptr++, -1 : (*nptr == '+' ? nptr++, 1 : 1));
+  int res = 0;
+
+  while ((c = *(nptr++)) != '\0') {
+
+    // digit
+    if (c >= '0' && c <= '9') {
+      res = res * 10 + sign * (c - '0');
+    }
+    // underscore
+    else if (c == '_') {
+      continue;
+    } else {
+      break;
+    }
+  }
+  if (end) {
+    *end = (char *)nptr;
+  }
+
+  return res;
+}
+
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
 // ##############################################################
@@ -291,7 +323,7 @@ Token_t NextToken(Lexer_t *lexer) {
 
   case STATE_INT:
     new.type = TOKEN_INT;
-    // something ala strtol() to convert
+    new.lexemeI = StrToInt(lexer->buf.buf, NULL);
     break;
 
   case STATE_DOUBLE:

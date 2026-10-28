@@ -58,6 +58,26 @@ void RecognizeInt(void) {
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
+  ASSERT_INT_EQ(next.lexemeI, 12343);
+  LexerTerminate(&lexer);
+}
+
+void RecognizeIntUnderscore(void) {
+  FILE *tmp = tmpfile();
+  ASSERT_TRUE(tmp != NULL);
+
+  fputs("12_34_3", tmp);
+
+  rewind(tmp);
+
+  Lexer_t lexer;
+  LexerInit(&lexer, tmp);
+
+  Token_t next = NextToken(&lexer);
+
+  fclose(tmp);
+  ASSERT_INT_EQ(next.type, TOKEN_INT);
+  ASSERT_INT_EQ(next.lexemeI, 12343);
   LexerTerminate(&lexer);
 }
 
@@ -67,6 +87,7 @@ int main(void) {
   RunTest(RecognizeIdentifier, "Recognize identifier");
   RunTest(RecognizeKeyword, "Recongize keyword");
   RunTest(RecognizeInt, "Recognize int");
+  RunTest(RecognizeIntUnderscore, "Recognize int with underscore");
 
   PrintSummary();
   return 0;
