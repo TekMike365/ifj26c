@@ -6,6 +6,7 @@
 #include "char_buf.h"
 #include "lexer_fsm.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 /**TODO:
@@ -173,36 +174,43 @@ char *InStringpool(char *str) {
   return NULL;
 }
 
-/* Converts a string [-][0-9_]* into a decimal int
+/* Converts a string [+- ][0-9_]* into a decimal int
+ * !!! DESTRUCTIVE -- overwrites '_' (i.e. 1_2_34->1234)
  * nptr - pointer to the start of the number string
  * end - (may be NULL) pointer to the last read char
- * return - coverted int
+ * return - converted int
  */
-int StrToInt(const char *restrict nptr, char **restrict end) {
-  char c;
-  // is first char is +/-, set sign to 1/-1 and advance the pointer, else set
-  // sign to 0
-  int sign = (*nptr == '-' ? nptr++, -1 : (*nptr == '+' ? nptr++, 1 : 1));
-  int res = 0;
-
-  while ((c = *(nptr++)) != '\0') {
-
-    // digit
-    if (c >= '0' && c <= '9') {
-      res = res * 10 + sign * (c - '0');
-    }
-    // underscore
-    else if (c == '_') {
-      continue;
-    } else {
-      break;
+static int StrToInt(char *restrict nptr, char **restrict end) {
+  size_t len = strlen(nptr);
+  char *c = nptr;
+  for (size_t idx = 0; idx < len; idx++) {
+    if (nptr[idx] != '_') {
+      *(c++) = nptr[idx];
     }
   }
-  if (end) {
-    *end = (char *)nptr;
-  }
+  *c = '\0';
 
-  return res;
+  return strtol(nptr, end, 10);
+}
+
+/* Converts a string of double into a decimal int
+ * !!! DESTRUCTIVE -- overwrites '_' (i.e. 1.2_34e56->1.234e56)
+ * nptr - pointer to the start of the number string
+ * end - (may be NULL) pointer to the last read char
+ * return - converted int
+ */
+static double StrToDouble(char *restrict nptr, char **restrict end) {
+
+  size_t len = strlen(nptr);
+  char *c = nptr;
+  for (size_t idx = 0; idx < len; idx++) {
+    if (nptr[idx] != '_') {
+      *(c++) = nptr[idx];
+    }
+  }
+  *c = '\0';
+
+  return strtod(nptr, end);
 }
 
 // ##############################################################
@@ -330,7 +338,7 @@ Token_t NextToken(Lexer_t *lexer) {
   case STATE_EXPONENT:
   case STATE_END_DOUBLE:
     new.type = TOKEN_DOUBLE;
-    // strtod()
+    new.lexemeD = StrToDouble(lexer->buf.buf, NULL);
     break;
 
   case STATE_DOT:
