@@ -316,6 +316,11 @@ RESET:
   // null-terminate
   CharBufInsert(&lexer->buf, '\0');
 
+  // next char was consumed to determine end
+  // i.e. '+' in "pos+1" is a delimiter for "pos"
+  // must push it back into stream
+  ungetc(c, lexer->src);
+
   // new.lexemeS = InStringpool()
 
   // can be optimized by STATE->TOKEN_TYPE map
