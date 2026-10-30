@@ -211,7 +211,7 @@ static double StrToDouble(char *restrict nptr, char **restrict end) {
   return strtod(nptr, end);
 }
 
-_Bool SkipBlockComment(FILE *file) {
+static _Bool SkipBlockComment(FILE *file) {
   // previous char, helps avoid ungetc()
   int prev = 0;
   int c;
@@ -228,7 +228,9 @@ _Bool SkipBlockComment(FILE *file) {
       // -- for "*/", even though "*/" is not an end of nesting level
       c = 0;
       depth++;
-    } else if (prev == '*' && c == '/') {
+    }
+    // "*/"
+    else if (prev == '*' && c == '/') {
       // same here for "*/*"
       c = 0;
       depth--;
@@ -237,6 +239,14 @@ _Bool SkipBlockComment(FILE *file) {
   }
   // return: 1 => skipped; 0 => EOF before comment end - error
   return (depth == 0);
+}
+
+static void SkipLineComment(FILE *file) {
+  int c;
+  // read until EOF or line feed
+  while ((c = fgetc(file)) != EOF && c != '\n') {
+    continue;
+  }
 }
 
 // ##############################################################
@@ -277,7 +287,7 @@ Token_t CreateToken(void) {
 }
 
 /* TODO
- * count newlines, indent
+ * count newlines (block comment, comment!!), indent
  * solve buf reset after comment (comment end state?)
  * string pool
  */
@@ -347,12 +357,17 @@ RESET:
     new.type = TOKEN_OPERATOR;
     break;
 
+  case STATE_COMMENT:
+    SkipLineComment(lexer->src);
+    // comment not a token, start anew
+    goto RESET;
+
   case STATE_BLOCK_COMMENT:
     if (!SkipBlockComment(lexer->src)) {
       new.type = TOKEN_ERROR;
       break;
     }
-    // start anew to return a token
+    // start anew
     goto RESET;
 
   case STATE_LPAR:
