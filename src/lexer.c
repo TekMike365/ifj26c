@@ -11,11 +11,9 @@
 
 /**TODO:
  * FSM states requiring separate handling:
- * COMMENT - single line, block
+ * COMMENT - single line
  *
  * START:WHITESPACE -> START?
- *
- * parseIdentifier(char *str)
  *
  * make TRANSITION TABLE 1D
  */
@@ -279,7 +277,8 @@ Token_t CreateToken(void) {
 }
 
 /* TODO
- * count newlines
+ * count newlines, indent
+ * solve buf reset after comment (comment end state?)
  * string pool
  */
 Token_t NextToken(Lexer_t *lexer) {
@@ -406,8 +405,7 @@ RESET:
   }
 
   // update lexer`s position
-  // TODO: something ala ungetc
-  // now consumes lexeme + 1 char
+  // TODO: remove/redo??
   lexer->offset += read_cnt;
 
   return new;
