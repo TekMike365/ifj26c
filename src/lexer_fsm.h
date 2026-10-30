@@ -40,7 +40,7 @@ typedef enum {
   CHAR_QUOTE,
   CHAR_WHITESPACE,
   CHAR_NULL,
-  CHAR_NEWLINE,
+  CHAR_LINE_FEED,
   CHAR_OTHER,
   CHAR_TYPE_CNT
 } CharType_t;
@@ -96,7 +96,7 @@ static void ASCIIMapInit(void) {
                           {'/', '/', CHAR_SLASH},
                           {'\\', '\\', CHAR_BACKSLASH},
                           {'\0', '\0', CHAR_NULL},
-                          {'\n', '\n', CHAR_NEWLINE},
+                          {'\n', '\n', CHAR_LINE_FEED},
                           {' ', ' ', CHAR_WHITESPACE},
                           {'\t', '\t', CHAR_WHITESPACE},
                           {'\v', '\v', CHAR_WHITESPACE},
