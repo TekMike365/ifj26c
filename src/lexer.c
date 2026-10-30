@@ -213,6 +213,34 @@ static double StrToDouble(char *restrict nptr, char **restrict end) {
   return strtod(nptr, end);
 }
 
+_Bool SkipBlockComment(FILE *file) {
+  // previous char, helps avoid ungetc()
+  int prev = 0;
+  int c;
+
+  // called after consuming "/*"
+  // hence depth is implicitly 1
+  unsigned depth = 1;
+
+  // while in block comment and not at the end
+  while (depth > 0 && (c = fgetc(file)) != EOF) {
+    // "/*"
+    if (prev == '/' && c == '*') {
+      // reset c, otherwise "/*/" will trigger depth++ for "/*" and then
+      // -- for "*/", even though "*/" is not an end of nesting level
+      c = 0;
+      depth++;
+    } else if (prev == '*' && c == '/') {
+      // same here for "*/*"
+      c = 0;
+      depth--;
+    }
+    prev = c;
+  }
+  // return: 1 => skipped; 0 => EOF before comment end - error
+  return (depth == 0);
+}
+
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
 // ##############################################################
@@ -258,6 +286,8 @@ Token_t NextToken(Lexer_t *lexer) {
 
   // create new token
   Token_t new = CreateToken();
+
+RESET:
 
   // reset buffer
   CharBufClear(&lexer->buf);
@@ -312,6 +342,14 @@ Token_t NextToken(Lexer_t *lexer) {
   case STATE_SLASH:
     new.type = TOKEN_OPERATOR;
     break;
+
+  case STATE_BLOCK_COMMENT:
+    if (!SkipBlockComment(lexer->src)) {
+      new.type = TOKEN_ERROR;
+      break;
+    }
+    // start anew to return a token
+    goto RESET;
 
   case STATE_LPAR:
     new.type = TOKEN_LPAR;
