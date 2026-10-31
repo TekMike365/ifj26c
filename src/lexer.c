@@ -249,6 +249,9 @@ static void SkipLineComment(FILE *file) {
   }
 }
 
+// if nothing except ' ', '\t' or '\n' is read, return curr, else count
+// static unsigned IndentScan(FILE *file, Lexer_t *lex)
+
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
 // ##############################################################
@@ -288,6 +291,9 @@ Token_t CreateToken(void) {
 
 /* TODO
  * count newlines (block comment, comment!!), indent
+ * INDENT STACK???
+ * dedent counter > 0, return TOKEN_DEDENT
+ * parenthesis counter => ignore indent if !=0
  * solve buf reset after comment (comment end state?)
  * string pool
  */
@@ -296,13 +302,14 @@ Token_t NextToken(Lexer_t *lexer) {
   // create new token
   Token_t new = CreateToken();
 
+  State_t current, next;
+
 RESET:
 
   // reset buffer
   CharBufClear(&lexer->buf);
 
-  State_t current = STATE_START;
-  State_t next;
+  current = STATE_START;
 
   // count of processed chars
   size_t read_cnt = 0;
@@ -312,7 +319,10 @@ RESET:
 
     CharType_t type = MapChar(c);
 
-    CharBufInsert(&lexer->buf, c);
+    if (!CharBufInsert(&lexer->buf, c)) {
+      new.type = TOKEN_ERROR;
+      return new;
+    };
 
     next = NextState(current, type);
     if (next == STATE_END) {
@@ -324,7 +334,10 @@ RESET:
   }
 
   // null-terminate
-  CharBufInsert(&lexer->buf, '\0');
+  if (!CharBufInsert(&lexer->buf, '\0')) {
+    new.type = TOKEN_ERROR;
+    return new;
+  };
 
   // next char was consumed to determine end
   // i.e. '+' in "pos+1" is a delimiter for "pos"
