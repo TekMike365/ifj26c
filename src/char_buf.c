@@ -4,7 +4,6 @@
 
 #include "char_buf.h"
 #include <assert.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -18,7 +17,7 @@ void CharBufInit(CharBuf_t *buf) {
 }
 
 // insert char c into buffer
-bool CharBufInsert(CharBuf_t *buf, char c) {
+_Bool CharBufInsert(CharBuf_t *buf, char c) {
   assert(buf != NULL);
 
   if (buf->size == buf->capacity) {
@@ -30,7 +29,7 @@ bool CharBufInsert(CharBuf_t *buf, char c) {
 
     if (!tmp) {
       free(tmp);
-      return false;
+      return 0;
     }
 
     buf->capacity = newSize;
@@ -38,7 +37,7 @@ bool CharBufInsert(CharBuf_t *buf, char c) {
   }
 
   buf->buf[buf->size++] = c;
-  return true;
+  return 1;
 }
 
 // clear the buffer size for reuse
