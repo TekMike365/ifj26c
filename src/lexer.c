@@ -210,7 +210,7 @@ static double StrToDouble(char *restrict nptr, char **restrict end) {
   return strtod(nptr, end);
 }
 
-static _Bool SkipBlockComment(FILE *file) {
+static _Bool SkipBlockComment(Lexer_t *lexer) {
   // previous char, helps avoid ungetc()
   int prev = 0;
   int c;
@@ -220,7 +220,7 @@ static _Bool SkipBlockComment(FILE *file) {
   unsigned depth = 1;
 
   // while in block comment and not at the end
-  while (depth > 0 && (c = fgetc(file)) != EOF) {
+  while (depth > 0 && (c = fgetc(lexer->src)) != EOF) {
     // "/*"
     if (prev == '/' && c == '*') {
       // reset c, otherwise "/*/" will trigger depth++ for "/*" and then
@@ -240,10 +240,10 @@ static _Bool SkipBlockComment(FILE *file) {
   return (depth == 0);
 }
 
-static void SkipLineComment(FILE *file) {
+static void SkipLineComment(Lexer_t *lexer) {
   int c;
   // read until EOF or line feed
-  while ((c = fgetc(file)) != EOF && c != '\n') {
+  while ((c = fgetc(lexer->src)) != EOF && c != '\n') {
     continue;
   }
 }
@@ -370,12 +370,12 @@ RESET:
     break;
 
   case STATE_COMMENT:
-    SkipLineComment(lexer->src);
+    SkipLineComment(lexer);
     // comment not a token, start anew
     goto RESET;
 
   case STATE_BLOCK_COMMENT:
-    if (!SkipBlockComment(lexer->src)) {
+    if (!SkipBlockComment(lexer)) {
       new.type = TOKEN_ERROR;
       break;
     }
@@ -438,7 +438,6 @@ RESET:
 
   // update lexer`s position
   // TODO: add it to helper function
-  // pass lexer istead of FILE
   // replace ungetc with static char c
   // if (c != 0){
   // } else
