@@ -19,7 +19,7 @@ void RecognizeIdentifier(void) {
   Lexer_t lexer;
   LexerInit(&lexer, tmp);
 
-  Token_t next = NextToken(&lexer);
+  Token_t next = GetNextToken(&lexer);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
@@ -36,7 +36,7 @@ void RecognizeKeyword(void) {
   Lexer_t lexer;
   LexerInit(&lexer, tmp);
 
-  Token_t next = NextToken(&lexer);
+  Token_t next = GetNextToken(&lexer);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_KEYWORD_FOR);
@@ -54,7 +54,7 @@ void RecognizeInt(void) {
   Lexer_t lexer;
   LexerInit(&lexer, tmp);
 
-  Token_t next = NextToken(&lexer);
+  Token_t next = GetNextToken(&lexer);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
@@ -73,7 +73,7 @@ void RecognizeIntUnderscore(void) {
   Lexer_t lexer;
   LexerInit(&lexer, tmp);
 
-  Token_t next = NextToken(&lexer);
+  Token_t next = GetNextToken(&lexer);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);

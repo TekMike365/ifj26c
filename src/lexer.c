@@ -10,8 +10,7 @@
 #include <string.h>
 
 /**TODO:
- * FSM states requiring separate handling:
- * COMMENT - single line
+ * TOKEN_ERROR error codes (context)
  *
  * START:WHITESPACE -> START?
  *
@@ -250,7 +249,7 @@ static void SkipLineComment(FILE *file) {
 }
 
 // if nothing except ' ', '\t' or '\n' is read, return curr, else count
-// static unsigned IndentScan(FILE *file, Lexer_t *lex)
+// static unsigned ScanIndent(FILE *file, Lexer_t *lex)
 
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
@@ -294,10 +293,10 @@ Token_t CreateToken(void) {
  * INDENT STACK???
  * dedent counter > 0, return TOKEN_DEDENT
  * parenthesis counter => ignore indent if !=0
- * solve buf reset after comment (comment end state?)
+ * tryshrink after string - probably longer than identifier
  * string pool
  */
-Token_t NextToken(Lexer_t *lexer) {
+Token_t GetNextToken(Lexer_t *lexer) {
 
   // create new token
   Token_t new = CreateToken();
@@ -438,7 +437,12 @@ RESET:
   }
 
   // update lexer`s position
-  // TODO: remove/redo??
+  // TODO: add it to helper function
+  // pass lexer istead of FILE
+  // replace ungetc with static char c
+  // if (c != 0){
+  // } else
+  // fgetc
   lexer->offset += read_cnt;
 
   return new;
