@@ -6,12 +6,15 @@
 #define LEXER_H
 
 #include "char_buf.h"
+#include "int_stack.h"
 #include <stddef.h>
 #include <stdio.h>
 
 typedef enum {
   TOKEN_NONE, // initial
   TOKEN_IDENTIFIER,
+  TOKEN_INDENT,
+  TOKEN_DEDENT,
   TOKEN_KEYWORD_DO,
   TOKEN_KEYWORD_IF,
   TOKEN_KEYWORD_DEF,
@@ -66,6 +69,19 @@ typedef struct {
   CharBuf_t buf;
   size_t offset; // file offset
   size_t line;   // counts newlines
+
+  // > 1 -> in parentheses, no indent
+  // i.e. foo(
+  // param1
+  //      param2)
+  int parenDepth;
+  // stores active indent levels
+  IntStack_t indentStack;
+
+  // stores the previous character
+  // used to replace ungetc
+  // next invalid char is delimiter to token
+  int prevChar;
 } Lexer_t;
 
 void LexerInit(Lexer_t *lexer, FILE *src);

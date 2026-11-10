@@ -11,8 +11,6 @@
 #include <string.h>
 
 /**TODO:
- * TOKEN_ERROR error codes (context)
- *
  * START:WHITESPACE -> START?
  *
  * make TRANSITION TABLE 1D
@@ -21,11 +19,6 @@
 // ##############################################################
 //                    LEXER.C INTERNAL STUFF
 // ##############################################################
-
-// stores the previous character
-// used to replace ungetc
-// next invalid char is delimiter to token
-static int m_prevChar = 0;
 
 /* Compares suffix with reference suffix (keyword suffix) and returns user
  * passed type on match, else defaults to TOKEN_IDENTIFIER
@@ -144,7 +137,7 @@ static TokenType_t ParseIdentifier(const char *str) {
     switch (str[0]) {
     case 'D':
       return MatchKeywordSuffix(str + 1, "ouble", 5,
-                                TOKEN_KEYWORD_DOUBLE); // Double
+                                TOKEN_KEYWORD_DOUBLE); // 'Double'
     case 'i':
       return MatchKeywordSuffix(str + 1, "mport", 5,
                                 TOKEN_KEYWORD_IMPORT); // 'import'
@@ -253,7 +246,7 @@ static void SkipLineComment(Lexer_t *lexer) {
     continue;
   }
   // return c to "stream"
-  m_prevChar = c;
+  lexer->prevChar = c;
 }
 
 // if nothing except ' ', '\t' or '\n' is read, return curr, else count
@@ -317,10 +310,17 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   lexer->offset = 0;
   lexer->line = 1; // first line
 
+  lexer->parenDepth = 0;
+  IntStackInit(&lexer->indentStack);
+
   // initialize the map and transition table
   ASCIIMapInit();
   TransitionTableInit();
-  m_prevChar = 0;
+
+  // initialized to LF because on the first file line,
+  // indent needs to be calculated, but ScanIndent
+  // is only called after LF has been read
+  lexer->prevChar = '\n';
 }
 
 void LexerTerminate(Lexer_t *lexer) {
@@ -330,6 +330,9 @@ void LexerTerminate(Lexer_t *lexer) {
 
   lexer->src = NULL;
   CharBufTerminate(&lexer->buf);
+  IntStackTerminate(&lexer->indentStack);
+  lexer->parenDepth = 0;
+  lexer->prevChar = 0;
   lexer->line = 1;
   lexer->offset = 0;
 }
@@ -339,11 +342,11 @@ Token_t CreateToken(void) {
   return new;
 }
 
-static inline int GetNextChar(FILE *file) {
-  // set m_prevChar back to zero after read
-  int tmp = m_prevChar;
-  m_prevChar = 0;
-  return tmp != 0 ? m_prevChar : fgetc(file);
+static inline int GetNextChar(Lexer_t *lexer) {
+  // set prevChar back to zero after read
+  int tmp = lexer->prevChar;
+  lexer->prevChar = 0;
+  return tmp != 0 ? lexer->prevChar : fgetc(lexer->src);
 }
 
 /* TODO
@@ -372,7 +375,7 @@ RESET:
   size_t read_cnt = 0;
 
   int c;
-  while ((c = GetNextChar(lexer->src)) != EOF) {
+  while ((c = GetNextChar(lexer)) != EOF) {
 
     CharType_t type = MapChar(c);
 
@@ -399,8 +402,8 @@ RESET:
   // next char was consumed to determine end
   // i.e. '+' in "pos+1" is a delimiter for "pos"
   // must push it back into "stream"
-  // m_prevChar replaces ungetc
-  m_prevChar = c;
+  // prevChar replaces ungetc
+  lexer->prevChar = c;
 
   // new.lexemeS = InStringpool()
 
