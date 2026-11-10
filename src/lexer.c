@@ -22,6 +22,11 @@
 //                    LEXER.C INTERNAL STUFF
 // ##############################################################
 
+// stores the previous character
+// used to replace ungetc
+// next invalid char is delimiter to token
+static int m_prevChar = 0;
+
 /* Compares suffix with reference suffix (keyword suffix) and returns user
  * passed type on match, else defaults to TOKEN_IDENTIFIER
  * * str - source lexeme suspicious of being a keyword
@@ -315,6 +320,7 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   // initialize the map and transition table
   ASCIIMapInit();
   TransitionTableInit();
+  m_prevChar = 0;
 }
 
 void LexerTerminate(Lexer_t *lexer) {
@@ -331,6 +337,13 @@ void LexerTerminate(Lexer_t *lexer) {
 Token_t CreateToken(void) {
   Token_t new = {.lexemeS = NULL, .line = 0, .len = 0, .type = TOKEN_NONE};
   return new;
+}
+
+static inline int GetNextChar(FILE *file) {
+  // set m_prevChar back to zero after read
+  int tmp = m_prevChar;
+  m_prevChar = 0;
+  return tmp != 0 ? m_prevChar : fgetc(file);
 }
 
 /* TODO
@@ -359,7 +372,7 @@ RESET:
   size_t read_cnt = 0;
 
   int c;
-  while ((c = fgetc(lexer->src)) != EOF) {
+  while ((c = GetNextChar(lexer->src)) != EOF) {
 
     CharType_t type = MapChar(c);
 
@@ -385,8 +398,9 @@ RESET:
 
   // next char was consumed to determine end
   // i.e. '+' in "pos+1" is a delimiter for "pos"
-  // must push it back into stream
-  ungetc(c, lexer->src);
+  // must push it back into "stream"
+  // m_prevChar replaces ungetc
+  m_prevChar = c;
 
   // new.lexemeS = InStringpool()
 
@@ -483,10 +497,6 @@ RESET:
 
   // update lexer`s position
   // TODO: add it to helper function
-  // replace ungetc with static char c
-  // if (c != 0){
-  // } else
-  // fgetc
   lexer->offset += read_cnt;
 
   return new;
