@@ -8,6 +8,9 @@
  * added context. If possible the context line is printed with simple
  * decorations.
  *
+ * Returned errors shouldn't break things inside, except one (see
+ * `MSG_ERR_NORETURN').
+ *
  * Example message with all context printed:
  *
  * [INFO] Dis a message.
@@ -96,7 +99,8 @@ void MsgDrop(Message_t *msg);
  *
  * Returns:
  *   MSG_ERR_OK        when everything is fine, everything is OK, etc.
- *   MSG_ERR_NORETURN  when it failed to return to the original position.
+ *   MSG_ERR_NORETURN  when it failed to return to the original position in the
+ *                     file and is lost (doesn't know where in the file it is).
  *   MSG_ERR_FAILED    when `msg' is NULL
  */
 MsgErr_t MsgSend(Message_t *msg);
