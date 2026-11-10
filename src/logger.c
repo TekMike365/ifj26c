@@ -1,3 +1,6 @@
+/* Implementace překladače imperativního jazyka IFJ26.
+ * Author[s]: Michael Sklenka <xsklenm00>
+ */
 #include "logger.h"
 
 #include <assert.h>

@@ -1,3 +1,6 @@
+/* Implementace překladače imperativního jazyka IFJ26.
+ * Author[s]: Michael Sklenka <xsklenm00>
+ */
 #ifndef IFJ26C_LOGGER_H
 #define IFJ26C_LOGGER_H
 
