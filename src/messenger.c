@@ -64,9 +64,9 @@ void MessengerTerminate(void) {
   free(m_lineOffsetVec.data);
 }
 
-void MessengerStoreNewLine(long offset) {
+long MessengerStoreNewLine(long offset) {
   if (!m_lineOffsetVec.data)
-    return;
+    return -1;
 
   /* resize if needed */
   if (m_lineOffsetVec.size == m_lineOffsetVec.cap) {
@@ -76,12 +76,13 @@ void MessengerStoreNewLine(long offset) {
 
     if (!m_lineOffsetVec.data) {
       DLOG_WARNING("<messenger> Failed to reallocate line offset buffer.");
-      return;
+      return -1;
     }
   }
 
   /* append the offset */
   m_lineOffsetVec.data[m_lineOffsetVec.size++] = offset;
+  return m_lineOffsetVec.size;
 }
 
 Message_t *MsgStart(MsgType_t type, const char *fmt, ...) {
