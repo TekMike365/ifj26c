@@ -4,6 +4,7 @@
 
 #include "lexer.h"
 #include "char_buf.h"
+#include "int_stack.h"
 #include "lexer_fsm.h"
 #include <assert.h>
 #include <stdlib.h>
@@ -246,10 +247,54 @@ static void SkipLineComment(Lexer_t *lexer) {
   while ((c = fgetc(lexer->src)) != EOF && c != '\n') {
     continue;
   }
+  // return c to "stream"
+  m_prevChar = c;
 }
 
 // if nothing except ' ', '\t' or '\n' is read, return curr, else count
-// static unsigned ScanIndent(FILE *file, Lexer_t *lex)
+// static int ScanIndent(Lexer_t *lex)
+
+/* Function tries to put 'indent' on top of the indent stack
+ * * indent - incoming indent to validate
+ * * indentStack - stack of active indents
+ * * levelsChanged - out parameter, count of in/dedent
+ * * returns 1 on sucess, else 0
+ * if 'indent' is greater than top, indent increased
+ * if 'indent' is smaller, it is a dedent -> pop until matching indent is found
+ * if not found, there was no matching indent -> error
+ * */
+static _Bool UpdateIndentStack(int indent, IntStack_t *indentStack,
+                               int *levelsChanged) {
+  int change = 0; // level change, zero intially
+
+  // is empty or top is smaller -> indent, push
+  if (IntStackIsEmpty(indentStack) || IntStackTop(indentStack) < indent) {
+    IntStackPush(indentStack, indent);
+    change++; // indent increased
+  }
+  // else dedent -> try to put it on top of the stack
+  // pop until indent is smaller than top and stack is not empty
+  else {
+    while (!IntStackIsEmpty(indentStack) && IntStackTop(indentStack) > indent) {
+      IntStackPop(indentStack);
+      change--; // indent decreased
+    }
+  }
+
+  // if the stack is empty or indent not on top
+  // error, there was no indent to match the dedent
+  if (IntStackIsEmpty(indentStack) || IntStackTop(indentStack) != indent) {
+    return 0;
+  }
+
+  // assign change
+  if (levelsChanged) {
+    *levelsChanged = change;
+  }
+
+  // success
+  return 1;
+}
 
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
