@@ -65,10 +65,10 @@ void MessengerInit(void);      /* allocates resources */
 void MessengerTerminate(void); /* frees up used resources */
 
 /* MessengerStoreNewLine()
- *   If the file is seekable stores the file offset to a new line. Keeps an
- * internal line count.
+ *   If the file is seekable stores the file offset to a new line. Returns
+ * the associated line number or -1 if an Error occurred.
  */
-void MessengerStoreNewLine(long offset);
+long MessengerStoreNewLine(long offset);
 
 /* MsgStart()
  *   Starts a new message with the format `fmt' and returns its handle.
