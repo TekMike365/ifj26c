@@ -328,6 +328,11 @@ static _Bool UpdateIndentStack(int indent, IntStack_t *indentStack,
   return 1;
 }
 
+static inline void DedentOnEOF(Lexer_t *lexer) {
+  assert(lexer != NULL);
+  lexer->indentChange = IntStackPopAll(&lexer->indentStack);
+}
+
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
 // ##############################################################
@@ -344,12 +349,13 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   lexer->offset = 0;
   lexer->line = 1; // first line
 
-  lexer->parenDepth = 0;
   IntStackInit(&lexer->indentStack);
 
   // initialize the map and transition table
   ASCIIMapInit();
   TransitionTableInit();
+
+  lexer->indentChange = 0;
 
   lexer->prevChar = 0;
 }
@@ -362,10 +368,10 @@ void LexerTerminate(Lexer_t *lexer) {
   lexer->src = NULL;
   CharBufTerminate(&lexer->buf);
   IntStackTerminate(&lexer->indentStack);
-  lexer->parenDepth = 0;
   lexer->prevChar = 0;
   lexer->line = 1;
   lexer->offset = 0;
+  lexer->indentChange = 0;
 }
 
 Token_t CreateToken(void) {
@@ -393,6 +399,19 @@ Token_t GetNextToken(Lexer_t *lexer) {
   // create new token
   Token_t new = CreateToken();
 
+  // if indent increased, emit TOKEN_INDENT
+  if (lexer->indentChange > 0) {
+    lexer->indentChange--;
+    new.type = TOKEN_INDENT;
+    return new;
+  }
+  // else if decreased, emit TOKEN_DEDENT
+  else if (lexer->indentChange < 0) {
+    lexer->indentChange++;
+    new.type = TOKEN_DEDENT;
+    return new;
+  }
+
   State_t current, next;
 
 RESET:
@@ -406,7 +425,15 @@ RESET:
   size_t read_cnt = 0;
 
   int c;
-  while ((c = GetNextChar(lexer)) != EOF) {
+  while (1) {
+
+    // if EOF, pop the indent stack
+    // next #stack_size calls will emit TOKEN_DEDENT
+    // next call after will get EOF and return TOKEN_EOF
+    if ((c = GetNextChar(lexer)) == EOF) {
+      DedentOnEOF(lexer);
+      break;
+    }
 
     CharType_t type = MapChar(c);
 
