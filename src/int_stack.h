@@ -10,8 +10,8 @@
 #define INT_STACK_MIN_CAP 8
 
 typedef struct {
-  size_t top;
-  size_t capacity;
+  long top;
+  long capacity;
   int *data;
 } IntStack_t;
 
@@ -26,5 +26,9 @@ int IntStackTop(IntStack_t *stack);
 _Bool IntStackIsEmpty(IntStack_t *stack);
 
 void IntStackTerminate(IntStack_t *stack);
+
+long IntStackGetSize(IntStack_t *stack);
+
+long IntStackPopAll(IntStack_t *stack);
 
 #endif
