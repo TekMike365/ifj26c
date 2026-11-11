@@ -7,6 +7,7 @@
 #include "int_stack.h"
 #include "lexer_fsm.h"
 #include <assert.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -209,10 +210,20 @@ static double StrToDouble(char *restrict nptr, char **restrict end) {
   return strtod(nptr, end);
 }
 
+/* Function skips block comment
+ * If comment spans one line, it is replaced by ' '
+ * else if multiple, replaced by newline
+ * if last line continues with non-whitespace, error
+ * */
 static _Bool SkipBlockComment(Lexer_t *lexer) {
-  // previous char, helps avoid ungetc()
+  // previous char, avoids ungetc()
   int prev = 0;
   int c;
+
+  // does it span multiple lines?
+  _Bool hasNewline = 0;
+  // tokens on the last line?
+  _Bool hasTokens = 0;
 
   // called after consuming "/*"
   // hence depth is implicitly 1
@@ -220,6 +231,10 @@ static _Bool SkipBlockComment(Lexer_t *lexer) {
 
   // while in block comment and not at the end
   while (depth > 0 && (c = fgetc(lexer->src)) != EOF) {
+
+    if (c == '\n') {
+      hasNewline = 1;
+    }
     // "/*"
     if (prev == '/' && c == '*') {
       // reset c, otherwise "/*/" will trigger depth++ for "/*" and then
@@ -235,8 +250,27 @@ static _Bool SkipBlockComment(Lexer_t *lexer) {
     }
     prev = c;
   }
-  // return: 1 => skipped; 0 => EOF before comment end - error
-  return (depth == 0);
+
+  // single line block comment, replace by space and return
+  if (!hasNewline) {
+    lexer->prevChar = ' ';
+    return (depth == 0);
+  }
+
+  // else read to the end of last line
+  while ((c = fgetc(lexer->src) != '\n' && c != EOF)) {
+    // non-whistespace symbol on the last line - error
+    if (!isspace(c)) {
+      hasTokens = 1;
+    }
+  }
+
+  // replace by '\n'
+  lexer->prevChar = '\n';
+
+  // return: 1 => skipped without problem; 0 => EOF before comment end or last
+  // line tokens - error
+  return (depth == 0 && !hasTokens);
 }
 
 static void SkipLineComment(Lexer_t *lexer) {
@@ -317,10 +351,7 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   ASCIIMapInit();
   TransitionTableInit();
 
-  // initialized to LF because on the first file line,
-  // indent needs to be calculated, but ScanIndent
-  // is only called after LF has been read
-  lexer->prevChar = '\n';
+  lexer->prevChar = 0;
 }
 
 void LexerTerminate(Lexer_t *lexer) {
@@ -379,15 +410,16 @@ RESET:
 
     CharType_t type = MapChar(c);
 
-    if (!CharBufInsert(&lexer->buf, c)) {
-      new.type = TOKEN_ERROR;
-      return new;
-    };
-
     next = NextState(current, type);
     if (next == STATE_END) {
       break;
     }
+
+    // TODO: not ERROR, but error code
+    if (!CharBufInsert(&lexer->buf, c)) {
+      new.type = TOKEN_ERROR;
+      return new;
+    };
 
     current = next;
     read_cnt++;
