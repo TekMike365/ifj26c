@@ -411,6 +411,11 @@ Token_t GetNextToken(Lexer_t *lexer) {
     new.type = TOKEN_DEDENT;
     return new;
   }
+  // nothing to emit and EOF, return TOKEN_EOF
+  else if (lexer->prevChar == EOF) {
+    new.type = TOKEN_EOF;
+    return new;
+  }
 
   State_t current, next;
 
@@ -432,6 +437,7 @@ RESET:
     // next call after will get EOF and return TOKEN_EOF
     if ((c = GetNextChar(lexer)) == EOF) {
       DedentOnEOF(lexer);
+      lexer->prevChar = c;
       break;
     }
 
@@ -468,6 +474,10 @@ RESET:
 
   // can be optimized by STATE->TOKEN_TYPE map
   switch (current) {
+
+  case STATE_START:
+    new.type = TOKEN_EOF;
+    break;
 
   case STATE_IDENTIFIER:
     // IF STRING POOL CONTAINED STRING+METADATA i.e. TOKEN POOL

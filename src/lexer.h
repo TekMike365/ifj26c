@@ -49,6 +49,8 @@ typedef enum {
   TOKEN_AT,
   TOKEN_DOT,
   TOKEN_UNIT,
+  TOKEN_EOF,
+  TOKEN_NEWLINE,
   TOKEN_ERROR
 
 } TokenType_t;

@@ -81,6 +81,24 @@ void RecognizeIntUnderscore(void) {
   LexerTerminate(&lexer);
 }
 
+void RecognizeEOF(void) {
+  FILE *tmp = tmpfile();
+  ASSERT_TRUE(tmp != NULL);
+
+  fputs("Int", tmp);
+
+  rewind(tmp);
+
+  Lexer_t lexer;
+  LexerInit(&lexer, tmp);
+
+  Token_t next = GetNextToken(&lexer);
+  next = GetNextToken(&lexer);
+
+  fclose(tmp);
+  ASSERT_INT_EQ(next.type, TOKEN_EOF);
+  LexerTerminate(&lexer);
+}
 int main(void) {
   SuiteInit("lexer");
 
@@ -88,6 +106,7 @@ int main(void) {
   RunTest(RecognizeKeyword, "Recongize keyword");
   RunTest(RecognizeInt, "Recognize int");
   RunTest(RecognizeIntUnderscore, "Recognize int with underscore");
+  RunTest(RecognizeEOF, "Recognize EOF");
 
   PrintSummary();
   return 0;
