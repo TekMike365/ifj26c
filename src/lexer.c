@@ -487,17 +487,37 @@ RESET:
     break;
 
   case STATE_EQ:
+    new.type = TOKEN_EQ;
+    break;
   case STATE_NOT_EQ:
+    new.type = TOKEN_NOT_EQ;
+    break;
   case STATE_DOUBLE_EQ:
+    new.type = TOKEN_DOUBLE_EQ;
+    break;
   case STATE_GREATER:
+    new.type = TOKEN_GREATER;
+    break;
   case STATE_GREATER_EQ:
+    new.type = TOKEN_GREATER_EQ;
+    break;
   case STATE_LESS:
+    new.type = TOKEN_LESS;
+    break;
   case STATE_LESS_EQ:
+    new.type = TOKEN_LESS_EQ;
+    break;
   case STATE_STAR:
+    new.type = TOKEN_STAR;
+    break;
   case STATE_PLUS:
+    new.type = TOKEN_PLUS;
+    break;
   case STATE_MINUS:
+    new.type = TOKEN_MINUS;
+    break;
   case STATE_SLASH:
-    new.type = TOKEN_OPERATOR;
+    new.type = TOKEN_SLASH;
     break;
 
   case STATE_COMMENT:
