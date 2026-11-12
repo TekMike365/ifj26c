@@ -283,8 +283,14 @@ static void SkipLineComment(Lexer_t *lexer) {
   lexer->prevChar = c;
 }
 
-// if nothing except ' ', '\t' or '\n' is read, return curr, else count
-// static int ScanIndent(Lexer_t *lex)
+static void MeasureIndent(Lexer_t *lexer) {
+  int indentLevel = 0;
+  int c;
+
+  while ((c = fgetc(lexer->src)) == ' ') {
+    indentLevel++;
+  }
+}
 
 /* Function tries to put 'indent' on top of the indent stack
  * * indent - incoming indent to validate
@@ -295,34 +301,34 @@ static void SkipLineComment(Lexer_t *lexer) {
  * if 'indent' is smaller, it is a dedent -> pop until matching indent is found
  * if not found, there was no matching indent -> error
  * */
-static _Bool UpdateIndentStack(int indent, IntStack_t *indentStack,
-                               int *levelsChanged) {
+static _Bool UpdateIndentStack(int indent, Lexer_t *lexer) {
   int change = 0; // level change, zero intially
 
   // is empty or top is smaller -> indent, push
-  if (IntStackIsEmpty(indentStack) || IntStackTop(indentStack) < indent) {
-    IntStackPush(indentStack, indent);
+  if (IntStackIsEmpty(&lexer->indentStack) ||
+      IntStackTop(&lexer->indentStack) < indent) {
+    IntStackPush(&lexer->indentStack, indent);
     change++; // indent increased
   }
   // else dedent -> try to put it on top of the stack
   // pop until indent is smaller than top and stack is not empty
   else {
-    while (!IntStackIsEmpty(indentStack) && IntStackTop(indentStack) > indent) {
-      IntStackPop(indentStack);
+    while (!IntStackIsEmpty(&lexer->indentStack) &&
+           IntStackTop(&lexer->indentStack) > indent) {
+      IntStackPop(&lexer->indentStack);
       change--; // indent decreased
     }
   }
 
   // if the stack is empty or indent not on top
   // error, there was no indent to match the dedent
-  if (IntStackIsEmpty(indentStack) || IntStackTop(indentStack) != indent) {
+  if (IntStackIsEmpty(&lexer->indentStack) ||
+      IntStackTop(&lexer->indentStack) != indent) {
     return 0;
   }
 
   // assign change
-  if (levelsChanged) {
-    *levelsChanged = change;
-  }
+  lexer->indentChange = change;
 
   // success
   return 1;
@@ -388,9 +394,6 @@ static inline int GetNextChar(Lexer_t *lexer) {
 
 /* TODO
  * count newlines (block comment, comment!!), indent
- * INDENT STACK???
- * dedent counter > 0, return TOKEN_DEDENT
- * parenthesis counter => ignore indent if !=0
  * tryshrink after string - probably longer than identifier
  * string pool
  */
