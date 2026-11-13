@@ -322,7 +322,7 @@ static void MeasureIndent(Lexer_t *lexer) {
  * if 'indent' is smaller, it is a dedent -> pop until matching indent is found
  * if not found, there was no matching indent -> error
  * */
-static _Bool UpdateIndentStack(int indent, Lexer_t *lexer) {
+/*static _Bool UpdateIndentStack(int indent, Lexer_t *lexer) {
   int change = 0; // level change, zero intially
 
   // is empty or top is smaller -> indent, push
@@ -353,12 +353,12 @@ static _Bool UpdateIndentStack(int indent, Lexer_t *lexer) {
 
   // success
   return 1;
-}
+}*/
 
-static inline void DedentOnEOF(Lexer_t *lexer) {
+/*static inline void DedentOnEOF(Lexer_t *lexer) {
   assert(lexer != NULL);
   lexer->indentChange = IntStackPopAll(&lexer->indentStack);
-}
+}*/
 
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
@@ -376,13 +376,9 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   lexer->offset = 0;
   lexer->line = 1; // first line
 
-  IntStackInit(&lexer->indentStack);
-
   // initialize the map and transition table
   ASCIIMapInit();
   TransitionTableInit();
-
-  lexer->indentChange = 0;
 
   lexer->prevChar = 0;
 }
@@ -394,11 +390,9 @@ void LexerTerminate(Lexer_t *lexer) {
 
   lexer->src = NULL;
   CharBufTerminate(&lexer->buf);
-  IntStackTerminate(&lexer->indentStack);
   lexer->prevChar = 0;
   lexer->line = 1;
   lexer->offset = 0;
-  lexer->indentChange = 0;
 }
 
 Token_t CreateToken(void) {
@@ -411,25 +405,13 @@ Token_t CreateToken(void) {
  * tryshrink after string - probably longer than identifier
  * string pool
  */
-Token_t GetNextToken(Lexer_t *lexer) {
+Token_t GetRawToken(Lexer_t *lexer) {
 
   // create new token
   Token_t new = CreateToken();
 
-  // if indent increased, emit TOKEN_INDENT
-  if (lexer->indentChange > 0) {
-    lexer->indentChange--;
-    new.type = TOKEN_INDENT;
-    return new;
-  }
-  // else if decreased, emit TOKEN_DEDENT
-  else if (lexer->indentChange < 0) {
-    lexer->indentChange++;
-    new.type = TOKEN_DEDENT;
-    return new;
-  }
-  // nothing to emit and EOF, return TOKEN_EOF
-  else if (lexer->prevChar == EOF) {
+  // on EOF, return TOKEN_EOF
+  if (lexer->prevChar == EOF) {
     new.type = TOKEN_EOF;
     return new;
   }
@@ -444,16 +426,7 @@ RESET:
   current = STATE_START;
 
   int c;
-  while (1) {
-
-    // if EOF, pop the indent stack
-    // next #stack_size calls will emit TOKEN_DEDENT
-    // next call after will get EOF and return TOKEN_EOF
-    if ((c = GetNextChar(lexer)) == EOF) {
-      DedentOnEOF(lexer);
-      lexer->prevChar = c;
-      break;
-    }
+  while ((c = GetNextChar(lexer)) != EOF) {
 
     CharType_t type = MapChar(c);
 
@@ -606,3 +579,6 @@ RESET:
 
   return new;
 }
+
+// dummy for now
+Token_t GetNextToken(Lexer_t *lexer) { return GetRawToken(lexer); }

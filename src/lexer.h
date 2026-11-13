@@ -82,10 +82,6 @@ typedef struct {
   size_t offset; // file offset
   size_t line;   // counts newlines
 
-  // stores active indent levels
-  IntStack_t indentStack;
-  // "queue" for TOKEN_INDENT
-  long indentChange;
   // stores the previous character
   // used to replace ungetc
   // next invalid char is delimiter to token
