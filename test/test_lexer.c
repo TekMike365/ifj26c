@@ -103,13 +103,14 @@ void RecognizeNewline(void) {
   FILE *tmp = tmpfile();
   ASSERT_TRUE(tmp != NULL);
 
-  fputs("\n", tmp);
+  fputs("i\n", tmp);
 
   rewind(tmp);
   LayoutFilter_t filter;
   ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
 
   Token_t next = GetNextToken(&filter);
+  next = GetNextToken(&filter);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);

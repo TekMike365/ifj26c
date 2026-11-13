@@ -408,6 +408,7 @@ _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
   filter->pendingDedents = 0;
 
   filter->nextIndent = 0;
+  filter->nextTab = 0;
 
   filter->bracketDepth = 0;
   return 1;
@@ -423,6 +424,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
   filter->pendingDedents = 0;
 
   filter->nextIndent = 0;
+  filter->nextTab = 0;
 
   filter->bracketDepth = 0;
 }
@@ -612,7 +614,57 @@ RESET:
   return new;
 }
 
-// dummy for now
 Token_t GetNextToken(LayoutFilter_t *filter) {
-  return GetRawToken(&filter->lexer);
+  Token_t new;
+  if (filter->pendingDedents > 0) {
+    filter->pendingDedents--;
+    new.type = TOKEN_DEDENT;
+    return new;
+  }
+
+  if (filter->hasStash) {
+    filter->hasStash = 0;
+    return filter->stash;
+  }
+
+  // get new tokens, return only relevant ones
+  for (;;) {
+    new = GetRawToken(&filter->lexer);
+
+    if (new.type == TOKEN_ERROR) {
+      return new;
+    }
+
+    // if TOKEN_NEWLINE
+    if (new.type == TOKEN_NEWLINE) {
+
+      // filter->nextIndent = new.indent;
+      // if it comes from a logical line
+      // emit it
+      if (!filter->atLineStart) {
+
+        filter->atLineStart = 1;
+
+        new.type = TOKEN_NEWLINE;
+        return new;
+      }
+      // else discard it
+      else {
+        continue;
+      }
+    }
+
+    if (new.type == TOKEN_LPAR) {
+      filter->bracketDepth++;
+    }
+
+    if (new.type == TOKEN_RPAR) {
+      filter->bracketDepth--;
+    }
+
+    // if it got here, it has to be logical token
+    filter->atLineStart = 0;
+
+    return new;
+  }
 }

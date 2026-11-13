@@ -70,6 +70,7 @@ typedef struct {
     int lexemeI;
     double lexemeD;
     char *lexemeS;
+    int indent; // used by TOKEN_NEWLINE
   };
   size_t len;
   size_t line;
@@ -106,6 +107,8 @@ typedef struct {
 
   // indent from last newline
   int nextIndent;
+  // contains tab?
+  _Bool nextTab;
 
   int bracketDepth;
 } LayoutFilter_t;
