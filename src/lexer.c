@@ -613,4 +613,6 @@ RESET:
 }
 
 // dummy for now
-Token_t GetNextToken(Lexer_t *lexer) { return GetRawToken(lexer); }
+Token_t GetNextToken(LayoutFilter_t *filter) {
+  return GetRawToken(&filter->lexer);
+}

@@ -120,6 +120,6 @@ void LayoutFilterTerminate(LayoutFilter_t *filter);
 
 Token_t CreateToken(void);
 
-Token_t GetNextToken(Lexer_t *lexer);
+Token_t GetNextToken(LayoutFilter_t *filter);
 
 #endif /* ifndef LEXER_H */

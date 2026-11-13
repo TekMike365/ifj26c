@@ -16,14 +16,14 @@ void RecognizeIdentifier(void) {
 
   rewind(tmp);
 
-  Lexer_t lexer;
-  LexerInit(&lexer, tmp);
+  LayoutFilter_t filter;
+  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
 
-  Token_t next = GetNextToken(&lexer);
+  Token_t next = GetNextToken(&filter);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
-  LexerTerminate(&lexer);
+  LayoutFilterTerminate(&filter);
 }
 void RecognizeKeyword(void) {
   FILE *tmp = tmpfile();
@@ -33,14 +33,14 @@ void RecognizeKeyword(void) {
 
   rewind(tmp);
 
-  Lexer_t lexer;
-  LexerInit(&lexer, tmp);
+  LayoutFilter_t filter;
+  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
 
-  Token_t next = GetNextToken(&lexer);
+  Token_t next = GetNextToken(&filter);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_KEYWORD_FOR);
-  LexerTerminate(&lexer);
+  LayoutFilterTerminate(&filter);
 }
 
 void RecognizeInt(void) {
@@ -51,15 +51,15 @@ void RecognizeInt(void) {
 
   rewind(tmp);
 
-  Lexer_t lexer;
-  LexerInit(&lexer, tmp);
+  LayoutFilter_t filter;
+  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
 
-  Token_t next = GetNextToken(&lexer);
+  Token_t next = GetNextToken(&filter);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
   ASSERT_INT_EQ(next.lexemeI, 12343);
-  LexerTerminate(&lexer);
+  LayoutFilterTerminate(&filter);
 }
 
 void RecognizeIntUnderscore(void) {
@@ -69,16 +69,15 @@ void RecognizeIntUnderscore(void) {
   fputs("12_34_3", tmp);
 
   rewind(tmp);
+  LayoutFilter_t filter;
+  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
 
-  Lexer_t lexer;
-  LexerInit(&lexer, tmp);
-
-  Token_t next = GetNextToken(&lexer);
+  Token_t next = GetNextToken(&filter);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
   ASSERT_INT_EQ(next.lexemeI, 12343);
-  LexerTerminate(&lexer);
+  LayoutFilterTerminate(&filter);
 }
 
 void RecognizeEOF(void) {
@@ -88,16 +87,16 @@ void RecognizeEOF(void) {
   fputs("Int", tmp);
 
   rewind(tmp);
+  LayoutFilter_t filter;
+  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
 
-  Lexer_t lexer;
-  LexerInit(&lexer, tmp);
+  Token_t next = GetNextToken(&filter);
 
-  Token_t next = GetNextToken(&lexer);
-  next = GetNextToken(&lexer);
+  next = GetNextToken(&filter);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_EOF);
-  LexerTerminate(&lexer);
+  LayoutFilterTerminate(&filter);
 }
 
 void RecognizeNewline(void) {
@@ -107,19 +106,18 @@ void RecognizeNewline(void) {
   fputs("\n", tmp);
 
   rewind(tmp);
+  LayoutFilter_t filter;
+  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
 
-  Lexer_t lexer;
-  LexerInit(&lexer, tmp);
-
-  Token_t next = GetNextToken(&lexer);
+  Token_t next = GetNextToken(&filter);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
-  LexerTerminate(&lexer);
+  LayoutFilterTerminate(&filter);
 }
 
 int main(void) {
-  SuiteInit("lexer");
+  SuiteInit("filter");
 
   RunTest(RecognizeIdentifier, "Recognize identifier");
   RunTest(RecognizeKeyword, "Recongize keyword");
