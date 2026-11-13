@@ -102,13 +102,14 @@ static void ASCIIMapInit(void) {
                           {'\v', '\v', CHAR_WHITESPACE},
                           {'\r', '\r', CHAR_WHITESPACE}};
 
+  size_t rangeSize = sizeof(ranges) / sizeof(ranges[0]);
   // for each range
-  for (int typeCnt = 0; typeCnt < CHAR_TYPE_CNT; typeCnt++) {
+  for (size_t rangeCnt = 0; rangeCnt < rangeSize; rangeCnt++) {
     // for each char in that range
-    for (unsigned char idx = ranges[typeCnt].start; idx <= ranges[typeCnt].end;
-         idx++) {
+    for (unsigned char idx = ranges[rangeCnt].start;
+         idx <= ranges[rangeCnt].end; idx++) {
       // overwrite CHAR_OTHER with the specified type
-      m_ASCIIMap[idx] = ranges[typeCnt].type;
+      m_ASCIIMap[idx] = ranges[rangeCnt].type;
     }
   }
 }
