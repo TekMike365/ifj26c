@@ -644,19 +644,33 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
     if (new.type == TOKEN_NEWLINE) {
 
       // filter->nextIndent = new.indent;
-      // if it comes from a logical line
-      // emit it
-      if (!filter->atLineStart) {
-
-        filter->atLineStart = 1;
-
-        new.type = TOKEN_NEWLINE;
-        return new;
-      }
-      // else discard it
-      else {
+      // if it doesnt come from a logical line
+      // skip
+      if (filter->atLineStart) {
         continue;
       }
+
+      filter->atLineStart = 1;
+      // skip if inside brackets
+      if (filter->bracketDepth > 0) {
+        continue;
+      }
+      return new;
+    }
+
+    // if TOKEN_EOF
+    if (new.type == TOKEN_EOF) {
+      // emit NEWLINE on logical line before EOF
+      // to end command
+      if (!filter->atLineStart) {
+        filter->atLineStart = 1;
+        Token_t nl = CreateToken();
+        nl.type = TOKEN_NEWLINE;
+        return nl;
+      }
+      // set valid indent to dedent all blocks
+      filter->nextIndent = 0;
+      filter->nextTab = 0;
     }
 
     if (new.type == TOKEN_LPAR) {

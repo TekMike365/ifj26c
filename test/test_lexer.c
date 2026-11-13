@@ -93,6 +93,7 @@ void RecognizeEOF(void) {
   Token_t next = GetNextToken(&filter);
 
   next = GetNextToken(&filter);
+  next = GetNextToken(&filter);
 
   fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_EOF);
