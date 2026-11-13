@@ -114,11 +114,17 @@ static void ASCIIMapInit(void) {
   }
 }
 
-/* maps an unsigned char to its corresponding CharType via ASCIIMap
- * c - unsigned char
- * return - CharType of c
+/* maps an unsigned char representing ASCII character to its corresponding
+ * CharType via ASCIIMap if greater than 127, type is set to CHAR_OTHER c -
+ * unsigned char return - CharType of c
  */
-static inline CharType_t MapChar(unsigned char c) { return m_ASCIIMap[c]; }
+static inline CharType_t MapChar(unsigned char c) {
+  // safeguard
+  if (c >= ASCII_LENGTH) {
+    return CHAR_OTHER;
+  }
+  return m_ASCIIMap[c];
+}
 
 // ##############################################################
 //                        FSM STUFF
@@ -203,8 +209,8 @@ typedef enum {
   X(STATE_START, CHAR_EXCL_MARK, STATE_EXCL_MARK)                              \
   X(STATE_START, CHAR_AT, STATE_AT)                                            \
   X(STATE_START, CHAR_SEMICOLON, STATE_SEMICOLON)                              \
-  X(STATE_START, CHAR_SEMICOLON, STATE_COMMA)                                  \
-  X(STATE_START, CHAR_SEMICOLON, STATE_COLON)                                  \
+  X(STATE_START, CHAR_COMMA, STATE_COMMA)                                      \
+  X(STATE_START, CHAR_COLON, STATE_COLON)                                      \
   X(STATE_START, CHAR_LINE_FEED, STATE_NEWLINE)                                \
                                                                                \
   ALPHA_GROUP(STATE_IDENTIFIER, STATE_IDENTIFIER)                              \
@@ -236,6 +242,7 @@ typedef enum {
                                                                                \
   X(STATE_STRING, CHAR_QUOTE, STATE_END_STRING)                                \
   X(STATE_STRING, CHAR_BACKSLASH, STATE_ESCAPE)                                \
+  X(STATE_STRING, CHAR_LINE_FEED, STATE_ERROR)                                 \
                                                                                \
   X(STATE_ESCAPE, CHAR_BACKSLASH, STATE_STRING)                                \
   X(STATE_ESCAPE, CHAR_QUOTE, STATE_STRING)                                    \
