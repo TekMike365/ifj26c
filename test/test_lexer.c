@@ -99,6 +99,25 @@ void RecognizeEOF(void) {
   ASSERT_INT_EQ(next.type, TOKEN_EOF);
   LexerTerminate(&lexer);
 }
+
+void RecognizeNewline(void) {
+  FILE *tmp = tmpfile();
+  ASSERT_TRUE(tmp != NULL);
+
+  fputs("\n", tmp);
+
+  rewind(tmp);
+
+  Lexer_t lexer;
+  LexerInit(&lexer, tmp);
+
+  Token_t next = GetNextToken(&lexer);
+
+  fclose(tmp);
+  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  LexerTerminate(&lexer);
+}
+
 int main(void) {
   SuiteInit("lexer");
 
@@ -107,6 +126,7 @@ int main(void) {
   RunTest(RecognizeInt, "Recognize int");
   RunTest(RecognizeIntUnderscore, "Recognize int with underscore");
   RunTest(RecognizeEOF, "Recognize EOF");
+  RunTest(RecognizeNewline, "Recognize newline");
 
   PrintSummary();
   return 0;

@@ -595,6 +595,10 @@ RESET:
     new.type = TOKEN_STRING;
     break;
 
+  case STATE_NEWLINE:
+    new.type = TOKEN_NEWLINE;
+    break;
+
   default:
     new.type = TOKEN_ERROR;
     break;
