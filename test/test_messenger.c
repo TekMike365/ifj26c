@@ -15,9 +15,9 @@ int main(void) {
   for (int c, i = 0; (c = getc(stdin)) != EOF && i < 6; i++)
     ;
 
-  printf("at: %ld\n", ftell(stdin));
+  printf("<TEST> at: %ld\n", ftell(stdin));
 
-  Message_t *msg = MsgStart(MSG_INFO, "Dis a message.");
+  Message_t *msg = MsgStart(MSG_INFO, 67, "Dis a message.");
   MsgAddContext(msg, MSG_CONTEXT_T(0), "In function `%s'", "foo()");
   MsgAddContext(
       msg,
@@ -25,7 +25,7 @@ int main(void) {
       "wrong, you're wrong here");
   MsgSend(msg);
 
-  printf("at: %ld\n", ftell(stdin));
+  printf("<TEST> at: %ld\n", ftell(stdin));
 
   MessengerTerminate();
   return 0;
