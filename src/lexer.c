@@ -322,38 +322,36 @@ static void MeasureIndent(Lexer_t *lexer) {
  * if 'indent' is smaller, it is a dedent -> pop until matching indent is found
  * if not found, there was no matching indent -> error
  * */
-/*static _Bool UpdateIndentStack(int indent, Lexer_t *lexer) {
-  int change = 0; // level change, zero intially
+// TODO: can fail in indent and memory from push
+static _Bool UpdateIndentStack(int indent, IntStack_t *indents,
+                               int *levelsChanged) {
+  assert(indents != NULL);
+  int change = 0; // level change, zero initially
 
-  // is empty or top is smaller -> indent, push
-  if (IntStackIsEmpty(&lexer->indentStack) ||
-      IntStackTop(&lexer->indentStack) < indent) {
-    IntStackPush(&lexer->indentStack, indent);
+  // top is smaller -> indent, push
+  if (IntStackTop(indents) < indent) {
+    IntStackPush(indents, indent);
     change++; // indent increased
   }
   // else dedent -> try to put it on top of the stack
   // pop until indent is smaller than top and stack is not empty
   else {
-    while (!IntStackIsEmpty(&lexer->indentStack) &&
-           IntStackTop(&lexer->indentStack) > indent) {
-      IntStackPop(&lexer->indentStack);
+    if (!IntStackContains(indents, indent)) {
+      return 0;
+    }
+    int top;
+    while ((top = IntStackTop(indents)) != 0 && top > indent) {
+      IntStackPop(indents);
       change--; // indent decreased
     }
   }
 
-  // if the stack is empty or indent not on top
-  // error, there was no indent to match the dedent
-  if (IntStackIsEmpty(&lexer->indentStack) ||
-      IntStackTop(&lexer->indentStack) != indent) {
-    return 0;
+  if (levelsChanged) {
+    *levelsChanged = change;
   }
-
-  // assign change
-  lexer->indentChange = change;
-
   // success
   return 1;
-}*/
+}
 
 /*static inline void DedentOnEOF(Lexer_t *lexer) {
   assert(lexer != NULL);
