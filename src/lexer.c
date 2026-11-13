@@ -171,6 +171,27 @@ char *InStringpool(char *str) {
   return NULL;
 }
 
+static inline int GetNextChar(Lexer_t *lexer) {
+  // if prevChar is nonzero, reset and return it
+  if (lexer->prevChar != 0) {
+    int c = lexer->prevChar;
+    lexer->prevChar = 0;
+    return c;
+  }
+  // else read new char from stream
+  int c = fgetc(lexer->src);
+  // if new line, increment line count
+  if (c == '\n') {
+    lexer->line++;
+  }
+  // if not EOF, increment offset
+  if (c != EOF)
+    lexer->offset++;
+
+  // return
+  return c;
+}
+
 /* Converts a string [+- ][0-9_]* into a decimal int
  * !!! DESTRUCTIVE -- overwrites '_' (i.e. 1_2_34->1234)
  * nptr - pointer to the start of the number string
@@ -222,15 +243,13 @@ static _Bool SkipBlockComment(Lexer_t *lexer) {
 
   // does it span multiple lines?
   _Bool hasNewline = 0;
-  // tokens on the last line?
-  _Bool hasTokens = 0;
 
   // called after consuming "/*"
   // hence depth is implicitly 1
   unsigned depth = 1;
 
   // while in block comment and not at the end
-  while (depth > 0 && (c = fgetc(lexer->src)) != EOF) {
+  while (depth > 0 && (c = GetNextChar(lexer)) != EOF) {
 
     if (c == '\n') {
       hasNewline = 1;
@@ -258,10 +277,12 @@ static _Bool SkipBlockComment(Lexer_t *lexer) {
   }
 
   // else read to the end of last line
-  while ((c = fgetc(lexer->src) != '\n' && c != EOF)) {
+  while ((c = GetNextChar(lexer)) != '\n' && c != EOF) {
     // non-whistespace symbol on the last line - error
     if (!isspace(c)) {
-      hasTokens = 1;
+      return 0;
+      // TODO: handle // comment begin, not an error
+      // dont set \n on EOF???
     }
   }
 
@@ -270,13 +291,13 @@ static _Bool SkipBlockComment(Lexer_t *lexer) {
 
   // return: 1 => skipped without problem; 0 => EOF before comment end or last
   // line tokens - error
-  return (depth == 0 && !hasTokens);
+  return (depth == 0);
 }
 
 static void SkipLineComment(Lexer_t *lexer) {
   int c;
   // read until EOF or line feed
-  while ((c = fgetc(lexer->src)) != EOF && c != '\n') {
+  while ((c = GetNextChar(lexer)) != EOF && c != '\n') {
     continue;
   }
   // return c to "stream"
@@ -287,7 +308,7 @@ static void MeasureIndent(Lexer_t *lexer) {
   int indentLevel = 0;
   int c;
 
-  while ((c = fgetc(lexer->src)) == ' ') {
+  while ((c = GetNextChar(lexer)) == ' ') {
     indentLevel++;
   }
 }
@@ -385,15 +406,8 @@ Token_t CreateToken(void) {
   return new;
 }
 
-static inline int GetNextChar(Lexer_t *lexer) {
-  // set prevChar back to zero after read
-  int tmp = lexer->prevChar;
-  lexer->prevChar = 0;
-  return tmp != 0 ? lexer->prevChar : fgetc(lexer->src);
-}
-
 /* TODO
- * count newlines (block comment, comment!!), indent
+ * indent
  * tryshrink after string - probably longer than identifier
  * string pool
  */
@@ -429,9 +443,6 @@ RESET:
 
   current = STATE_START;
 
-  // count of processed chars
-  size_t read_cnt = 0;
-
   int c;
   while (1) {
 
@@ -458,7 +469,6 @@ RESET:
     };
 
     current = next;
-    read_cnt++;
   }
 
   // null-terminate
@@ -589,10 +599,6 @@ RESET:
     new.type = TOKEN_ERROR;
     break;
   }
-
-  // update lexer`s position
-  // TODO: add it to helper function
-  lexer->offset += read_cnt;
 
   return new;
 }
