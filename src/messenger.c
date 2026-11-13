@@ -24,6 +24,7 @@ struct ctxNode {
 
 struct message {
   MsgType_t type;
+  int errCode;
   CtxNode_t *ctxFirst;
   CtxNode_t *ctxLast;
   char msg[MAX_MSG_LENGTH + 1];
@@ -85,7 +86,7 @@ long MessengerStoreNewLine(long offset) {
   return m_lineOffsetVec.size;
 }
 
-Message_t *MsgStart(MsgType_t type, const char *fmt, ...) {
+Message_t *MsgStart(MsgType_t type, int errCode, const char *fmt, ...) {
   assert(fmt);
 
   /* allocate message */
@@ -99,6 +100,7 @@ Message_t *MsgStart(MsgType_t type, const char *fmt, ...) {
   va_start(ap, fmt);
 
   msg->type = type;
+  msg->errCode = errCode;
   msg->ctxFirst = NULL;
   msg->ctxLast = NULL;
   vsnprintf(msg->msg, MAX_MSG_LENGTH + 1, fmt, ap);
@@ -193,7 +195,8 @@ MsgErr_t MsgSend(Message_t *msg) {
     return MSG_ERR_FAILED;
 
   DLOG_TRACE("<msg:%p> Sending message.", msg);
-  fprintf(stderr, "[%s] %s\n", m_msgTypeStrs[msg->type], msg->msg);
+  fprintf(stderr, "[%s] (E%d): %s\n", m_msgTypeStrs[msg->type], msg->errCode,
+          msg->msg);
 
   MsgErr_t error = MSG_ERR_OK;
 

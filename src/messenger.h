@@ -80,7 +80,7 @@ long MessengerStoreNewLine(long offset);
  *
  *   On error returns NULL.
  */
-Message_t *MsgStart(MsgType_t type, const char *fmt, ...);
+Message_t *MsgStart(MsgType_t type, int errCode, const char *fmt, ...);
 
 /* MsgDrop()
  *   Drops `msg' and frees it's resources. Using `msg' after it was dropped will
