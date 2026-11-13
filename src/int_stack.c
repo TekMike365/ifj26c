@@ -23,7 +23,7 @@ _Bool IntStackPush(IntStack_t *stack, int val) {
 
   if (stack->capacity == stack->top) {
     // if 0, set capactiy to minimum, else double
-    long newCap =
+    size_t newCap =
         stack->capacity == 0 ? INT_STACK_MIN_CAP : stack->capacity * 2;
 
     int *tmp = realloc(stack->data, newCap * sizeof(int));
@@ -73,14 +73,11 @@ void IntStackTerminate(IntStack_t *stack) {
   stack->capacity = 0;
 }
 
-long IntStackGetSize(IntStack_t *stack) {
-  assert(stack != NULL);
-  return stack->top;
-}
-
-long IntStackPopAll(IntStack_t *stack) {
-  assert(stack != NULL);
-  long cnt = stack->top;
-  stack->top = 0;
-  return cnt;
+_Bool IntStackContains(IntStack_t *stack, int val) {
+  for (size_t idx = 0; idx < stack->top; idx++) {
+    if (stack->data[idx] == val) {
+      return 1;
+    }
+  }
+  return 0;
 }
