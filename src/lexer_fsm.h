@@ -170,6 +170,7 @@ typedef enum {
   STATE_END_QUOTE,
   STATE_END_DQUOTE,
   STATE_END_MULTILINE_STR,
+  STATE_NEWLINE,
   STATE_CNT
 } State_t;
 
@@ -203,6 +204,7 @@ typedef enum {
   X(STATE_START, CHAR_SEMICOLON, STATE_SEMICOLON)                              \
   X(STATE_START, CHAR_SEMICOLON, STATE_COMMA)                                  \
   X(STATE_START, CHAR_SEMICOLON, STATE_COLON)                                  \
+  X(STATE_START, CHAR_LINE_FEED, STATE_NEWLINE)                                \
                                                                                \
   ALPHA_GROUP(STATE_IDENTIFIER, STATE_IDENTIFIER)                              \
   X(STATE_IDENTIFIER, CHAR_UNDERSCORE, STATE_IDENTIFIER)                       \
