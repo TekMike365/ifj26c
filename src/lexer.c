@@ -395,6 +395,38 @@ void LexerTerminate(Lexer_t *lexer) {
   lexer->offset = 0;
 }
 
+_Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
+  LexerInit(&filter->lexer, src);
+  IntStackInit(&filter->indents);
+  if (!IntStackPush(&filter->indents, 0)) {
+    return 0;
+  }
+  filter->stash = (Token_t){0};
+  filter->hasStash = 0;
+
+  filter->atLineStart = 1;
+  filter->pendingDedents = 0;
+
+  filter->nextIndent = 0;
+
+  filter->bracketDepth = 0;
+  return 1;
+}
+
+void LayoutFilterTerminate(LayoutFilter_t *filter) {
+  LexerTerminate(&filter->lexer);
+  IntStackTerminate(&filter->indents);
+  filter->stash = (Token_t){0};
+  filter->hasStash = 0;
+
+  filter->atLineStart = 1;
+  filter->pendingDedents = 0;
+
+  filter->nextIndent = 0;
+
+  filter->bracketDepth = 0;
+}
+
 Token_t CreateToken(void) {
   Token_t new = {.lexemeS = NULL, .line = 0, .len = 0, .type = TOKEN_NONE};
   return new;

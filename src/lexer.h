@@ -88,9 +88,35 @@ typedef struct {
   int prevChar;
 } Lexer_t;
 
+typedef struct {
+  Lexer_t lexer;
+  // indent stack
+  IntStack_t indents;
+
+  // storage for one token
+  Token_t stash;
+  // is something stored?
+  _Bool hasStash;
+
+  // line start?
+  _Bool atLineStart;
+  // number of TOKEN_DEDENTs to emit
+  // TOKEN_INDENT can be only one
+  int pendingDedents;
+
+  // indent from last newline
+  int nextIndent;
+
+  int bracketDepth;
+} LayoutFilter_t;
+
 void LexerInit(Lexer_t *lexer, FILE *src);
 
 void LexerTerminate(Lexer_t *lexer);
+
+_Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src);
+
+void LayoutFilterTerminate(LayoutFilter_t *filter);
 
 Token_t CreateToken(void);
 
