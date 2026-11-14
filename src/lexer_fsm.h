@@ -67,40 +67,24 @@ static void ASCIIMapInit(void) {
   }
 
   // define types for ranges
-  CharRange_t ranges[] = {{'a', 'z', CHAR_ALPHA},
-                          {'A', 'Z', CHAR_ALPHA},
-                          {'d', 'd', CHAR_D},
-                          {'D', 'D', CHAR_D},
-                          {'e', 'e', CHAR_E},
-                          {'E', 'E', CHAR_E},
-                          {'n', 'n', CHAR_N},
-                          {'r', 'r', CHAR_R},
-                          {'t', 't', CHAR_T},
-                          {'0', '9', CHAR_NUM},
-                          {'=', '=', CHAR_EQ},
-                          {'>', '>', CHAR_GREATER},
-                          {'<', '<', CHAR_LESS},
-                          {'.', '.', CHAR_DOT},
-                          {'_', '_', CHAR_UNDERSCORE},
-                          {'"', '"', CHAR_QUOTE},
-                          {'(', '(', CHAR_LPAR},
-                          {')', ')', CHAR_RPAR},
-                          {'!', '!', CHAR_EXCL_MARK},
-                          {'@', '@', CHAR_AT},
-                          {';', ';', CHAR_SEMICOLON},
-                          {',', ',', CHAR_COMMA},
-                          {':', ':', CHAR_COLON},
-                          {'+', '+', CHAR_PLUS},
-                          {'-', '-', CHAR_MINUS},
-                          {'*', '*', CHAR_STAR},
-                          {'/', '/', CHAR_SLASH},
-                          {'\\', '\\', CHAR_BACKSLASH},
-                          {'\0', '\0', CHAR_NULL},
-                          {'\n', '\n', CHAR_LINE_FEED},
-                          {' ', ' ', CHAR_WHITESPACE},
-                          {'\t', '\t', CHAR_WHITESPACE},
-                          {'\v', '\v', CHAR_WHITESPACE},
-                          {'\r', '\r', CHAR_WHITESPACE}};
+  CharRange_t ranges[] = {
+      {'a', 'z', CHAR_ALPHA},       {'A', 'Z', CHAR_ALPHA},
+      {'d', 'd', CHAR_D},           {'D', 'D', CHAR_D},
+      {'e', 'e', CHAR_E},           {'E', 'E', CHAR_E},
+      {'n', 'n', CHAR_N},           {'r', 'r', CHAR_R},
+      {'t', 't', CHAR_T},           {'0', '9', CHAR_NUM},
+      {'=', '=', CHAR_EQ},          {'>', '>', CHAR_GREATER},
+      {'<', '<', CHAR_LESS},        {'.', '.', CHAR_DOT},
+      {'_', '_', CHAR_UNDERSCORE},  {'"', '"', CHAR_QUOTE},
+      {'(', '(', CHAR_LPAR},        {')', ')', CHAR_RPAR},
+      {'!', '!', CHAR_EXCL_MARK},   {'@', '@', CHAR_AT},
+      {';', ';', CHAR_SEMICOLON},   {',', ',', CHAR_COMMA},
+      {':', ':', CHAR_COLON},       {'+', '+', CHAR_PLUS},
+      {'-', '-', CHAR_MINUS},       {'*', '*', CHAR_STAR},
+      {'/', '/', CHAR_SLASH},       {'\\', '\\', CHAR_BACKSLASH},
+      {'\0', '\0', CHAR_NULL},      {'\n', '\n', CHAR_LINE_FEED},
+      {' ', ' ', CHAR_WHITESPACE},  {'\t', '\t', CHAR_WHITESPACE},
+      {'\r', '\r', CHAR_WHITESPACE}};
 
   size_t rangeSize = sizeof(ranges) / sizeof(ranges[0]);
   // for each range
@@ -178,6 +162,7 @@ typedef enum {
   STATE_END_DQUOTE,
   STATE_END_MULTILINE_STR,
   STATE_NEWLINE,
+  STATE_WHITESPACE,
   STATE_CNT
 } State_t;
 
@@ -212,6 +197,7 @@ typedef enum {
   X(STATE_START, CHAR_COMMA, STATE_COMMA)                                      \
   X(STATE_START, CHAR_COLON, STATE_COLON)                                      \
   X(STATE_START, CHAR_LINE_FEED, STATE_NEWLINE)                                \
+  X(STATE_START, CHAR_WHITESPACE, STATE_WHITESPACE)                            \
                                                                                \
   ALPHA_GROUP(STATE_IDENTIFIER, STATE_IDENTIFIER)                              \
   X(STATE_IDENTIFIER, CHAR_UNDERSCORE, STATE_IDENTIFIER)                       \

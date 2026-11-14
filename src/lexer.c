@@ -294,13 +294,24 @@ static _Bool SkipBlockComment(Lexer_t *lexer) {
   return (depth == 0);
 }
 
-static void SkipLineComment(Lexer_t *lexer) {
+static inline void SkipLineComment(Lexer_t *lexer) {
   int c;
   // read until EOF or line feed
   while ((c = GetNextChar(lexer)) != EOF && c != '\n') {
     continue;
   }
   // return c to "stream"
+  lexer->prevChar = c;
+}
+
+// skips whitespace excluding '\n'
+static inline void SkipWhitespace(Lexer_t *lexer) {
+  int c;
+
+  while ((c = GetNextChar(lexer)) == ' ' || c == '\t' || c == '\r') {
+    continue;
+  }
+
   lexer->prevChar = c;
 }
 
@@ -554,6 +565,10 @@ RESET:
   case STATE_SLASH:
     new.type = TOKEN_SLASH;
     break;
+
+  case STATE_WHITESPACE:
+    SkipWhitespace(lexer);
+    goto RESET;
 
   case STATE_COMMENT:
     SkipLineComment(lexer);
