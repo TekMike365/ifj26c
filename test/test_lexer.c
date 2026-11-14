@@ -58,13 +58,29 @@ TESTFUNC(RecognizeNewline, "i\n", {
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
 })
 
+TESTFUNC(RecognizeIndent, "i\n  x\n", {
   Token_t next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
   next = GetNextToken(&filter);
-
-  fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
-  LayoutFilterTerminate(&filter);
-}
+  next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_INDENT);
+})
+
+TESTFUNC(RecognizeDedent, "i\n  x\n=", {
+  Token_t next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_INDENT);
+  next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_DEDENT);
+})
 
 int main(void) {
   SuiteInit("filter");
@@ -75,6 +91,8 @@ int main(void) {
   RunTest(RecognizeIntUnderscore, "Recognize int with underscore");
   RunTest(RecognizeEOF, "Recognize EOF");
   RunTest(RecognizeNewline, "Recognize newline");
+  RunTest(RecognizeIndent, "Recognize indent");
+  RunTest(RecognizeDedent, "Recognize dedent");
 
   PrintSummary();
   return 0;

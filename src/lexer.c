@@ -346,21 +346,23 @@ static inline IndentInfo_t MeasureIndent(Lexer_t *lexer) {
  * if not found, there was no matching indent -> error
  * */
 // TODO: can fail in indent and memory from push
-static _Bool UpdateIndentStack(int indent, IntStack_t *indents,
-                               int *levelsChanged) {
+static ErrorCode_t UpdateIndentStack(int indent, IntStack_t *indents,
+                                     int *levelsChanged) {
   assert(indents != NULL);
   int change = 0; // level change, zero initially
 
   // top is smaller -> indent, push
   if (IntStackTop(indents) < indent) {
-    IntStackPush(indents, indent);
+    if (!IntStackPush(indents, indent)) {
+      return ERROR_MEM;
+    };
     change++; // indent increased
   }
   // else dedent -> try to put it on top of the stack
   // pop until indent is smaller than top and stack is not empty
   else {
     if (!IntStackContains(indents, indent)) {
-      return 0;
+      return ERROR_LEX;
     }
     int top;
     while ((top = IntStackTop(indents)) != 0 && top > indent) {
@@ -373,7 +375,7 @@ static _Bool UpdateIndentStack(int indent, IntStack_t *indents,
     *levelsChanged = change;
   }
   // success
-  return 1;
+  return ERROR_NOERR;
 }
 
 /*static inline void DedentOnEOF(Lexer_t *lexer) {
@@ -456,6 +458,12 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
 
 Token_t CreateToken(void) {
   Token_t new = {.lexemeS = NULL, .pos = {0}, .type = TOKEN_NONE};
+  return new;
+}
+
+Token_t MakeToken(TokenType_t type) {
+  Token_t new = CreateToken();
+  new.type = type;
   return new;
 }
 
@@ -665,6 +673,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
   for (;;) {
     new = GetRawToken(&filter->lexer);
 
+    // if TOKEN_ERROR
     if (new.type == TOKEN_ERROR) {
       return new;
     }
@@ -709,9 +718,46 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       filter->bracketDepth--;
     }
 
+    // if token after empty space
     // if it got here, it has to be logical token
-    filter->atLineStart = 0;
+    if (filter->atLineStart) {
+      // no longer at start
+      filter->atLineStart = 0;
+      // if indent had tab, error
+      if (filter->nextIndent.hasTab) {
+        filter->hasStash = 1;
+        filter->stash = new;
+        Token_t err = CreateToken();
+        SetError(ERROR_LEX, &err);
+        return err;
+      }
 
+      // TODO: indent inside function brackets > top
+
+      int change;
+
+      ErrorCode_t error = UpdateIndentStack(filter->nextIndent.width,
+                                            &filter->indents, &change);
+      if (error != ERROR_NOERR) {
+        filter->hasStash = 1;
+        filter->stash = new;
+        Token_t err = CreateToken();
+        SetError(error, &err);
+        return err;
+      }
+
+      if (change != 0) {
+        filter->hasStash = 1;
+        filter->stash = new;
+        if (change > 0) {
+          return MakeToken(TOKEN_INDENT);
+        }
+        filter->dedentQueue = -change - 1;
+        return MakeToken(TOKEN_DEDENT);
+      }
+    }
+    // logical token after boundary between line start
+    // just return it
     return new;
   }
 }
