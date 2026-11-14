@@ -461,6 +461,18 @@ Token_t CreateToken(void) {
   return new;
 }
 
+void TerminateToken(Token_t *token) {
+  if (!token)
+    return;
+  if (token->type == TOKEN_IDENTIFIER || token->type == TOKEN_STRING) {
+    if (token->lexemeS) {
+      free(token->lexemeS);
+      token->lexemeS = NULL;
+    }
+  }
+  *token = (Token_t){.pos = {0}, .type = TOKEN_NONE};
+}
+
 Token_t MakeToken(TokenType_t type) {
   Token_t new = CreateToken();
   new.type = type;

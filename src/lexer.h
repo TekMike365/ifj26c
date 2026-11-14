@@ -134,6 +134,8 @@ void LayoutFilterTerminate(LayoutFilter_t *filter);
 
 Token_t CreateToken(void);
 
+void TerminateToken(Token_t *token);
+
 Token_t GetNextToken(LayoutFilter_t *filter);
 
 #endif /* ifndef LEXER_H */
