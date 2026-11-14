@@ -48,25 +48,26 @@ void CharBufClear(CharBuf_t *buf) {
   }
 }
 
-void CharBufTryShrink(CharBuf_t *buf) {
+_Bool CharBufTryShrink(CharBuf_t *buf) {
   if (!buf)
-    return;
+    return 0;
 
   // if minimum capacity and sufficient shrink factor
   if ((buf->capacity >= CHAR_BUF_MIN_CAP) &&
-      (buf->size * CHAR_BUF_SHRINK_FACTOR >= buf->capacity)) {
-    // new capacity will be the current size
-    size_t newCap = buf->size;
+      (buf->size * CHAR_BUF_SHRINK_FACTOR < buf->capacity)) {
+    // new capacity will be the current size unless smaller than min cap
+    size_t newCap = buf->size > CHAR_BUF_MIN_CAP ? buf->size : CHAR_BUF_MIN_CAP;
 
     char *tmp = realloc(buf->buf, newCap * sizeof(char));
     if (!tmp) {
-      free(tmp);
-      return;
+      return 0;
     }
 
     buf->buf = tmp;
     buf->capacity = newCap;
   }
+
+  return 1;
 }
 
 // destroy the buffer and free memory
