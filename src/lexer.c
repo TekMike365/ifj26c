@@ -432,7 +432,7 @@ _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
   filter->hasStash = 0;
 
   filter->atLineStart = 1;
-  filter->indentChange = 0;
+  filter->dedentQueue = 0;
 
   filter->nextIndent = (IndentInfo_t){0};
 
@@ -447,7 +447,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
   filter->hasStash = 0;
 
   filter->atLineStart = 1;
-  filter->indentChange = 0;
+  filter->dedentQueue = 0;
 
   filter->nextIndent = (IndentInfo_t){0};
 
@@ -647,20 +647,11 @@ RESET:
   return new;
 }
 
-// TODO: maybe change back to dedentQueue
-// something needs to be returned, that is TOKEN_INDENT
-// so it will never be in queue
 Token_t GetNextToken(LayoutFilter_t *filter) {
   Token_t new;
 
-  if (filter->indentChange > 0) {
-    filter->indentChange--;
-    new.type = TOKEN_INDENT;
-    return new;
-  }
-
-  if (filter->indentChange < 0) {
-    filter->indentChange++;
+  if (filter->dedentQueue > 0) {
+    filter->dedentQueue--;
     new.type = TOKEN_DEDENT;
     return new;
   }

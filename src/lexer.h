@@ -114,9 +114,10 @@ typedef struct {
 
   // line start?
   _Bool atLineStart;
-  // "queue" for TOKEN_INDENT if > 0
-  // TOKEN_DEDENT if < 0
-  int indentChange;
+  // "queue" for TOKEN_DEDENT
+  // TOKEN_INDENT can be only one at a time,
+  // so it gets emitted right away
+  int dedentQueue;
 
   IndentInfo_t nextIndent;
 
