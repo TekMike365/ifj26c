@@ -26,6 +26,7 @@
 TESTFUNC(RecognizeIdentifier, "myVar", {
   Token_t next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  TerminateToken(&next);
 })
 
 TESTFUNC(RecognizeKeyword, "for", {
@@ -54,6 +55,7 @@ TESTFUNC(RecognizeEOF, "Int", {
 
 TESTFUNC(RecognizeNewline, "i\n", {
   Token_t next = GetNextToken(&filter);
+  TerminateToken(&next);
   next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
 })
@@ -61,21 +63,27 @@ TESTFUNC(RecognizeNewline, "i\n", {
 TESTFUNC(RecognizeIndent, "i\n  x\n", {
   Token_t next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  TerminateToken(&next);
   next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
   next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_INDENT);
+  next = GetNextToken(&filter); // 'x' is in stash, call once more to avoid
+                                // mem leak
+  TerminateToken(&next);
 })
 
 TESTFUNC(RecognizeDedent, "i\n  x\n=", {
   Token_t next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  TerminateToken(&next);
   next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
   next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_INDENT);
   next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  TerminateToken(&next);
   next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
   next = GetNextToken(&filter);

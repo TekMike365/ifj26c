@@ -378,15 +378,23 @@ static ErrorCode_t UpdateIndentStack(int indent, IntStack_t *indents,
   return ERROR_NOERR;
 }
 
-/*static inline void DedentOnEOF(Lexer_t *lexer) {
-  assert(lexer != NULL);
-  lexer->indentChange = IntStackPopAll(&lexer->indentStack);
-}*/
-
 static inline void SetError(ErrorCode_t error, Token_t *token) {
   assert(token != NULL);
   token->type = TOKEN_ERROR;
   token->error = error;
+}
+
+static inline _Bool TokenSetLexemeS(Token_t *token, const char *src,
+                                    size_t length) {
+  assert(token != NULL);
+  assert(src != NULL);
+
+  token->lexemeS = malloc(length * sizeof(char));
+  if (!token->lexemeS) {
+    return 0;
+  }
+  memcpy(token->lexemeS, src, length);
+  return 1;
 }
 
 // ##############################################################
@@ -550,6 +558,12 @@ RESET:
     // Token type could be a part of it?
     // Parse not needed?
     new.type = ParseIdentifier(lexer->buf.buf);
+    if (new.type == TOKEN_IDENTIFIER) {
+      if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
+        SetError(ERROR_MEM, &new);
+        return new;
+      }
+    }
     break;
 
   case STATE_EQ:
@@ -650,6 +664,10 @@ RESET:
   case STATE_END_STRING:
   case STATE_END_MULTILINE_STR:
     new.type = TOKEN_STRING;
+    if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
+      SetError(ERROR_MEM, &new);
+      return new;
+    }
     break;
 
   case STATE_NEWLINE:
