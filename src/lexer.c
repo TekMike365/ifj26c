@@ -358,6 +358,12 @@ static _Bool UpdateIndentStack(int indent, IntStack_t *indents,
   lexer->indentChange = IntStackPopAll(&lexer->indentStack);
 }*/
 
+static inline void SetError(ErrorCode_t error, Token_t *token) {
+  assert(token != NULL);
+  token->type = TOKEN_ERROR;
+  token->error = error;
+}
+
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
 // ##############################################################
@@ -428,7 +434,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
 }
 
 Token_t CreateToken(void) {
-  Token_t new = {.lexemeS = NULL, .line = 0, .len = 0, .type = TOKEN_NONE};
+  Token_t new = {.lexemeS = NULL, .pos = {0}, .type = TOKEN_NONE};
   return new;
 }
 
@@ -451,6 +457,8 @@ Token_t GetRawToken(Lexer_t *lexer) {
   State_t current, next;
 
 RESET:
+  new.pos.line = lexer->line;    // set line
+  new.pos.start = lexer->offset; // set start
 
   // reset buffer
   CharBufClear(&lexer->buf);
@@ -469,7 +477,7 @@ RESET:
 
     // TODO: not ERROR, but error code
     if (!CharBufInsert(&lexer->buf, c)) {
-      new.type = TOKEN_ERROR;
+      SetError(ERROR_MEM, &new);
       return new;
     };
 
@@ -478,7 +486,7 @@ RESET:
 
   // null-terminate
   if (!CharBufInsert(&lexer->buf, '\0')) {
-    new.type = TOKEN_ERROR;
+    SetError(ERROR_MEM, &new);
     return new;
   };
 
@@ -545,7 +553,7 @@ RESET:
 
   case STATE_BLOCK_COMMENT:
     if (!SkipBlockComment(lexer)) {
-      new.type = TOKEN_ERROR;
+      SetError(ERROR_LEX, &new);
       break;
     }
     // start anew
@@ -609,9 +617,14 @@ RESET:
     break;
   }
 
+  new.pos.end = lexer->offset; // set end
+
   return new;
 }
 
+// TODO: maybe change back to dedentQueue
+// something needs to be returned, that is TOKEN_INDENT
+// so it will never be in queue
 Token_t GetNextToken(LayoutFilter_t *filter) {
   Token_t new;
 

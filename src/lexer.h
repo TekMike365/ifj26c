@@ -66,15 +66,26 @@ typedef enum {
 } TokenType_t;
 
 typedef struct {
+  size_t line;  // at what line
+  size_t start; // line offset to start
+  size_t end;   // line offset to end
+} SourceSpan_t;
+
+typedef enum { ERROR_LEX = 1, ERROR_MEM = 99 } ErrorCode_t;
+
+typedef struct {
+  TokenType_t type;
+  SourceSpan_t pos;
   union {
     int lexemeI;
     double lexemeD;
     char *lexemeS;
-    int indent; // used by TOKEN_NEWLINE
+    struct {
+      int indent;
+      _Bool hasTab;
+    }; // used by TOKEN_NEWLINE
+    ErrorCode_t error;
   };
-  size_t len;
-  size_t line;
-  TokenType_t type;
 } Token_t;
 
 typedef struct {
