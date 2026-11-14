@@ -304,13 +304,25 @@ static void SkipLineComment(Lexer_t *lexer) {
   lexer->prevChar = c;
 }
 
-static void MeasureIndent(Lexer_t *lexer) {
-  int indentLevel = 0;
+// returns 0 if indent contains \t, else 1
+// function counts spaces even after seeing tab, because:
+// if on empty line, it will be discarded
+// if on logical line, it is a lexical error anyway
+static inline IndentInfo_t MeasureIndent(Lexer_t *lexer) {
+  int width = 0;
+  _Bool hasTab = 0;
   int c;
 
-  while ((c = GetNextChar(lexer)) == ' ') {
-    indentLevel++;
+  while ((c = GetNextChar(lexer)) == ' ' || c == '\t') {
+    if (c == '\t') {
+      hasTab = 1;
+    }
+
+    width++;
   }
+
+  lexer->prevChar = c;
+  return (IndentInfo_t){.width = width, .hasTab = hasTab};
 }
 
 /* Function tries to put 'indent' on top of the indent stack
@@ -411,8 +423,7 @@ _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
   filter->atLineStart = 1;
   filter->indentChange = 0;
 
-  filter->nextIndent = 0;
-  filter->nextTab = 0;
+  filter->nextIndent = (IndentInfo_t){0};
 
   filter->bracketDepth = 0;
   return 1;
@@ -427,8 +438,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
   filter->atLineStart = 1;
   filter->indentChange = 0;
 
-  filter->nextIndent = 0;
-  filter->nextTab = 0;
+  filter->nextIndent = (IndentInfo_t){0};
 
   filter->bracketDepth = 0;
 }
@@ -475,7 +485,6 @@ RESET:
       break;
     }
 
-    // TODO: not ERROR, but error code
     if (!CharBufInsert(&lexer->buf, c)) {
       SetError(ERROR_MEM, &new);
       return new;
@@ -610,6 +619,7 @@ RESET:
 
   case STATE_NEWLINE:
     new.type = TOKEN_NEWLINE;
+    new.indent = MeasureIndent(lexer);
     break;
 
   default:
@@ -656,7 +666,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
     // if TOKEN_NEWLINE
     if (new.type == TOKEN_NEWLINE) {
 
-      // filter->nextIndent = new.indent;
+      filter->nextIndent = new.indent;
       // if it doesnt come from a logical line
       // skip
       if (filter->atLineStart) {
@@ -682,8 +692,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
         return nl;
       }
       // set valid indent to dedent all blocks
-      filter->nextIndent = 0;
-      filter->nextTab = 0;
+      filter->nextIndent = (IndentInfo_t){0};
     }
 
     if (new.type == TOKEN_LPAR) {

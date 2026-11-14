@@ -71,7 +71,12 @@ typedef struct {
   size_t end;   // line offset to end
 } SourceSpan_t;
 
-typedef enum { ERROR_LEX = 1, ERROR_MEM = 99 } ErrorCode_t;
+typedef struct {
+  int width;
+  _Bool hasTab;
+} IndentInfo_t;
+
+typedef enum { ERROR_LEX = 1, ERROR_MEM = 99, ERROR_NOERR = 0 } ErrorCode_t;
 
 typedef struct {
   TokenType_t type;
@@ -80,10 +85,7 @@ typedef struct {
     int lexemeI;
     double lexemeD;
     char *lexemeS;
-    struct {
-      int indent;
-      _Bool hasTab;
-    }; // used by TOKEN_NEWLINE
+    IndentInfo_t indent; // used by TOKEN_NEWLINE
     ErrorCode_t error;
   };
 } Token_t;
@@ -116,10 +118,7 @@ typedef struct {
   // TOKEN_DEDENT if < 0
   int indentChange;
 
-  // indent from last newline
-  int nextIndent;
-  // contains tab?
-  _Bool nextTab;
+  IndentInfo_t nextIndent;
 
   int bracketDepth;
 } LayoutFilter_t;
