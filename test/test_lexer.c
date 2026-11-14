@@ -7,108 +7,56 @@
 #include <stdio.h>
 #include <string.h>
 
-void RecognizeIdentifier(void) {
+#define TESTFUNC(name, test_input, test_body)                                  \
+  void name(void) {                                                            \
+    FILE *tmp = tmpfile();                                                     \
+    ASSERT_TRUE(tmp != NULL);                                                  \
+                                                                               \
+    fputs((test_input), tmp);                                                  \
+                                                                               \
+    rewind(tmp);                                                               \
+                                                                               \
+    LayoutFilter_t filter;                                                     \
+    ASSERT_TRUE(LayoutFilterInit(&filter, tmp));                               \
+                                                                               \
+    {test_body} LayoutFilterTerminate(&filter);                                \
+    fclose(tmp);                                                               \
+  }
 
-  FILE *tmp = tmpfile();
-  ASSERT_TRUE(tmp != NULL);
-
-  fputs("myVar", tmp);
-
-  rewind(tmp);
-
-  LayoutFilter_t filter;
-  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
-
+TESTFUNC(RecognizeIdentifier, "myVar", {
   Token_t next = GetNextToken(&filter);
-
-  fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
-  LayoutFilterTerminate(&filter);
-}
-void RecognizeKeyword(void) {
-  FILE *tmp = tmpfile();
-  ASSERT_TRUE(tmp != NULL);
+})
 
-  fputs("for", tmp);
-
-  rewind(tmp);
-
-  LayoutFilter_t filter;
-  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
-
+TESTFUNC(RecognizeKeyword, "for", {
   Token_t next = GetNextToken(&filter);
-
-  fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_KEYWORD_FOR);
-  LayoutFilterTerminate(&filter);
-}
+})
 
-void RecognizeInt(void) {
-  FILE *tmp = tmpfile();
-  ASSERT_TRUE(tmp != NULL);
-
-  fputs("12343", tmp);
-
-  rewind(tmp);
-
-  LayoutFilter_t filter;
-  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
-
+TESTFUNC(RecognizeInt, "12343", {
   Token_t next = GetNextToken(&filter);
-
-  fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
   ASSERT_INT_EQ(next.lexemeI, 12343);
-  LayoutFilterTerminate(&filter);
-}
+})
 
-void RecognizeIntUnderscore(void) {
-  FILE *tmp = tmpfile();
-  ASSERT_TRUE(tmp != NULL);
-
-  fputs("12_34_3", tmp);
-
-  rewind(tmp);
-  LayoutFilter_t filter;
-  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
-
+TESTFUNC(RecognizeIntUnderscore, "12_34_3", {
   Token_t next = GetNextToken(&filter);
-
-  fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
   ASSERT_INT_EQ(next.lexemeI, 12343);
-  LayoutFilterTerminate(&filter);
-}
+})
 
-void RecognizeEOF(void) {
-  FILE *tmp = tmpfile();
-  ASSERT_TRUE(tmp != NULL);
-
-  fputs("Int", tmp);
-
-  rewind(tmp);
-  LayoutFilter_t filter;
-  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
-
+TESTFUNC(RecognizeEOF, "Int", {
   Token_t next = GetNextToken(&filter);
-
   next = GetNextToken(&filter);
   next = GetNextToken(&filter);
-
-  fclose(tmp);
   ASSERT_INT_EQ(next.type, TOKEN_EOF);
-  LayoutFilterTerminate(&filter);
-}
+})
 
-void RecognizeNewline(void) {
-  FILE *tmp = tmpfile();
-  ASSERT_TRUE(tmp != NULL);
-
-  fputs("i\n", tmp);
-
-  rewind(tmp);
-  LayoutFilter_t filter;
-  ASSERT_TRUE(LayoutFilterInit(&filter, tmp));
+TESTFUNC(RecognizeNewline, "i\n", {
+  Token_t next = GetNextToken(&filter);
+  next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+})
 
   Token_t next = GetNextToken(&filter);
   next = GetNextToken(&filter);
