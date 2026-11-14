@@ -828,32 +828,41 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
         return err;
       }
 
-      // TODO: indent inside function brackets > top
-
-      int change;
-
-      ErrorCode_t error = UpdateIndentStack(filter->nextIndent.width,
-                                            &filter->indents, &change);
-      if (error != ERROR_NOERR) {
-
-        LayoutFilterStashToken(filter, new);
-
-        Token_t err = CreateToken();
-        SetError(error, &err);
-        return err;
-      }
-
-      if (change != 0) {
-
-        LayoutFilterStashToken(filter, new);
-
-        if (change > 0) {
-          return MakeToken(TOKEN_INDENT);
+      // if inside function brackets
+      if (filter->bracketDepth > 0) {
+        // and indent hasnt increased, error
+        if (filter->nextIndent.width <= IntStackTop(&filter->indents)) {
+          Token_t err = CreateToken();
+          SetError(ERROR_SYNTAX, &err);
+          return err;
         }
-        // change is negative on dedent, so -change
-        // -1 because one TOKEN_DEDENT is emitted right now
-        filter->dedentQueue = -change - 1;
-        return MakeToken(TOKEN_DEDENT);
+      } else {
+
+        int change;
+
+        ErrorCode_t error = UpdateIndentStack(filter->nextIndent.width,
+                                              &filter->indents, &change);
+        if (error != ERROR_NOERR) {
+
+          LayoutFilterStashToken(filter, new);
+
+          Token_t err = CreateToken();
+          SetError(error, &err);
+          return err;
+        }
+
+        if (change != 0) {
+
+          LayoutFilterStashToken(filter, new);
+
+          if (change > 0) {
+            return MakeToken(TOKEN_INDENT);
+          }
+          // change is negative on dedent, so -change
+          // -1 because one TOKEN_DEDENT is emitted right now
+          filter->dedentQueue = -change - 1;
+          return MakeToken(TOKEN_DEDENT);
+        }
       }
     }
     // logical token after boundary between line start

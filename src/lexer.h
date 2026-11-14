@@ -78,7 +78,12 @@ typedef struct {
 } IndentInfo_t;
 
 // error codes stored inside TOKEN_ERROR
-typedef enum { ERROR_LEX = 1, ERROR_MEM = 99, ERROR_NOERR = 0 } ErrorCode_t;
+typedef enum {
+  ERROR_LEX = 1,
+  ERROR_SYNTAX = 2, // used in multiline function bracket indent
+  ERROR_MEM = 99,
+  ERROR_NOERR = 0
+} ErrorCode_t;
 
 // token structure
 typedef struct {
