@@ -12,8 +12,6 @@
 #include <string.h>
 
 /**TODO:
- * START:WHITESPACE -> START?
- *
  * make TRANSITION TABLE 1D
  */
 
@@ -285,6 +283,8 @@ static _Bool SkipBlockComment(Lexer_t *lexer) {
       return 0;
       // TODO: handle // comment begin, not an error
       // dont set \n on EOF???
+      // split block into TOKEN_BLOCK_LINE and block
+      // dont check beyond last *\, let Layout handle the logic
     }
   }
 
@@ -418,7 +418,6 @@ static inline _Bool TokenSetLexemeS(Token_t *token, const char *src,
 }
 
 /* TODO
- * tryshrink after string - probably longer than identifier
  * string pool
  */
 Token_t GetRawToken(Lexer_t *lexer) {
@@ -456,7 +455,7 @@ RESET:
     if (!CharBufInsert(&lexer->buf, c)) {
       SetError(ERROR_MEM, &new);
       return new;
-    };
+    }
 
     current = next;
   }
@@ -483,7 +482,7 @@ RESET:
   case STATE_IDENTIFIER:
     // IF STRING POOL CONTAINED STRING+METADATA i.e. TOKEN POOL
     // Token type could be a part of it?
-    // Parse not needed?
+    // ParseIdentifier not needed?
     new.type = ParseIdentifier(lexer->buf.buf);
     if (new.type == TOKEN_IDENTIFIER) {
       if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
@@ -662,7 +661,7 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   lexer->prevChar = 0;
 }
 
-// terminate a lexer
+/* terminate a lexer */
 void LexerTerminate(Lexer_t *lexer) {
   if (lexer == NULL) {
     return;
@@ -702,7 +701,7 @@ _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
   return 1;
 }
 
-// terminate
+/* terminate */
 void LayoutFilterTerminate(LayoutFilter_t *filter) {
   LexerTerminate(&filter->lexer);
   IntStackTerminate(&filter->indents);
@@ -717,7 +716,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
   filter->bracketDepth = 0;
 }
 
-// returns a nulled TOKEN_NONE token
+/* returns a nulled TOKEN_NONE token */
 Token_t CreateToken(void) {
   Token_t new = {.lexemeS = NULL, .pos = {0}, .type = TOKEN_NONE};
   return new;

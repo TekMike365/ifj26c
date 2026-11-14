@@ -62,37 +62,42 @@ typedef enum {
   TOKEN_EOF,
   TOKEN_NEWLINE,
   TOKEN_ERROR
-
 } TokenType_t;
 
+// stores the position of a token
 typedef struct {
   size_t line;  // at what line
   size_t start; // line offset to start
   size_t end;   // line offset to end
 } SourceSpan_t;
 
+// info about indentation
 typedef struct {
-  int width;
-  _Bool hasTab;
+  int width;    // how many spaces
+  _Bool hasTab; // was \t seen?
 } IndentInfo_t;
 
+// error codes stored inside TOKEN_ERROR
 typedef enum { ERROR_LEX = 1, ERROR_MEM = 99, ERROR_NOERR = 0 } ErrorCode_t;
 
+// token structure
 typedef struct {
-  TokenType_t type;
-  SourceSpan_t pos;
+  TokenType_t type; // token type
+  SourceSpan_t pos; // position
+                    // attributes
   union {
-    int lexemeI;
-    double lexemeD;
-    char *lexemeS;
+    int lexemeI;         // integer lexeme
+    double lexemeD;      // double lexeme
+    char *lexemeS;       // string literal lexeme
     IndentInfo_t indent; // used by TOKEN_NEWLINE
-    ErrorCode_t error;
+    ErrorCode_t error;   // error code
   };
 } Token_t;
 
+// lexer structure
 typedef struct {
-  FILE *src; // source file
-  CharBuf_t buf;
+  FILE *src;     // source file
+  CharBuf_t buf; // buffer for read characters
   size_t offset; // file offset
   size_t line;   // counts newlines
 
@@ -102,6 +107,8 @@ typedef struct {
   int prevChar;
 } Lexer_t;
 
+// layout filter struct
+// encapsulates lexer, indent stack and flags
 typedef struct {
   Lexer_t lexer;
   // indent stack
@@ -119,23 +126,42 @@ typedef struct {
   // so it gets emitted right away
   int dedentQueue;
 
+  // info about current line`s indent
   IndentInfo_t nextIndent;
 
+  // count of bracket nesting
   int bracketDepth;
 } LayoutFilter_t;
 
+/* Initializes lexer
+ * * src is the file to be read
+ */
 void LexerInit(Lexer_t *lexer, FILE *src);
 
+/* Terminate lexer */
 void LexerTerminate(Lexer_t *lexer);
 
+/* Initialize layout filter
+ * * src - source file, passed to lexer
+ * may fail on memory, because 0 is pushed on the indent stack
+ * to act as a baseline
+ * returns 0 on mem error, else 1
+ * */
 _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src);
 
+/* terminate layout filter */
 void LayoutFilterTerminate(LayoutFilter_t *filter);
 
+/* creates a nulled token of type TOKEN_NONE*/
 Token_t CreateToken(void);
 
+/* terminates a token
+ * if it is of type TOKEN_IDENTIFIER or TOKEN_STRING
+ * and lexemeS is not NULL, frees it
+ */
 void TerminateToken(Token_t *token);
 
+/* returns the next token */
 Token_t GetNextToken(LayoutFilter_t *filter);
 
 #endif /* ifndef LEXER_H */
