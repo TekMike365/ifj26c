@@ -591,7 +591,17 @@ RESET:
   case STATE_END_STRING:
   case STATE_END_MULTILINE_STR:
     new.type = TOKEN_STRING;
+
+    // set lexemeS
     if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
+      SetError(ERROR_MEM, &new);
+      return new;
+    }
+
+    // string literal is likely much longer than
+    // identifier or any other buffered lexeme
+    // try to shrink it
+    if (!CharBufTryShrink(&lexer->buf)) {
       SetError(ERROR_MEM, &new);
       return new;
     }
