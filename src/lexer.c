@@ -622,6 +622,23 @@ RESET:
   return new;
 }
 
+// store a token inside LayoutFilter`s stash
+static inline void LayoutFilterStashToken(LayoutFilter_t *filter,
+                                          Token_t token) {
+  assert(filter != NULL);
+
+  filter->hasStash = 1;
+  filter->stash = token;
+}
+
+// pop a stashed token
+static inline Token_t LayoutFilterUnstashToken(LayoutFilter_t *filter) {
+  assert(filter != NULL);
+
+  filter->hasStash = 0;
+  return filter->stash;
+}
+
 // ##############################################################
 //                    LEXER.H IMPLEMENTATION
 // ##############################################################
