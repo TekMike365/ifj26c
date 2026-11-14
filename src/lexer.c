@@ -740,25 +740,32 @@ void TerminateToken(Token_t *token) {
 }
 
 // returns a token of the specified type
-Token_t MakeToken(TokenType_t type) {
+static inline Token_t MakeToken(TokenType_t type) {
   Token_t new = CreateToken();
   new.type = type;
   return new;
 }
 
+/* Wrapper function that encapsulates Lexer, Indent stack and flags
+ * Acts as a token interceptor/filter layer above lexer, but below parser
+ * LEXER -> INTERCEPTOR -> PARSER
+ * asks for tokens in a loop until it can emit a meaningful token
+ * to decide, it uses flags and helper structures
+ * handles correct TOKEN_NEWLINE emission, indentation and EOF
+ * emits synthetic tokens as well (i.e. TOKEN_NEWLINE before TOKEN_EOF)
+ */
 Token_t GetNextToken(LayoutFilter_t *filter) {
-  Token_t new;
 
   if (filter->dedentQueue > 0) {
     filter->dedentQueue--;
-    new.type = TOKEN_DEDENT;
-    return new;
+    return MakeToken(TOKEN_DEDENT);
   }
 
   if (filter->hasStash) {
-    filter->hasStash = 0;
-    return filter->stash;
+    return LayoutFilterUnstashToken(filter);
   }
+
+  Token_t new;
 
   // get new tokens, return only relevant ones
   for (;;) {
@@ -793,9 +800,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       // to end command
       if (!filter->atLineStart) {
         filter->atLineStart = 1;
-        Token_t nl = CreateToken();
-        nl.type = TOKEN_NEWLINE;
-        return nl;
+        return MakeToken(TOKEN_NEWLINE);
       }
       // set valid indent to dedent all blocks
       filter->nextIndent = (IndentInfo_t){0};
@@ -816,8 +821,9 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       filter->atLineStart = 0;
       // if indent had tab, error
       if (filter->nextIndent.hasTab) {
-        filter->hasStash = 1;
-        filter->stash = new;
+
+        LayoutFilterStashToken(filter, new);
+
         Token_t err = CreateToken();
         SetError(ERROR_LEX, &err);
         return err;
@@ -830,19 +836,23 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       ErrorCode_t error = UpdateIndentStack(filter->nextIndent.width,
                                             &filter->indents, &change);
       if (error != ERROR_NOERR) {
-        filter->hasStash = 1;
-        filter->stash = new;
+
+        LayoutFilterStashToken(filter, new);
+
         Token_t err = CreateToken();
         SetError(error, &err);
         return err;
       }
 
       if (change != 0) {
-        filter->hasStash = 1;
-        filter->stash = new;
+
+        LayoutFilterStashToken(filter, new);
+
         if (change > 0) {
           return MakeToken(TOKEN_INDENT);
         }
+        // change is negative on dedent, so -change
+        // -1 because one TOKEN_DEDENT is emitted right now
         filter->dedentQueue = -change - 1;
         return MakeToken(TOKEN_DEDENT);
       }
