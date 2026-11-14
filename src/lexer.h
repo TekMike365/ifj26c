@@ -89,7 +89,9 @@ typedef enum {
 typedef struct {
   TokenType_t type; // token type
   SourceSpan_t pos; // position
-                    // attributes
+  _Bool nlBefore;   // signals newline before this token
+                    // needed in functions, f.e. valid comma in 3,\n)
+  // attributes
   union {
     int lexemeI;         // integer lexeme
     double lexemeD;      // double lexeme

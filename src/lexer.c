@@ -718,7 +718,8 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
 
 /* returns a nulled TOKEN_NONE token */
 Token_t CreateToken(void) {
-  Token_t new = {.lexemeS = NULL, .pos = {0}, .type = TOKEN_NONE};
+  Token_t new = {
+      .lexemeS = NULL, .pos = {0}, .nlBefore = 0, .type = TOKEN_NONE};
   return new;
 }
 
@@ -735,7 +736,7 @@ void TerminateToken(Token_t *token) {
       token->lexemeS = NULL;
     }
   }
-  *token = (Token_t){.pos = {0}, .type = TOKEN_NONE};
+  *token = (Token_t){.pos = {0}, .nlBefore = 0, .type = TOKEN_NONE};
 }
 
 // returns a token of the specified type
@@ -831,12 +832,17 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       // if inside function brackets
       if (filter->bracketDepth > 0) {
         // and indent hasnt increased, error
+        // no need to check hasTab, checked above
         if (filter->nextIndent.width <= IntStackTop(&filter->indents)) {
           Token_t err = CreateToken();
           SetError(ERROR_SYNTAX, &err);
           return err;
         }
-      } else {
+        // preceding newline, 3,\n) valid
+        new.nlBefore = 1;
+      }
+      // else normal indent processing
+      else {
 
         int change;
 
