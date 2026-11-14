@@ -15,15 +15,19 @@
 #define CHAR_BUF_SHRINK_FACTOR 4
 
 typedef struct {
-  size_t size;
-  size_t capacity;
+  size_t size;     // the next free slot, also size
+  size_t capacity; // current capacity
   char *buf;
 } CharBuf_t;
 
 void CharBufInit(CharBuf_t *buf);
 
+// insert c at the next free space
+// returns 0 on malloc failure, else 1
 _Bool CharBufInsert(CharBuf_t *buf, char c);
 
+// sets size to 0 for reus
+// without reallocating
 void CharBufClear(CharBuf_t *buf);
 
 /* USE ONLY AFTER WRITING FINISHED
