@@ -5,7 +5,6 @@
 #ifndef CHAR_BUF_H
 #define CHAR_BUF_H
 
-#include <stdbool.h>
 #include <stddef.h>
 // minimum buffer capacity
 // of a non-empty buffer
@@ -23,10 +22,20 @@ typedef struct {
 
 void CharBufInit(CharBuf_t *buf);
 
-bool CharBufInsert(CharBuf_t *buf, char c);
+_Bool CharBufInsert(CharBuf_t *buf, char c);
 
 void CharBufClear(CharBuf_t *buf);
 
+/* USE ONLY AFTER WRITING FINISHED
+ * shrinks the buffer to buf->size if:
+ * * buf->capacity > CHAR_BUF_MIN_CAP
+ * * buf->capacity is greater than buf->size
+ * * by CHAR_BUF_SHRINK_FACTOR
+ *
+ * used in a situation where the buffer is to be reused,
+ * but previous stored data was much bigger in size
+ * than the new one just stored
+ */
 void CharBufTryShrink(CharBuf_t *buf);
 
 void CharBufTerminate(CharBuf_t *buf);

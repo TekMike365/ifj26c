@@ -48,16 +48,6 @@ void CharBufClear(CharBuf_t *buf) {
   }
 }
 
-/* USE ONLY AFTER WRITING FINISHED
- * shrinks the buffer to buf->size if:
- * * buf->capacity > CHAR_BUF_MIN_CAP
- * * buf->capacity is greater than buf->size
- * * by CHAR_BUF_SHRINK_FACTOR
- *
- * used in a situation where the buffer is to be reused,
- * but previous stored data was much bigger in size
- * than the new one just stored
- */
 void CharBufTryShrink(CharBuf_t *buf) {
   if (!buf)
     return;
