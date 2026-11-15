@@ -619,6 +619,17 @@ RESET:
     new.indent = MeasureIndent(lexer);
     break;
 
+  case STATE_ERROR:
+
+    new.type = TOKEN_ERROR;
+    MsgContext_t ctx = {.lineNum = new.pos.line,
+                        .hlStartCol = new.pos.start,
+                        .hlEndCol = new.pos.end,
+                        .poiCol = new.pos.end};
+    ReportLexicalError(ctx, lexer->buf.buf, "Unexpected character sequence.",
+                       1);
+    break;
+
   default:
     new.type = TOKEN_ERROR;
 
