@@ -181,11 +181,14 @@ static inline int GetNextChar(Lexer_t *lexer) {
   // if new line, increment line count
   if (c == '\n') {
     lexer->line++;
+    lexer->col = 1;
+    MessengerStoreNewLine(ftell(lexer->src));
   }
   // if not EOF, increment offset
-  if (c != EOF)
+  if (c != EOF) {
     lexer->offset++;
-
+    lexer->col++;
+  }
   // return
   return c;
 }
@@ -434,8 +437,8 @@ Token_t GetRawToken(Lexer_t *lexer) {
   State_t current, next;
 
 RESET:
-  new.pos.line = lexer->line;    // set line
-  new.pos.start = lexer->offset; // set start
+  new.pos.line = lexer->line; // set line
+  new.pos.start = lexer->col; // set start
 
   // reset buffer
   CharBufClear(&lexer->buf);
@@ -616,7 +619,7 @@ RESET:
     break;
   }
 
-  new.pos.end = lexer->offset; // set end
+  new.pos.end = lexer->col; // set end
 
   return new;
 }
@@ -653,10 +656,14 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   CharBufInit(&lexer->buf);
   lexer->offset = 0;
   lexer->line = 1; // first line
+  lexer->col = 1;  // col 0
 
   // initialize the map and transition table
   ASCIIMapInit();
   TransitionTableInit();
+
+  // store line 1 offset
+  MessengerStoreNewLine(ftell(src));
 
   lexer->prevChar = 0;
 }
@@ -671,6 +678,7 @@ void LexerTerminate(Lexer_t *lexer) {
   CharBufTerminate(&lexer->buf);
   lexer->prevChar = 0;
   lexer->line = 1;
+  lexer->col = 1;
   lexer->offset = 0;
 }
 
