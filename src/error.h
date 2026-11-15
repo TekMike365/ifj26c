@@ -2,8 +2,12 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
-#ifndef ERROR_CODES_H
-#define ERROR_CODES_H
+#ifndef IFJ26_ERROR_H
+#define IFJ26_ERROR_H
+
+#include "messenger.h"
+#include <stddef.h>
+
 // error codes for compiler
 typedef enum {
   ERROR_NOERR = 0,         // no error
@@ -18,4 +22,9 @@ typedef enum {
   ERROR_INTERNAL = 99,     // internal error (mem and such)
 } ErrorCode_t;
 
-#endif // ERROR_CODES_H
+void ReportLexicalError(MsgContext_t ctx, const char *code, const char *msg,
+                        _Bool addContext);
+
+void ReportInternalError(const char *msg);
+
+#endif // IFJ26_ERROR_H
