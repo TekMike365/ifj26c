@@ -6,7 +6,7 @@
 #define LEXER_H
 
 #include "char_buf.h"
-#include "error_codes.h"
+#include "error.h"
 #include "int_stack.h"
 #include <stddef.h>
 #include <stdio.h>

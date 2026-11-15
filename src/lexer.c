@@ -4,9 +4,10 @@
 
 #include "lexer.h"
 #include "char_buf.h"
-#include "error_codes.h"
+#include "error.h"
 #include "int_stack.h"
 #include "lexer_fsm.h"
+#include "messenger.h"
 #include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
