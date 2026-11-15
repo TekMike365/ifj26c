@@ -457,6 +457,7 @@ RESET:
 
     if (!CharBufInsert(&lexer->buf, c)) {
       TokenSetError(ERROR_INTERNAL, &new);
+      ReportInternalError("Out of memory.");
       return new;
     }
 
@@ -466,6 +467,7 @@ RESET:
   // null-terminate
   if (!CharBufInsert(&lexer->buf, '\0')) {
     TokenSetError(ERROR_INTERNAL, &new);
+    ReportInternalError("Out of memory.");
     return new;
   };
 
@@ -490,6 +492,7 @@ RESET:
     if (new.type == TOKEN_IDENTIFIER) {
       if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
         TokenSetError(ERROR_INTERNAL, &new);
+        ReportInternalError("Out of memory.");
         return new;
       }
     }
@@ -597,6 +600,7 @@ RESET:
     // set lexemeS
     if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
       TokenSetError(ERROR_INTERNAL, &new);
+      ReportInternalError("Out of memory.");
       return new;
     }
 
@@ -605,6 +609,7 @@ RESET:
     // try to shrink it
     if (!CharBufTryShrink(&lexer->buf)) {
       TokenSetError(ERROR_INTERNAL, &new);
+      ReportInternalError("Out of memory.");
       return new;
     }
     break;
@@ -616,6 +621,8 @@ RESET:
 
   default:
     new.type = TOKEN_ERROR;
+
+    ReportInternalError("Unknown lexer state.");
     break;
   }
 
@@ -779,6 +786,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
     new = GetRawToken(&filter->lexer);
 
     // if TOKEN_ERROR
+    // already reported by lexer
     if (new.type == TOKEN_ERROR) {
       return new;
     }
@@ -825,6 +833,16 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       filter->atLineStart = 0;
       // if indent had tab, error
       if (filter->nextIndent.hasTab) {
+        MsgContext_t ctx = {.lineNum = new.pos.line,
+                            .hlStartCol = 1, // newline has different, but
+                                             // since it carries indent, which
+                                             // always starts at 1, let me do
+                                             // it this way
+                            .hlEndCol = new.pos.end,
+                            .poiCol = 0};
+        ReportLexicalError(ctx, filter->lexer.buf.buf,
+                           "Tabulator can`t be used to indent a logical line.",
+                           1);
 
         LayoutFilterStashToken(filter, new);
 
@@ -839,6 +857,17 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       ErrorCode_t error = UpdateIndentStack(filter->nextIndent.width,
                                             &filter->indents, &change);
       if (error != ERROR_NOERR) {
+
+        if (error == ERROR_INTERNAL) {
+          ReportInternalError("Indent stack push failure: Out of memory.");
+        }
+
+        MsgContext_t ctx = {.lineNum = new.pos.line,
+                            .hlStartCol = new.pos.start,
+                            .hlEndCol = new.pos.end,
+                            .poiCol = 0};
+        ReportLexicalError(ctx, filter->lexer.buf.buf,
+                           "No matching indent for dedent found.", 1);
 
         LayoutFilterStashToken(filter, new);
 
