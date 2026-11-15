@@ -6,6 +6,7 @@
 #define LEXER_H
 
 #include "char_buf.h"
+#include "error_codes.h"
 #include "int_stack.h"
 #include <stddef.h>
 #include <stdio.h>
@@ -76,14 +77,6 @@ typedef struct {
   int width;    // how many spaces
   _Bool hasTab; // was \t seen?
 } IndentInfo_t;
-
-// error codes stored inside TOKEN_ERROR
-typedef enum {
-  ERROR_LEX = 1,
-  ERROR_SYNTAX = 2, // used in multiline function bracket indent
-  ERROR_MEM = 99,
-  ERROR_NOERR = 0
-} ErrorCode_t;
 
 // token structure
 typedef struct {

@@ -4,6 +4,7 @@
 
 #include "lexer.h"
 #include "char_buf.h"
+#include "error_codes.h"
 #include "int_stack.h"
 #include "lexer_fsm.h"
 #include <assert.h>
@@ -12,6 +13,7 @@
 #include <string.h>
 
 /**TODO:
+ * string pool
  * make TRANSITION TABLE 1D
  */
 
@@ -25,7 +27,7 @@
  * * ref - suffix of the keyword
  * * len - length of the suffix
  * * matched - token type returned on match
- * */
+ */
 static inline TokenType_t MatchKeywordSuffix(const char *str, const char *ref,
                                              size_t len, TokenType_t matched) {
   assert(str != NULL);
@@ -39,7 +41,7 @@ static inline TokenType_t MatchKeywordSuffix(const char *str, const char *ref,
 
 /* decides whether str is identifier or keyword
  * implemented using length-partition followed by trie matching
- * str - pointer to a char array
+ * * str - pointer to a char array
  * return - TOKEN_NONE on str == NULL, TOKEN_KEYWORD_X on keyword X, else
  * TOKEN_IDENTIFIER
  */
@@ -364,7 +366,7 @@ static ErrorCode_t UpdateIndentStack(int indent, IntStack_t *indents,
   // top is smaller -> indent, push
   if (IntStackTop(indents) < indent) {
     if (!IntStackPush(indents, indent)) {
-      return ERROR_MEM;
+      return ERROR_INTERNAL;
     };
     change++; // indent increased
   }
@@ -392,7 +394,7 @@ static ErrorCode_t UpdateIndentStack(int indent, IntStack_t *indents,
  * * error - error code (MEM/LEX)
  * * token - token to be set
  */
-static inline void SetError(ErrorCode_t error, Token_t *token) {
+static inline void TokenSetError(ErrorCode_t error, Token_t *token) {
   assert(token != NULL);
   token->type = TOKEN_ERROR;
   token->error = error;
@@ -417,9 +419,6 @@ static inline _Bool TokenSetLexemeS(Token_t *token, const char *src,
   return 1;
 }
 
-/* TODO
- * string pool
- */
 Token_t GetRawToken(Lexer_t *lexer) {
 
   // create new token
@@ -453,7 +452,7 @@ RESET:
     }
 
     if (!CharBufInsert(&lexer->buf, c)) {
-      SetError(ERROR_MEM, &new);
+      TokenSetError(ERROR_INTERNAL, &new);
       return new;
     }
 
@@ -462,7 +461,7 @@ RESET:
 
   // null-terminate
   if (!CharBufInsert(&lexer->buf, '\0')) {
-    SetError(ERROR_MEM, &new);
+    TokenSetError(ERROR_INTERNAL, &new);
     return new;
   };
 
@@ -486,7 +485,7 @@ RESET:
     new.type = ParseIdentifier(lexer->buf.buf);
     if (new.type == TOKEN_IDENTIFIER) {
       if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
-        SetError(ERROR_MEM, &new);
+        TokenSetError(ERROR_INTERNAL, &new);
         return new;
       }
     }
@@ -537,7 +536,7 @@ RESET:
 
   case STATE_BLOCK_COMMENT:
     if (!SkipBlockComment(lexer)) {
-      SetError(ERROR_LEX, &new);
+      TokenSetError(ERROR_LEX, &new);
       break;
     }
     // start anew
@@ -593,7 +592,7 @@ RESET:
 
     // set lexemeS
     if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
-      SetError(ERROR_MEM, &new);
+      TokenSetError(ERROR_INTERNAL, &new);
       return new;
     }
 
@@ -601,7 +600,7 @@ RESET:
     // identifier or any other buffered lexeme
     // try to shrink it
     if (!CharBufTryShrink(&lexer->buf)) {
-      SetError(ERROR_MEM, &new);
+      TokenSetError(ERROR_INTERNAL, &new);
       return new;
     }
     break;
@@ -824,7 +823,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
         LayoutFilterStashToken(filter, new);
 
         Token_t err = CreateToken();
-        SetError(ERROR_LEX, &err);
+        TokenSetError(ERROR_LEX, &err);
         return err;
       }
 
@@ -834,7 +833,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
         // no need to check hasTab, checked above
         if (filter->nextIndent.width <= IntStackTop(&filter->indents)) {
           Token_t err = CreateToken();
-          SetError(ERROR_SYNTAX, &err);
+          TokenSetError(ERROR_SYNTAX, &err);
           return err;
         }
       }
@@ -850,7 +849,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
           LayoutFilterStashToken(filter, new);
 
           Token_t err = CreateToken();
-          SetError(error, &err);
+          TokenSetError(error, &err);
           return err;
         }
 
