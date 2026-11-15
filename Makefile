@@ -1,7 +1,7 @@
 # General
 CC := gcc
 CFLAGS := -std=c11 -pedantic -Wall -Wextra -MMD -MP -O2 -I . -I ./src
-CDFLAGS := -g -O0
+CDFLAGS := -g -O0 -DDEBUG
 LDFLAGS :=
 LDLIBS :=
 
@@ -64,14 +64,13 @@ $(OBJDIR_SRC)/%.o: $(SRCDIR)/%.c | $(OBJDIR_SRC)
 
 # Test target rules
 
-# Static pattern rule to
-# prevent make from auto-deleting test objs
+# Static pattern rule to prevent make from auto-deleting test objs
 $(OBJDIR)/%: $(OBJDIR_TEST)/%.o $(TESTER_OBJ) $(LIB_OBJS)
 	$(CC) $(LDFLAGS) $^ -o $@ $(LDLIBS)
 
 
 $(OBJDIR_TEST)/%.o: $(TESTDIR)/%.c | $(OBJDIR_TEST)
-	$(CC) -c $(CFLAGS) $< -o $@
+	$(CC) -c $(CFLAGS) $(CDFLAGS) $< -o $@
 
 $(OBJDIR_SRC) $(OBJDIR_TEST):
 	mkdir -p $@
