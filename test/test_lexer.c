@@ -3,6 +3,7 @@
  */
 
 #include "lexer.h"
+#include "messenger.h"
 #include "tester.h"
 #include <stdio.h>
 #include <string.h>
@@ -93,6 +94,8 @@ TESTFUNC(RecognizeDedent, "i\n  x\n=", {
 int main(void) {
   SuiteInit("filter");
 
+  MessengerInit();
+
   RunTest(RecognizeIdentifier, "Recognize identifier");
   RunTest(RecognizeKeyword, "Recongize keyword");
   RunTest(RecognizeInt, "Recognize int");
@@ -101,6 +104,8 @@ int main(void) {
   RunTest(RecognizeNewline, "Recognize newline");
   RunTest(RecognizeIndent, "Recognize indent");
   RunTest(RecognizeDedent, "Recognize dedent");
+
+  MessengerTerminate();
 
   PrintSummary();
   return 0;
