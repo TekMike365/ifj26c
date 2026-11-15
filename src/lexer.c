@@ -785,10 +785,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       }
 
       filter->atLineStart = 1;
-      // skip if inside brackets
-      if (filter->bracketDepth > 0) {
-        continue;
-      }
+
       return new;
     }
 
@@ -827,44 +824,31 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
         return err;
       }
 
-      // if inside function brackets
-      if (filter->bracketDepth > 0) {
-        // and indent hasnt increased, error
-        // no need to check hasTab, checked above
-        if (filter->nextIndent.width <= IntStackTop(&filter->indents)) {
-          Token_t err = CreateToken();
-          TokenSetError(ERROR_SYNTAX, &err);
-          return err;
-        }
+      // normal indent processing
+      int change;
+
+      ErrorCode_t error = UpdateIndentStack(filter->nextIndent.width,
+                                            &filter->indents, &change);
+      if (error != ERROR_NOERR) {
+
+        LayoutFilterStashToken(filter, new);
+
+        Token_t err = CreateToken();
+        TokenSetError(error, &err);
+        return err;
       }
-      // else normal indent processing
-      else {
 
-        int change;
+      if (change != 0) {
 
-        ErrorCode_t error = UpdateIndentStack(filter->nextIndent.width,
-                                              &filter->indents, &change);
-        if (error != ERROR_NOERR) {
+        LayoutFilterStashToken(filter, new);
 
-          LayoutFilterStashToken(filter, new);
-
-          Token_t err = CreateToken();
-          TokenSetError(error, &err);
-          return err;
+        if (change > 0) {
+          return MakeToken(TOKEN_INDENT);
         }
-
-        if (change != 0) {
-
-          LayoutFilterStashToken(filter, new);
-
-          if (change > 0) {
-            return MakeToken(TOKEN_INDENT);
-          }
-          // change is negative on dedent, so -change
-          // -1 because one TOKEN_DEDENT is emitted right now
-          filter->dedentQueue = -change - 1;
-          return MakeToken(TOKEN_DEDENT);
-        }
+        // change is negative on dedent, so -change
+        // -1 because one TOKEN_DEDENT is emitted right now
+        filter->dedentQueue = -change - 1;
+        return MakeToken(TOKEN_DEDENT);
       }
     }
     // logical token after boundary between line start
