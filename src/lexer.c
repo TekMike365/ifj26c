@@ -718,8 +718,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
 
 /* returns a nulled TOKEN_NONE token */
 Token_t CreateToken(void) {
-  Token_t new = {
-      .lexemeS = NULL, .pos = {0}, .nlBefore = 0, .type = TOKEN_NONE};
+  Token_t new = {.lexemeS = NULL, .pos = {0}, .type = TOKEN_NONE};
   return new;
 }
 
@@ -736,7 +735,7 @@ void TerminateToken(Token_t *token) {
       token->lexemeS = NULL;
     }
   }
-  *token = (Token_t){.pos = {0}, .nlBefore = 0, .type = TOKEN_NONE};
+  *token = (Token_t){.pos = {0}, .type = TOKEN_NONE};
 }
 
 // returns a token of the specified type
@@ -838,8 +837,6 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
           SetError(ERROR_SYNTAX, &err);
           return err;
         }
-        // preceding newline, 3,\n) valid
-        new.nlBefore = 1;
       }
       // else normal indent processing
       else {
