@@ -20,12 +20,15 @@ typedef enum {
   CHAR_R, // -- carriage return
   CHAR_T, // -- tabulator
   CHAR_NUM,
+  CHAR_ZERO, // int cant start with 0
   CHAR_EQ,
   CHAR_GREATER,
   CHAR_LESS,
   CHAR_LPAR,
   CHAR_EXCL_MARK,
   CHAR_AT,
+  CHAR_AMPERSAND,
+  CHAR_PIPE,
   CHAR_SEMICOLON,
   CHAR_COMMA,
   CHAR_COLON,
@@ -67,24 +70,42 @@ static void ASCIIMapInit(void) {
   }
 
   // define types for ranges
-  CharRange_t ranges[] = {
-      {'a', 'z', CHAR_ALPHA},       {'A', 'Z', CHAR_ALPHA},
-      {'d', 'd', CHAR_D},           {'D', 'D', CHAR_D},
-      {'e', 'e', CHAR_E},           {'E', 'E', CHAR_E},
-      {'n', 'n', CHAR_N},           {'r', 'r', CHAR_R},
-      {'t', 't', CHAR_T},           {'0', '9', CHAR_NUM},
-      {'=', '=', CHAR_EQ},          {'>', '>', CHAR_GREATER},
-      {'<', '<', CHAR_LESS},        {'.', '.', CHAR_DOT},
-      {'_', '_', CHAR_UNDERSCORE},  {'"', '"', CHAR_QUOTE},
-      {'(', '(', CHAR_LPAR},        {')', ')', CHAR_RPAR},
-      {'!', '!', CHAR_EXCL_MARK},   {'@', '@', CHAR_AT},
-      {';', ';', CHAR_SEMICOLON},   {',', ',', CHAR_COMMA},
-      {':', ':', CHAR_COLON},       {'+', '+', CHAR_PLUS},
-      {'-', '-', CHAR_MINUS},       {'*', '*', CHAR_STAR},
-      {'/', '/', CHAR_SLASH},       {'\\', '\\', CHAR_BACKSLASH},
-      {'\0', '\0', CHAR_NULL},      {'\n', '\n', CHAR_LINE_FEED},
-      {' ', ' ', CHAR_WHITESPACE},  {'\t', '\t', CHAR_WHITESPACE},
-      {'\r', '\r', CHAR_WHITESPACE}};
+  CharRange_t ranges[] = {{'a', 'z', CHAR_ALPHA},
+                          {'A', 'Z', CHAR_ALPHA},
+                          {'d', 'd', CHAR_D},
+                          {'D', 'D', CHAR_D},
+                          {'e', 'e', CHAR_E},
+                          {'E', 'E', CHAR_E},
+                          {'n', 'n', CHAR_N},
+                          {'r', 'r', CHAR_R},
+                          {'t', 't', CHAR_T},
+                          {'0', '0', CHAR_ZERO},
+                          {'1', '9', CHAR_NUM},
+                          {'=', '=', CHAR_EQ},
+                          {'>', '>', CHAR_GREATER},
+                          {'<', '<', CHAR_LESS},
+                          {'.', '.', CHAR_DOT},
+                          {'_', '_', CHAR_UNDERSCORE},
+                          {'"', '"', CHAR_QUOTE},
+                          {'(', '(', CHAR_LPAR},
+                          {')', ')', CHAR_RPAR},
+                          {'!', '!', CHAR_EXCL_MARK},
+                          {'@', '@', CHAR_AT},
+                          {'&', '&', CHAR_AMPERSAND},
+                          {'|', '|', CHAR_PIPE},
+                          {';', ';', CHAR_SEMICOLON},
+                          {',', ',', CHAR_COMMA},
+                          {':', ':', CHAR_COLON},
+                          {'+', '+', CHAR_PLUS},
+                          {'-', '-', CHAR_MINUS},
+                          {'*', '*', CHAR_STAR},
+                          {'/', '/', CHAR_SLASH},
+                          {'\\', '\\', CHAR_BACKSLASH},
+                          {'\0', '\0', CHAR_NULL},
+                          {'\n', '\n', CHAR_LINE_FEED},
+                          {' ', ' ', CHAR_WHITESPACE},
+                          {'\t', '\t', CHAR_WHITESPACE},
+                          {'\r', '\r', CHAR_WHITESPACE}};
 
   size_t rangeSize = sizeof(ranges) / sizeof(ranges[0]);
   // for each range
@@ -124,6 +145,10 @@ typedef enum {
   STATE_RPAR,
   STATE_EXCL_MARK,
   STATE_AT,
+  STATE_AMPERSAND,
+  STATE_PIPE,
+  STATE_AND,
+  STATE_OR,
   STATE_NOT_EQ,
   STATE_UNIT,
   STATE_SEMICOLON,
@@ -134,6 +159,7 @@ typedef enum {
   STATE_GREATER,
   STATE_GREATER_EQ,
   STATE_LESS,
+  STATE_LEFT_ARROW, // <-
   STATE_LESS_EQ,
   STATE_STAR,
   STATE_PLUS,
@@ -142,6 +168,7 @@ typedef enum {
   STATE_COMMENT,
   STATE_BLOCK_COMMENT,
   STATE_DOT,
+  STATE_ZERO,
   STATE_INT,
   STATE_INT_UNDERSCORE,
   STATE_START_EXPONENT,
@@ -175,6 +202,11 @@ typedef enum {
   X((state_curr), CHAR_R, (state_next))                                        \
   X((state_curr), CHAR_T, (state_next))
 
+// same for num
+#define NUM_GROUP(state_curr, state_next)                                      \
+  X((state_curr), CHAR_ZERO, (state_next))                                     \
+  X((state_curr), CHAR_NUM, (state_next))
+
 // FSM transitions: (current, char type, next)
 #define X_TRANSITIONS(X)                                                       \
   ALPHA_GROUP(STATE_START, STATE_IDENTIFIER)                                   \
@@ -189,10 +221,13 @@ typedef enum {
   X(STATE_START, CHAR_MINUS, STATE_MINUS)                                      \
   X(STATE_START, CHAR_SLASH, STATE_SLASH)                                      \
   X(STATE_START, CHAR_NUM, STATE_INT)                                          \
+  X(STATE_START, CHAR_ZERO, STATE_ZERO)                                        \
   X(STATE_START, CHAR_QUOTE, STATE_QUOTE)                                      \
   X(STATE_START, CHAR_DOT, STATE_DOT)                                          \
   X(STATE_START, CHAR_EXCL_MARK, STATE_EXCL_MARK)                              \
   X(STATE_START, CHAR_AT, STATE_AT)                                            \
+  X(STATE_START, CHAR_AMPERSAND, STATE_AMPERSAND)                              \
+  X(STATE_START, CHAR_PIPE, STATE_PIPE)                                        \
   X(STATE_START, CHAR_SEMICOLON, STATE_SEMICOLON)                              \
   X(STATE_START, CHAR_COMMA, STATE_COMMA)                                      \
   X(STATE_START, CHAR_COLON, STATE_COLON)                                      \
@@ -200,28 +235,34 @@ typedef enum {
   X(STATE_START, CHAR_WHITESPACE, STATE_WHITESPACE)                            \
                                                                                \
   ALPHA_GROUP(STATE_IDENTIFIER, STATE_IDENTIFIER)                              \
+  NUM_GROUP(STATE_IDENTIFIER, STATE_IDENTIFIER)                                \
   X(STATE_IDENTIFIER, CHAR_UNDERSCORE, STATE_IDENTIFIER)                       \
-  X(STATE_IDENTIFIER, CHAR_NUM, STATE_IDENTIFIER)                              \
                                                                                \
   X(STATE_LPAR, CHAR_RPAR, STATE_UNIT)                                         \
+  X(STATE_AMPERSAND, CHAR_AMPERSAND, STATE_AND)                                \
+  X(STATE_PIPE, CHAR_PIPE, STATE_OR)                                           \
                                                                                \
   X(STATE_EQ, CHAR_EQ, STATE_DOUBLE_EQ)                                        \
   X(STATE_GREATER, CHAR_EQ, STATE_GREATER_EQ)                                  \
   X(STATE_LESS, CHAR_EQ, STATE_LESS_EQ)                                        \
+  X(STATE_LESS, CHAR_MINUS, STATE_LEFT_ARROW)                                  \
                                                                                \
   X(STATE_EXCL_MARK, CHAR_EQ, STATE_NOT_EQ)                                    \
                                                                                \
   X(STATE_SLASH, CHAR_SLASH, STATE_COMMENT)                                    \
   X(STATE_SLASH, CHAR_STAR, STATE_BLOCK_COMMENT)                               \
                                                                                \
-  X(STATE_INT, CHAR_NUM, STATE_INT)                                            \
+  NUM_GROUP(STATE_INT, STATE_INT)                                              \
   X(STATE_INT, CHAR_UNDERSCORE, STATE_INT_UNDERSCORE)                          \
   X(STATE_INT, CHAR_DOT, STATE_START_DOUBLE)                                   \
   X(STATE_INT, CHAR_E, STATE_START_EXPONENT)                                   \
-  X(STATE_INT_UNDERSCORE, CHAR_NUM, STATE_INT)                                 \
+  NUM_GROUP(STATE_INT_UNDERSCORE, STATE_INT)                                   \
   X(STATE_INT_UNDERSCORE, CHAR_UNDERSCORE, STATE_INT_UNDERSCORE)               \
                                                                                \
-  X(STATE_DOT, CHAR_NUM, STATE_DOUBLE)                                         \
+  NUM_GROUP(STATE_DOT, STATE_DOUBLE)                                           \
+  X(STATE_ZERO, CHAR_DOT, STATE_START_DOUBLE)                                  \
+                                                                               \
+  NUM_GROUP(STATE_START_DOUBLE, STATE_DOUBLE)                                  \
                                                                                \
   X(STATE_QUOTE, CHAR_QUOTE, STATE_DQUOTE)                                     \
   X(STATE_QUOTE, CHAR_BACKSLASH, STATE_ESCAPE)                                 \
@@ -238,19 +279,20 @@ typedef enum {
                                                                                \
   X(STATE_START_EXPONENT, CHAR_PLUS, STATE_SIGN)                               \
   X(STATE_START_EXPONENT, CHAR_MINUS, STATE_SIGN)                              \
-  X(STATE_START_EXPONENT, CHAR_NUM, STATE_EXPONENT)                            \
+  NUM_GROUP(STATE_START_EXPONENT, STATE_EXPONENT)                              \
+  NUM_GROUP(STATE_SIGN, STATE_EXPONENT)                                        \
                                                                                \
-  X(STATE_EXPONENT, CHAR_NUM, STATE_EXPONENT)                                  \
+  NUM_GROUP(STATE_EXPONENT, STATE_EXPONENT)                                    \
   X(STATE_EXPONENT, CHAR_UNDERSCORE, STATE_EXPONENT_UNDERSCORE)                \
   X(STATE_EXPONENT, CHAR_D, STATE_END_DOUBLE)                                  \
-  X(STATE_EXPONENT_UNDERSCORE, CHAR_NUM, STATE_EXPONENT)                       \
+  NUM_GROUP(STATE_EXPONENT_UNDERSCORE, STATE_EXPONENT)                         \
   X(STATE_EXPONENT_UNDERSCORE, CHAR_UNDERSCORE, STATE_EXPONENT_UNDERSCORE)     \
                                                                                \
-  X(STATE_DOUBLE, CHAR_NUM, STATE_DOUBLE)                                      \
+  NUM_GROUP(STATE_DOUBLE, STATE_DOUBLE)                                        \
   X(STATE_DOUBLE, CHAR_UNDERSCORE, STATE_DOUBLE_UNDERSCORE)                    \
   X(STATE_DOUBLE, CHAR_E, STATE_START_EXPONENT)                                \
   X(STATE_DOUBLE, CHAR_D, STATE_END_DOUBLE)                                    \
-  X(STATE_DOUBLE_UNDERSCORE, CHAR_NUM, STATE_DOUBLE)                           \
+  NUM_GROUP(STATE_DOUBLE_UNDERSCORE, STATE_DOUBLE)                             \
   X(STATE_DOUBLE_UNDERSCORE, CHAR_UNDERSCORE, STATE_DOUBLE_UNDERSCORE)         \
                                                                                \
   X(STATE_DQUOTE, CHAR_QUOTE, STATE_MULTILINE_STR)                             \

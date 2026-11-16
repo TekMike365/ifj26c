@@ -508,6 +508,9 @@ RESET:
   case STATE_LESS_EQ:
     new.type = TOKEN_LESS_EQ;
     break;
+  case STATE_LEFT_ARROW:
+    new.type = TOKEN_LEFT_ARROW;
+    break;
   case STATE_STAR:
     new.type = TOKEN_STAR;
     break;
@@ -561,8 +564,21 @@ RESET:
     new.type = TOKEN_AT;
     break;
 
+  case STATE_AND:
+    new.type = TOKEN_AND;
+    break;
+
+  case STATE_OR:
+    new.type = TOKEN_OR;
+    break;
+
   case STATE_UNIT:
     new.type = TOKEN_UNIT;
+    break;
+
+  case STATE_ZERO:
+    new.type = TOKEN_ZERO;
+    new.lexemeI = 0;
     break;
 
   case STATE_INT:
