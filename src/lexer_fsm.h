@@ -317,10 +317,10 @@ static void TransitionTableInit(void) {
         m_transitionTable[idx][idy] = STATE_ERROR;
       }
 
-      // STATE_STRING
+      // STATE_STRING and STATE_QUOTE
       // all CHARS constitute the string except CHAR_QUOTE
       // CHAR_QUOTE handled in transitions macro
-      else if (idx == STATE_STRING) {
+      else if (idx == STATE_STRING || idx == STATE_QUOTE) {
         m_transitionTable[idx][idy] = STATE_STRING;
       }
 
