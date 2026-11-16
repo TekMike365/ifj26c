@@ -35,23 +35,32 @@ bool ParseParamsC(Parser_t *p);
 bool ParseParam(Parser_t *p);
 bool ParseExpression(Parser_t *p);
 
-bool Consume(Parser_t *p, TokenType_t expected) {
-  if (p->current.type != expected) {
+static void SetError(Parser_t *p) {
+  if (p->current.type == TOKEN_ERROR)
+    p->errorCode = p->current.error;
+  else
     p->errorCode = ERROR_SYNTAX;
+}
+
+static bool Consume(Parser_t *p, TokenType_t expected) {
+  if (p->current.type != expected) {
+    SetError(p);
     return false;
   }
-
   if (!Advance(p))
     return false;
 
   return true;
 }
-bool ConsumeId(Parser_t *p, const char *name) {
-  if (p->current.type != TOKEN_IDENTIFIER || p->current.lexemeS == NULL)
+
+static bool ConsumeId(Parser_t *p, const char *name) {
+  if (p->current.type != TOKEN_IDENTIFIER || p->current.lexemeS == NULL) {
+    SetError(p);
     return false;
+  }
 
   if (strcmp(p->current.lexemeS, name)) {
-    p->errorCode = ERROR_SYNTAX;
+    SetError(p);
     return false;
   }
 
@@ -61,10 +70,11 @@ bool ConsumeId(Parser_t *p, const char *name) {
   return true;
 }
 
-bool Advance(Parser_t *p) {
+static bool Advance(Parser_t *p) {
   TerminateToken(&p->current);
 
   p->current = p->next;
+  p->next = CreateToken();
 
   if (p->current.type == TOKEN_ERROR) {
     p->errorCode = p->current.error;
@@ -76,8 +86,10 @@ bool Advance(Parser_t *p) {
   return true;
 }
 
-bool ParserInit(Parser_t *p, FILE *src) {
+static bool ParserInit(Parser_t *p, FILE *src) {
   p->errorCode = ERROR_NOERR;
+  p->current = CreateToken();
+  p->next = CreateToken();
 
   if (!LayoutFilterInit(&p->filter, src)) {
     p->errorCode = ERROR_MEM;
@@ -87,18 +99,17 @@ bool ParserInit(Parser_t *p, FILE *src) {
   p->current = GetNextToken(&p->filter);
 
   if (p->current.type == TOKEN_ERROR) {
+    p->errorCode = p->current.error;
+    ParserTerminate(p);
     return false;
   }
 
   p->next = GetNextToken(&p->filter);
 
-  if (p->next.type == TOKEN_ERROR)
-    return false;
-
   return true;
 }
 
-void ParserTerminate(Parser_t *p) {
+static void ParserTerminate(Parser_t *p) {
   TerminateToken(&p->current);
 
   TerminateToken(&p->next);
@@ -106,17 +117,20 @@ void ParserTerminate(Parser_t *p) {
   LayoutFilterTerminate(&p->filter);
 }
 
-bool Parse(FILE *src) {
+ErrorCode_t Parse(FILE *src) {
   Parser_t p;
 
-  if (!ParserInit(&p, src)) {
-    return false;
-  }
+  if (!ParserInit(&p, src))
+    return p.errorCode;
+
   bool result = ParseRoot(&p);
 
   ParserTerminate(&p);
 
-  return result;
+  if (result)
+    return ERROR_NOERR;
+
+  return p.errorCode != ERROR_NOERR ? p.errorCode : ERROR_SYNTAX;
 }
 
 bool ParseRoot(Parser_t *p) {
@@ -171,7 +185,8 @@ bool ParseProg(Parser_t *p) {
     if (!ConsumeId(p, "main"))
       return false;
 
-    Consume(p, TOKEN_NEWLINE);
+    if (!Consume(p, TOKEN_NEWLINE))
+      return false;
   }
   // fndef
   if (p->current.type == TOKEN_KEYWORD_DEF) {
@@ -387,12 +402,11 @@ bool ParseParamsC(Parser_t *p) {
   return ParseParamsC(p);
 }
 // begin PSA:
-// made by AI
 
 #define MAX_RULE_LENGTH 4
 
 typedef enum {
-  PSA_ID = 0, // id (int, double, string, true, false, null)
+  PSA_ID = 0, // id (int, double, string)
   PSA_COMMA,  // ,
   PSA_UPLUS,  // unary +
   PSA_UMINUS, // unary -
@@ -454,7 +468,7 @@ static const char PTable[17][17] = {
     {'<', '<', '<', '<', '<', ' ', '<', '<', '<', '<', '<', '<', '<', '<', '<',
      '<', ' '}};
 
-PSASymbol_t TokenToSym(TokenType_t t) {
+static PSASymbol_t TokenToSym(TokenType_t t, PSASymbol_t top) {
   switch (t) {
   case TOKEN_IDENTIFIER:
   case TOKEN_INT:
@@ -463,36 +477,36 @@ PSASymbol_t TokenToSym(TokenType_t t) {
     return PSA_ID;
   case TOKEN_COMMA:
     return PSA_COMMA;
-  case TOKEN_UPLUS:
-    return PSA_UPLUS;
-  case TOKEN_UMINUS:
-    return PSA_UMINUS;
   case TOKEN_LPAR:
     return PSA_LPAR;
   case TOKEN_RPAR:
     return PSA_RPAR;
   case TOKEN_STAR:
-    return PSA_MUL; // *
+    return PSA_MUL;
   case TOKEN_SLASH:
-    return PSA_DIV; // /
+    return PSA_DIV;
   case TOKEN_PLUS:
-    return PSA_PLUS; // binárne +
+    if (top == PSA_ID || top == PSA_E || top == PSA_RPAR)
+      return PSA_PLUS;
+    return PSA_UPLUS;
   case TOKEN_MINUS:
-    return PSA_MINUS; // binárne -
+    if (top == PSA_ID || top == PSA_E || top == PSA_RPAR)
+      return PSA_MINUS;
+    return PSA_UMINUS;
   case TOKEN_LESS:
-    return PSA_LT; // <
+    return PSA_LT;
   case TOKEN_LESS_EQ:
-    return PSA_LTE; // <=
+    return PSA_LTE;
   case TOKEN_GREATER:
-    return PSA_GT; // >
+    return PSA_GT;
   case TOKEN_GREATER_EQ:
-    return PSA_GTE; // >=
+    return PSA_GTE;
   case TOKEN_EQ:
-    return PSA_EQ; // ==
+    return PSA_EQ;
   case TOKEN_NOT_EQ:
-    return PSA_NEQ; // !=
+    return PSA_NEQ;
   default:
-    return PSA_DOLLAR; // $
+    return PSA_DOLLAR;
   }
 }
 
@@ -507,7 +521,7 @@ typedef struct PStack_t {
   PStackItem_t *afterTerminal;
 } PStack_t;
 
-bool StackInit(PStack_t *stack) {
+static bool StackInit(PStack_t *stack) {
   PStackItem_t *newItem = (PStackItem_t *)malloc(sizeof(PStackItem_t));
 
   if (newItem == NULL)
@@ -522,7 +536,7 @@ bool StackInit(PStack_t *stack) {
   return true;
 }
 
-void StackFree(PStack_t *stack) {
+static void StackFree(PStack_t *stack) {
   PStackItem_t *current = stack->top;
   while (current != NULL) {
     PStackItem_t *next = current->next;
@@ -534,7 +548,7 @@ void StackFree(PStack_t *stack) {
   stack->afterTerminal = NULL;
 }
 
-bool StackPushAfterTerminal(PStack_t *stack) {
+static bool StackPushAfterTerminal(PStack_t *stack) {
   PStackItem_t *newItem = (PStackItem_t *)malloc(sizeof(PStackItem_t));
 
   if (newItem == NULL)
@@ -555,7 +569,7 @@ bool StackPushAfterTerminal(PStack_t *stack) {
   return true;
 }
 
-bool StackPush(PStack_t *stack, Token_t *token, PSASymbol_t sym) {
+static bool StackPush(PStack_t *stack, Token_t *token, PSASymbol_t sym) {
   PStackItem_t *newItem = (PStackItem_t *)malloc(sizeof(PStackItem_t));
 
   if (newItem == NULL)
@@ -580,12 +594,12 @@ bool StackPush(PStack_t *stack, Token_t *token, PSASymbol_t sym) {
   return true;
 }
 
-PStackItem_t *StackTopTerminal(const PStack_t *stack) {
+static PStackItem_t *StackTopTerminal(const PStack_t *stack) {
   return (stack->afterTerminal == NULL) ? stack->top
                                         : stack->afterTerminal->next;
 }
 
-bool Reduce(PStack_t *stack) {
+static bool Reduce(PStack_t *stack) {
   PStackItem_t *items[MAX_RULE_LENGTH];
   PStackItem_t *current = stack->top;
   int len = 0;
@@ -724,17 +738,25 @@ bool ParseExpression(Parser_t *p) {
   }
 
   while (true) {
+    if (p->current.type == TOKEN_ERROR) {
+      if (p->errorCode == ERROR_NOERR) {
+        p->errorCode = p->current.error;
+      }
+      StackFree(&stack);
+      return false;
+    }
+
     PSASymbol_t topTerminal = StackTopTerminal(&stack)->sym;
-    PSASymbol_t currentSymbol = TokenToSym(p->current.type);
+    PSASymbol_t currentSymbol = TokenToSym(p->current.type, stack.top->sym);
 
     if (topTerminal == PSA_DOLLAR && currentSymbol == PSA_DOLLAR) {
       if ((stack.top->sym != PSA_E && stack.top->sym != PSA_COND) ||
           stack.top->next == NULL || stack.top->next->sym != PSA_DOLLAR) {
         if (p->errorCode == ERROR_NOERR) {
           p->errorCode = ERROR_SYNTAX;
-          StackFree(&stack);
-          return false;
         }
+        StackFree(&stack);
+        return false;
       }
       StackFree(&stack);
       return true;
@@ -743,11 +765,14 @@ bool ParseExpression(Parser_t *p) {
     switch (PTable[topTerminal][currentSymbol]) {
     case '<':
       if (!StackPushAfterTerminal(&stack)) {
+        p->errorCode = ERROR_MEM;
         StackFree(&stack);
         return false;
       }
+    // fallthrough
     case '=':
-      if (!StackPush(&stack, &p->current, TokenToSym(p->current.type))) {
+      if (!StackPush(&stack, &p->current, currentSymbol)) {
+        p->errorCode = ERROR_MEM;
         StackFree(&stack);
         return false;
       }
