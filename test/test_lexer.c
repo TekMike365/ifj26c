@@ -98,6 +98,7 @@ TESTFUNC(RejectToken, "i /* helo\n s*/  x", {
   next = GetNextToken(&filter);
   ASSERT_INT_EQ(next.type, TOKEN_ERROR);
   next = GetNextToken(&filter);
+  TerminateToken(&next);
 })
 int main(void) {
   SuiteInit("filter");
