@@ -220,12 +220,13 @@
 
     ie1: <ifelse> :: if <cond> then <block> else <block>
 
-    wh1: <while> :: while <cond> then <block>
+    wh1: <while> :: while <cond> do <block>
 
     ####### Params #######
     pa1: <param> :: id : type
 
     ps1: <params>   :: <param> <params_c>
+    ps2: <params>   :: {}
     pc1: <params_c> :: , <param> <params_c>
     pc2: <params_c> :: {}
   \end{verbatim}
@@ -255,7 +256,7 @@
         \id{<ifelse>}    & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{ie1} & \id{   }    & \id{   }      \\ \hline
         \id{<while>}     & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{wh1}    & \id{   }      \\ \hline
         \id{<param>}     & \id{pa1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<params>}    & \id{ps1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<params>}    & \id{ps1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{ps2} & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
         \id{<params\_c>} & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{pc1} & \id{   } & \id{   } & \id{   } & \id{   } & \id{pc2} & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
       \end{tabular}
     \end{adjustbox}
@@ -323,6 +324,7 @@
     ####### Function call #######
     <fncall> :: id call( <args> )
     <args>   :: <expr> <args_c>
+    <args>   :: {}
     <args_c> :: , <expr> <args_c>
     <args_c> :: {}
   \end{verbatim}
