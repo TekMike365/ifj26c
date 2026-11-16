@@ -851,6 +851,8 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
     // expected EOL after multiline block comment, but other token came
     // error
     if (filter->expectEOL) {
+      // set it here to avoid repeated error for every token on that line
+      filter->expectEOL = 0;
 
       ReportLexicalError(
           MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
