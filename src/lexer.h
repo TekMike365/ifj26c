@@ -146,7 +146,7 @@ typedef struct {
 /* Initializes lexer
  * * src is the file to be read
  */
-void LexerInit(Lexer_t *lexer, FILE *src);
+_Bool LexerInit(Lexer_t *lexer, FILE *src);
 
 /* Terminate lexer */
 void LexerTerminate(Lexer_t *lexer);

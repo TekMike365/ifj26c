@@ -411,7 +411,23 @@ static inline _Bool TokenSetLexemeS(Token_t *token, const char *src,
   return 1;
 }
 
+/* Function is the direct implementation of the lexer FSM
+ * It handles:
+ * mapping ASCII char -> CHAR_TYPE
+ * mapping the tuple (CHAR_TYPE, CURRENT STATE) ->  NEXT STATE
+ * maps END STATE -> TOKEN_TYPE
+ * looks up whether identifier is keyword
+ * the token is "raw" in the sense that it outputs a token
+ * irrespective of context (that is every NL, every indent, ...)
+ * emits a special token TOKEN_EXPECT_EOL, used to validate whether
+ * the last line of a block comment contains no token (except for newline)
+ * note: the validation is not done here
+ * converts int and double string literal to numerical value
+ * saves identifiers and string literals
+ * all other tokens are recognizable by their TokenType
+ * */
 Token_t GetRawToken(Lexer_t *lexer) {
+  assert(lexer != NULL);
   // used for multiline comments to emit TOKEN_EXPECT_EOL
   _Bool isMultiline;
   // create new token
@@ -683,8 +699,10 @@ static inline Token_t LayoutFilterUnstashToken(LayoutFilter_t *filter) {
  * lexer - pointer to a lexer struct
  * src - pointer to buffer to scan
  */
-void LexerInit(Lexer_t *lexer, FILE *src) {
-  assert(lexer != NULL);
+_Bool LexerInit(Lexer_t *lexer, FILE *src) {
+  if (!lexer || !src) {
+    return 0;
+  }
 
   lexer->src = src;
   CharBufInit(&lexer->buf);
@@ -700,6 +718,8 @@ void LexerInit(Lexer_t *lexer, FILE *src) {
   MessengerStoreNewLine(ftell(src));
 
   lexer->prevChar = 0;
+
+  return 1;
 }
 
 /* terminate a lexer */
@@ -720,10 +740,15 @@ void LexerTerminate(Lexer_t *lexer) {
  * * filter - LayoutFilter to be initialized
  * * src - source file for Lexer_t
  * Pushes 0 on indentation stack and may thus fail on memory
- * returns 0 on mem failure, else 1
+ * returns 0 on mem failure or NULL args, else 1
  */
 _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
-  LexerInit(&filter->lexer, src);
+  if (!filter || !src) {
+    return 0;
+  }
+
+  if (!LexerInit(&filter->lexer, src))
+    return 0;
   IntStackInit(&filter->indents);
   // push 0 on the stack
   // acts as a reference value that is never popped
@@ -746,6 +771,9 @@ _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
 
 /* terminate */
 void LayoutFilterTerminate(LayoutFilter_t *filter) {
+  if (!filter) {
+    return;
+  }
   LexerTerminate(&filter->lexer);
   IntStackTerminate(&filter->indents);
   filter->stash = (Token_t){0};
@@ -798,6 +826,10 @@ static inline Token_t MakeToken(TokenType_t type) {
  * emits synthetic tokens as well (i.e. TOKEN_NEWLINE before TOKEN_EOF)
  */
 Token_t GetNextToken(LayoutFilter_t *filter) {
+  // return TOKEN_NONE
+  if (!filter) {
+    return CreateToken();
+  }
 
   if (filter->dedentQueue > 0) {
     filter->dedentQueue--;
