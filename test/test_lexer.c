@@ -91,6 +91,14 @@ TESTFUNC(RecognizeDedent, "i\n  x\n=", {
   ASSERT_INT_EQ(next.type, TOKEN_DEDENT);
 })
 
+TESTFUNC(RejectToken, "i /* helo\n s*/  x", {
+  Token_t next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  TerminateToken(&next);
+  next = GetNextToken(&filter);
+  ASSERT_INT_EQ(next.type, TOKEN_ERROR);
+  next = GetNextToken(&filter);
+})
 int main(void) {
   SuiteInit("filter");
 
@@ -104,6 +112,7 @@ int main(void) {
   RunTest(RecognizeNewline, "Recognize newline");
   RunTest(RecognizeIndent, "Recognize indent");
   RunTest(RecognizeDedent, "Recognize dedent");
+  RunTest(RejectToken, "Reject token on the last block comment line");
 
   MessengerTerminate();
 

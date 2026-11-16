@@ -39,6 +39,7 @@ typedef enum {
   TOKEN_KEYWORD_BOOLEAN,
   TOKEN_KEYWORD_EXTENSION,
   TOKEN_EQ,
+  TOKEN_EXPECT_EOL, // internal token emitted after multiline block comment
   TOKEN_NOT_EQ,
   TOKEN_DOUBLE_EQ,
   TOKEN_GREATER,
@@ -124,6 +125,10 @@ typedef struct {
   // TOKEN_INDENT can be only one at a time,
   // so it gets emitted right away
   int dedentQueue;
+
+  // needed to validate whether no token follows after
+  // /* of the last line in block comment
+  _Bool expectEOL;
 
   // info about current line`s indent
   IndentInfo_t nextIndent;

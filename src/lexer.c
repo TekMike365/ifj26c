@@ -239,8 +239,9 @@ static double StrToDouble(char *restrict nptr, char **restrict end) {
  * If comment spans one line, it is replaced by ' '
  * else if multiple, replaced by newline
  * if last line continues with non-whitespace, error
+ * * isMultiline - optional argument
  * */
-static _Bool SkipBlockComment(Lexer_t *lexer) {
+static _Bool SkipBlockComment(Lexer_t *lexer, _Bool *isMultiline) {
   assert(lexer != NULL);
 
   // previous char, avoids ungetc()
@@ -276,30 +277,17 @@ static _Bool SkipBlockComment(Lexer_t *lexer) {
     prev = c;
   }
 
-  // single line block comment, replace by space and return
-  if (!hasNewline) {
-    lexer->prevChar = ' ';
-    return (depth == 0);
+  // if contained newline, it is multiline
+  if (isMultiline != NULL) {
+    *isMultiline = hasNewline;
   }
 
-  // else read to the end of last line
-  while ((c = GetNextChar(lexer)) != '\n' && c != EOF) {
-    // non-whistespace symbol on the last line - error
-    if (!isspace(c)) {
-      return 0;
-      // TODO: handle // comment begin, not an error
-      // dont set \n on EOF???
-      // split block into TOKEN_BLOCK_LINE and block
-      // dont check beyond last *\, let Layout handle the logic
-    }
-  }
+  // if multi line block comment, return c
+  // else replace the comment by space
+  lexer->prevChar = hasNewline ? c : ' ';
 
-  // replace by '\n'
-  lexer->prevChar = '\n';
-
-  // return: 1 => skipped without problem; 0 => EOF before comment end or last
-  // line tokens - error
-  return (depth == 0);
+  // return: 1 => skipped without problem; 0 => EOF before comment end
+  return depth == 0;
 }
 
 // skips line comment, like this one
@@ -424,7 +412,8 @@ static inline _Bool TokenSetLexemeS(Token_t *token, const char *src,
 }
 
 Token_t GetRawToken(Lexer_t *lexer) {
-
+  // used for multiline comments to emit TOKEN_EXPECT_EOL
+  _Bool isMultiline;
   // create new token
   Token_t new = CreateToken();
 
@@ -542,11 +531,22 @@ RESET:
     goto RESET;
 
   case STATE_BLOCK_COMMENT:
-    if (!SkipBlockComment(lexer)) {
+    // if unclosed
+    if (!SkipBlockComment(lexer, &isMultiline)) {
+      ReportLexicalError(MSG_CONTEXT_T(.lineNum = lexer->line,
+                                       .hlStartCol = lexer->col,
+                                       .hlEndCol = lexer->col, .poiCol = 0),
+                         lexer->buf.buf, "Unclosed block comment.", 1);
       TokenSetError(ERROR_LEX, &new);
       break;
     }
-    // start anew
+    // if correct but multiline, a special token is emitted
+    // layout validates whether no token is on the comment`s last line
+    if (isMultiline) {
+      new.type = TOKEN_EXPECT_EOL;
+      break;
+    }
+    // else, discard and start anew
     goto RESET;
 
   case STATE_LPAR:
@@ -622,12 +622,12 @@ RESET:
   case STATE_ERROR:
 
     new.type = TOKEN_ERROR;
-    MsgContext_t ctx = {.lineNum = new.pos.line,
-                        .hlStartCol = new.pos.start,
-                        .hlEndCol = new.pos.end,
-                        .poiCol = new.pos.end};
-    ReportLexicalError(ctx, lexer->buf.buf, "Unexpected character sequence.",
-                       1);
+
+    ReportLexicalError(
+        MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
+                      .hlEndCol = new.pos.end, .poiCol = new.pos.end),
+        lexer->buf.buf, "Unexpected character sequence.", 1);
+
     break;
 
   default:
@@ -720,6 +720,7 @@ _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
 
   filter->atLineStart = 1;
   filter->dedentQueue = 0;
+  filter->expectEOL = 0;
 
   filter->nextIndent = (IndentInfo_t){0};
 
@@ -737,6 +738,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
   filter->atLineStart = 1;
   filter->dedentQueue = 0;
 
+  filter->expectEOL = 0;
   filter->nextIndent = (IndentInfo_t){0};
 
   filter->bracketDepth = 0;
@@ -802,9 +804,18 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       return new;
     }
 
+    // if TOKEN_EXPECT_EOL
+    // set flag and discard it
+    if (new.type == TOKEN_EXPECT_EOL) {
+      filter->expectEOL = 1;
+      continue;
+    }
+
     // if TOKEN_NEWLINE
     if (new.type == TOKEN_NEWLINE) {
 
+      // last multiline comment line ended
+      filter->expectEOL = 0;
       filter->nextIndent = new.indent;
       // if it doesnt come from a logical line
       // skip
@@ -837,23 +848,40 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       filter->bracketDepth--;
     }
 
+    // expected EOL after multiline block comment, but other token came
+    // error
+    if (filter->expectEOL) {
+
+      ReportLexicalError(
+          MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
+                        .hlEndCol = new.pos.end, .poiCol = 0),
+          filter->lexer.buf.buf,
+          "No token allowed on the last line of a block comment.", 1);
+
+      LayoutFilterStashToken(filter, new);
+      Token_t err = CreateToken();
+      TokenSetError(ERROR_LEX, &err);
+      return err;
+    }
+
     // if token after empty space
     // if it got here, it has to be logical token
     if (filter->atLineStart) {
+
       // no longer at start
       filter->atLineStart = 0;
       // if indent had tab, error
       if (filter->nextIndent.hasTab) {
-        MsgContext_t ctx = {.lineNum = new.pos.line,
-                            .hlStartCol = 1, // newline has different, but
-                                             // since it carries indent, which
-                                             // always starts at 1, let me do
-                                             // it this way
-                            .hlEndCol = new.pos.end,
-                            .poiCol = 0};
-        ReportLexicalError(ctx, filter->lexer.buf.buf,
-                           "Tabulator can`t be used to indent a logical line.",
-                           1);
+
+        // newline has different, but
+        // since it carries indent, which
+        // always starts at 1, let me do
+        // it this way
+        ReportLexicalError(
+            MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = 1,
+                          .hlEndCol = new.pos.end, .poiCol = 0),
+            filter->lexer.buf.buf,
+            "Tabulator can`t be used to indent a logical line.", 1);
 
         LayoutFilterStashToken(filter, new);
 
@@ -873,12 +901,10 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
           ReportInternalError("Indent stack push failure: Out of memory.");
         }
 
-        MsgContext_t ctx = {.lineNum = new.pos.line,
-                            .hlStartCol = new.pos.start,
-                            .hlEndCol = new.pos.end,
-                            .poiCol = 0};
-        ReportLexicalError(ctx, filter->lexer.buf.buf,
-                           "No matching indent for dedent found.", 1);
+        ReportLexicalError(
+            MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
+                          .hlEndCol = new.pos.end, .poiCol = 0),
+            filter->lexer.buf.buf, "No matching indent for dedent found.", 1);
 
         LayoutFilterStashToken(filter, new);
 
