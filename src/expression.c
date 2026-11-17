@@ -328,7 +328,10 @@ static bool Reduce(PStack_t *stack) {
   return StackPush(stack, NULL, resultSym);
 }
 
-// Parses expression using PSA
+/* Parses nonterminal expression using preceding parsing
+* returns false on error, else true, more info about error in p->errorCode
+* should return ASTNode_t in the future
+* */
 bool ParseExpression(Parser_t *p) {
   PStack_t stack;
 

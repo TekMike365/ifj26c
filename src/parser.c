@@ -29,6 +29,9 @@ bool ParseParams(Parser_t *p);
 bool ParseParamsC(Parser_t *p);
 bool ParseParam(Parser_t *p);
 
+/*Sets p->errorCode as either ERROR_LEX or ERROR_SYNTAX depending on the token
+ * p->current
+ * */
 static void SetError(Parser_t *p) {
   if (p->current.type == TOKEN_ERROR)
     p->errorCode = p->current.error;
@@ -36,6 +39,10 @@ static void SetError(Parser_t *p) {
     p->errorCode = ERROR_SYNTAX;
 }
 
+/* consumes token p->current if p->current matches with 'expected'
+ * sets error if unable to Consume or Advance
+ * returns true if consumed, else false
+ * */
 static bool Consume(Parser_t *p, TokenType_t expected) {
   if (p->current.type != expected) {
     SetError(p);
@@ -47,6 +54,11 @@ static bool Consume(Parser_t *p, TokenType_t expected) {
   return true;
 }
 
+/* consumes token p->current if is TOKEN_IDENTIFIER and lexemeS matches with
+ * expected name
+ * sets error if unable to Consume or Advance
+ * returns true if consumed, else false
+ * */
 static bool ConsumeId(Parser_t *p, const char *name) {
   if (p->current.type != TOKEN_IDENTIFIER || p->current.lexemeS == NULL) {
     SetError(p);
@@ -64,6 +76,10 @@ static bool ConsumeId(Parser_t *p, const char *name) {
   return true;
 }
 
+/*loads token from p->next to p->current and loads next token from lexer into
+ * p->next if new p->current is ERROR_TOKEN, writes error code to p->errorCode
+ * returns true if no Error, else false
+ * */
 bool Advance(Parser_t *p) {
   TerminateToken(&p->current);
 
@@ -111,6 +127,11 @@ static void ParserTerminate(Parser_t *p) {
   LayoutFilterTerminate(&p->filter);
 }
 
+/* Parses source file
+ * creates complete AST of file (whitout checking types) if successful, else
+ * NULL
+ *  returns enum ErrorCode_t
+ * */
 ErrorCode_t Parse(FILE *src) {
   Parser_t p;
 

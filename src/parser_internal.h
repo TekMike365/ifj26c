@@ -4,6 +4,7 @@
 #include "lexer.h"
 #include <stdbool.h>
 
+// parser structure
 typedef struct Parser_t {
   Token_t current;
   Token_t next;
@@ -11,7 +12,8 @@ typedef struct Parser_t {
   ErrorCode_t errorCode;
 } Parser_t;
 
-bool Advance(Parser_t *p);           // used by the PSA, so it can't be static anymore
-bool ParseExpression(Parser_t *p);   // defined in expression.c
+
+bool Advance(Parser_t *p);
+bool ParseExpression(Parser_t *p);
 
 #endif
