@@ -1,6 +1,7 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Ondrej Dedič <xdedico00>
  */
+#include "as_tree.h"
 #include "expression.c"
 #include "lexer.h"
 #include "parser_internal.h"
@@ -11,23 +12,27 @@
 bool Advance(Parser_t *p);
 bool Consume(Parser_t *p, TokenType_t expected);
 bool ConsumeId(Parser_t *p, const char *name);
-bool ParseRoot(Parser_t *p);
-bool ParseProlog(Parser_t *p);
-bool ParseProg(Parser_t *p);
-bool ParseType(Parser_t *p);
-bool ParseFnDef(Parser_t *p);
-bool ParseFnBody(Parser_t *p);
-bool ParseBlock(Parser_t *p);
-bool ParseStatements(Parser_t *p);
-bool ParseStatementsC(Parser_t *p);
-bool ParseStatement(Parser_t *p);
-bool ParseVarDef(Parser_t *p);
-bool ParseAssign(Parser_t *p);
-bool ParseIfElse(Parser_t *p);
-bool ParseWhile(Parser_t *p);
-bool ParseParams(Parser_t *p);
-bool ParseParamsC(Parser_t *p);
-bool ParseParam(Parser_t *p);
+
+static ASTNode_t *ParseRoot(Parser_t *p);
+
+static bool ParseProlog(Parser_t *p);
+static bool ParseProg(Parser_t *p, ASTList_t *list);
+static bool ParseType(Parser_t *p, DataType_t *out);
+static ASTNode_t *ParseFnDef(Parser_t *p);
+static ASTNode_t *ParseFnBody(Parser_t *p);
+static ASTNode_t *ParseBlock(Parser_t *p);
+
+static bool ParseStatements(Parser_t *p, ASTList_t *list);
+static bool ParseStatementsC(Parser_t *p, ASTList_t *list);
+static ASTNode_t *ParseStatement(Parser_t *p);
+static ASTNode_t *ParseVarDef(Parser_t *p);
+static ASTNode_t *ParseAssign(Parser_t *p);
+static ASTNode_t *ParseIfElse(Parser_t *p);
+static ASTNode_t *ParseWhile(Parser_t *p);
+
+static bool ParseParams(Parser_t *p, ASTList_t *list);
+static bool ParseParamsC(Parser_t *p, ASTList_t *list);
+static ASTNode_t *ParseParam(Parser_t *p);
 
 /*Sets p->errorCode as either ERROR_LEX or ERROR_SYNTAX depending on the token
  * p->current
@@ -52,6 +57,16 @@ static bool Consume(Parser_t *p, TokenType_t expected) {
     return false;
 
   return true;
+}
+
+static bool GetIdentifier(Parser_t *p, char **out) {
+  if (p->current.type != TOKEN_IDENTIFIER || p->current.lexemeS == NULL) {
+    SetError(p);
+    return false;
+  }
+  *out = p->current.lexemeS;
+  p->current.lexemeS = NULL;
+  return Advance(p);
 }
 
 /* consumes token p->current if is TOKEN_IDENTIFIER and lexemeS matches with
@@ -132,27 +147,38 @@ static void ParserTerminate(Parser_t *p) {
  * NULL
  *  returns enum ErrorCode_t
  * */
-ErrorCode_t Parse(FILE *src) {
+ErrorCode_t Parse(FILE *src, ASTNode_t **ProgramTree) {
+  *ProgramTree = NULL;
+
   Parser_t p;
 
   if (!ParserInit(&p, src))
     return p.errorCode;
 
-  bool result = ParseRoot(&p);
+  *ProgramTree = ParseRoot(&p);
 
   ParserTerminate(&p);
 
-  if (result)
+  if (*ProgramTree != NULL)
     return ERROR_NOERR;
 
   return p.errorCode != ERROR_NOERR ? p.errorCode : ERROR_SYNTAX;
 }
 
-static bool ParseRoot(Parser_t *p) {
+static ASTNode_t *ParseRoot(Parser_t *p) {
   if (!ParseProlog(p))
-    return false;
+    return NULL;
+  ASTNode_t *node = ASTCreate(NODE_PROGRAM, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
 
-  return ParseProg(p);
+  if (!ParseProg(p, node->program.items)) {
+    ASTFree(node);
+    return NULL;
+  }
+  return node;
 }
 
 static bool ParseProlog(Parser_t *p) {
@@ -171,76 +197,110 @@ static bool ParseProlog(Parser_t *p) {
   return Consume(p, TOKEN_NEWLINE);
 }
 
-bool ParseType(Parser_t *p) {
+bool ParseType(Parser_t *p, DataType_t *out) {
   switch (p->current.type) {
   case TOKEN_KEYWORD_INT:
-    return Consume(p, TOKEN_KEYWORD_INT);
+    *out = TYPE_INT;
+    break;
+
   case TOKEN_KEYWORD_DOUBLE:
-    return Consume(p, TOKEN_KEYWORD_DOUBLE);
+    *out = TYPE_DOUBLE;
+    break;
+
   case TOKEN_KEYWORD_BOOLEAN:
-    return Consume(p, TOKEN_KEYWORD_BOOLEAN);
+    *out = TYPE_BOOLEAN;
+    break;
+
   case TOKEN_KEYWORD_UNIT:
-    return Consume(p, TOKEN_KEYWORD_UNIT);
+    *out = TYPE_UNIT;
+    break;
+
   case TOKEN_KEYWORD_STRING:
-    return Consume(p, TOKEN_KEYWORD_STRING);
+    *out = TYPE_STRING;
+    break;
+
   default:
+    SetError(p);
     return false;
   }
+  if (!Advance(p))
+    return false;
+  return true;
 }
 
-static bool ParseProg(Parser_t *p) {
+static bool ParseProg(Parser_t *p, ASTList_t *list) {
   while (true) {
-    if (Consume(p, TOKEN_NEWLINE))
-      continue;
+    while (p->current.type == TOKEN_NEWLINE)
+      if (!Consume(p, TOKEN_NEWLINE))
+        return false;
 
     if (p->current.type == TOKEN_EOF)
       return true;
 
     // main before fndef
-    if (Consume(p, TOKEN_AT)) {
+    if (p->current.type == TOKEN_AT) {
+      if (!Consume(p, TOKEN_AT))
+        return false;
       if (!ConsumeId(p, "main"))
         return false;
 
-      if (!Consume(p, TOKEN_NEWLINE))
-        return false;
+      while (p->current.type == TOKEN_NEWLINE)
+        if (!Consume(p, TOKEN_NEWLINE))
+          return false;
     }
     // fndef
-    if (!ParseFnDef(p))
+    if (!ASTAppend(list, ParseFnDef(p)))
       return false;
   }
 }
 
-static bool ParseBlock(Parser_t *p) {
+static ASTNode_t *ParseBlock(Parser_t *p) {
+  ASTNode_t *node = ASTCreate(NODE_BLOCK, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
   if (!Consume(p, TOKEN_NEWLINE))
-    return false;
+    goto failure;
 
   if (!Consume(p, TOKEN_INDENT))
-    return false;
+    goto failure;
 
-  if (!ParseStatements(p))
-    return false;
+  if (!ParseStatements(p, &node->block))
+    goto failure;
 
-  return Consume(p, TOKEN_DEDENT);
+  if (!Consume(p, TOKEN_DEDENT))
+    goto failure;
+
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
-static bool ParseStatements(Parser_t *p) {
-  if (!ParseStatement(p))
+static bool ParseStatements(Parser_t *p, ASTList_t *list) {
+  if (!ASTAppend(list, ParseStatement(p)))
     return false;
 
-  return ParseStatementsC(p);
+  return ParseStatementsC(p, list);
 }
 
-static bool ParseStatementsC(Parser_t *p) {
+static bool ParseStatementsC(Parser_t *p, ASTList_t *list) {
   while (true) {
-    if (Consume(p, TOKEN_SEMICOLON)) {
-      if (!ParseStatement(p))
+    if (p->current.type == TOKEN_SEMICOLON) {
+      if (!Consume(p, TOKEN_SEMICOLON))
+        return false;
+      if (!ASTAppend(list, ParseStatement(p)))
         return false;
 
-    } else if (Consume(p, TOKEN_NEWLINE)) {
+    } else if (p->current.type == TOKEN_NEWLINE) {
+      if (!Consume(p, TOKEN_NEWLINE))
+        return false;
       if (p->current.type == TOKEN_DEDENT)
         return true;
 
-      if (!ParseStatement(p))
+      if (!ASTAppend(list, ParseStatement(p)))
         return false;
     } else {
       return false;
@@ -248,7 +308,27 @@ static bool ParseStatementsC(Parser_t *p) {
   }
 }
 
-static bool ParseStatement(Parser_t *p) {
+static ASTNode_t *ParseReturn(Parser_t *p) {
+  ASTNode_t *node = ASTCreate(NODE_RETURN, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
+  if (!Consume(p, TOKEN_KEYWORD_RETURN))
+    goto failure;
+
+  if (p->current.type != TOKEN_NEWLINE && p->current.type != TOKEN_SEMICOLON)
+    if (!(node->ret.value = ParseExpression(p)))
+      goto failure;
+
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
+}
+
+static ASTNode_t *ParseStatement(Parser_t *p) {
   switch (p->current.type) {
   case TOKEN_KEYWORD_VAR:
   case TOKEN_KEYWORD_VAL:
@@ -261,156 +341,254 @@ static bool ParseStatement(Parser_t *p) {
     return ParseWhile(p);
 
   case TOKEN_KEYWORD_RETURN:
-    if (!Consume(p, TOKEN_KEYWORD_RETURN))
-      return false;
-
-    if (p->current.type == TOKEN_NEWLINE || p->current.type == TOKEN_SEMICOLON)
-      return true;
-
-    return ParseExpression(p);
+    return ParseReturn(p);
 
   case TOKEN_IDENTIFIER:
     if (p->next.type == TOKEN_EQ)
       return ParseAssign(p);
-    // if not <ASSIGN> continue with <EXPRESSION>
+    return ParseExpression(p);
+
   default:
     return ParseExpression(p);
   }
 }
 
-static bool ParseVarDef(Parser_t *p) {
-  if (Consume(p, TOKEN_KEYWORD_VAL)) {
-    // semantic action
-  } else if (Consume(p, TOKEN_KEYWORD_VAR)) {
-    // semantic action
-  } else
-    return false;
+static ASTNode_t *ParseVarDef(Parser_t *p) {
+  ASTNode_t *node = NULL;
+  if (p->current.type == TOKEN_KEYWORD_VAL) {
+    if (!Consume(p, TOKEN_KEYWORD_VAL))
+      return NULL;
+    node = ASTCreate(NODE_VALDEF, p->current.pos);
+  } else if (p->current.type == TOKEN_KEYWORD_VAR) {
+    if (!Consume(p, TOKEN_KEYWORD_VAR))
+      return NULL;
+    node = ASTCreate(NODE_VARDEF, p->current.pos);
+  }
 
-  if (!Consume(p, TOKEN_IDENTIFIER))
-    return false;
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
 
-  if (Consume(p, TOKEN_COLON))
-    if (!ParseType(p))
-      return false; // not in condition means that type is optional
+  if (!GetIdentifier(p, &node->varDef.name))
+    goto failure;
+
+  if (p->current.type == TOKEN_COLON) {
+    if (!Consume(p, TOKEN_COLON))
+      goto failure;
+    if (!ParseType(p, &node->varDef.declType))
+      goto failure;
+  }
 
   if (!Consume(p, TOKEN_EQ))
-    return false;
+    goto failure;
 
-  if (!ParseExpression(p))
-    return false;
+  if (!(node->varDef.init = ParseExpression(p)))
+    goto failure;
 
-  return true;
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
-static bool ParseAssign(Parser_t *p) {
-  if (!Consume(p, TOKEN_IDENTIFIER))
-    return false;
+static ASTNode_t *ParseAssign(Parser_t *p) {
+  ASTNode_t *node = ASTCreate(NODE_ASSIGN, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
+
+  if (!GetIdentifier(p, &node->assign.name))
+    goto failure;
 
   if (!Consume(p, TOKEN_EQ))
-    return false;
+    goto failure;
 
-  if (!ParseExpression(p))
-    return false;
+  if (!(node->assign.value = ParseExpression(p)))
+    goto failure;
 
-  return true;
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
-static bool ParseFnDef(Parser_t *p) {
+static ASTNode_t *ParseFnDef(Parser_t *p) {
+  ASTNode_t *node = ASTCreate(NODE_FNDEF, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
+
   if (!Consume(p, TOKEN_KEYWORD_DEF))
-    return false;
+    goto failure;
 
-  if (!Consume(p, TOKEN_IDENTIFIER))
-    return false;
+  if (!GetIdentifier(p, &node->fnDef.name))
+    goto failure;
 
   if (!Consume(p, TOKEN_LPAR))
-    return false;
+    goto failure;
 
-  if (!ParseParams(p))
-    return false;
+  if (!ParseParams(p, &node->fnDef.params))
+    goto failure;
 
   if (!Consume(p, TOKEN_RPAR))
-    return false;
+    goto failure;
 
-  if (!Consume(p, TOKEN_COLON)) // TODO check if ':' is mandatory
-    return false;
+  if (p->current.type == TOKEN_COLON) {
+    if (!Consume(p, TOKEN_COLON))
+      goto failure;
 
-  if (!ParseType(p)) // TODO something with types also if mandatory
-    return false;
+    if (!(ParseType(p, &node->fnDef.declType)))
+      goto failure;
+  }
 
   if (!Consume(p, TOKEN_EQ))
-    return false;
+    goto failure;
 
-  return ParseFnBody(p);
+  if (!(node->fnDef.body = ParseFnBody(p)))
+    goto failure;
+
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
-static bool ParseFnBody(Parser_t *p) {
+static ASTNode_t *ParseFnBody(Parser_t *p) {
   if (p->current.type == TOKEN_NEWLINE)
     return ParseBlock(p);
 
-  return ParseExpression(p);
+  // one-line functions
+  ASTNode_t *node = ASTCreate(NODE_BLOCK, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
+
+  ASTNode_t *expr = ParseExpression(p);
+  if (expr == NULL) {
+    ASTFree(node);
+    return NULL;
+  }
+
+  if (!ASTAppend(&node->block, expr)) {
+    ASTFree(node);
+    ASTFree(expr);
+    return NULL;
+  }
+
+  return node;
 }
 
-static bool ParseIfElse(Parser_t *p) {
-  if (!Consume(p, TOKEN_KEYWORD_IF))
-    return false;
+static ASTNode_t *ParseIfElse(Parser_t *p) {
+  ASTNode_t *node = ASTCreate(NODE_IF, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
 
-  if (!ParseExpression(p))
-    return false;
+  if (!Consume(p, TOKEN_KEYWORD_IF))
+    goto failure;
+
+  if (!(node->ifElse.cond = ParseExpression(p)))
+    goto failure;
 
   if (!Consume(p, TOKEN_KEYWORD_THEN))
-    return false;
+    goto failure;
 
-  if (!ParseBlock(p))
-    return false;
+  if (!(node->ifElse.thenBlock = ParseBlock(p)))
+    goto failure;
 
-  if (Consume(p, TOKEN_KEYWORD_ELSE))
-    return ParseBlock(p);
+  if (p->current.type == TOKEN_KEYWORD_ELSE) {
+    if (!Consume(p, TOKEN_KEYWORD_ELSE))
+      goto failure;
+    if (!(node->ifElse.elseBlock = ParseBlock(p)))
+      goto failure;
+  }
+  return node;
 
-  return true;
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
-static bool ParseWhile(Parser_t *p) {
-  if (!Consume(p, TOKEN_KEYWORD_WHILE))
-    return false;
+static ASTNode_t *ParseWhile(Parser_t *p) {
+  ASTNode_t *node = ASTCreate(NODE_WHILE, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
 
-  if (!ParseExpression(p))
-    return false;
+  if (!Consume(p, TOKEN_KEYWORD_WHILE))
+    goto failure;
+
+  if (!(node->whileDo.cond = ParseExpression(p)))
+    goto failure;
 
   if (!Consume(p, TOKEN_KEYWORD_DO))
-    return false;
+    goto failure;
 
-  return ParseBlock(p);
+  if (!(node->whileDo.body = ParseBlock(p)))
+    goto failure;
+
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
-static bool ParseParam(Parser_t *p) {
-  if (!Consume(p, TOKEN_IDENTIFIER))
-    return false;
+static ASTNode_t *ParseParam(Parser_t *p) {
+  ASTNode_t *node = ASTCreate(NODE_PARAM, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
+  if (!GetIdentifier(p, &node->param.name))
+    goto failure;
 
   if (!Consume(p, TOKEN_COLON))
-    return false;
+    goto failure;
 
-  return ParseType(p);
+  if (!(ParseType(p, node->param.declType)))
+    goto failure;
+
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
-static bool ParseParams(Parser_t *p) {
+static bool ParseParams(Parser_t *p, ASTList_t *list) {
   if (p->current.type == TOKEN_RPAR)
     return true;
 
-  if (!ParseParam(p))
+  if (!ASTAppend(list, ParseParam(p)))
     return false;
 
-  return ParseParamsC(p);
+  return ParseParamsC(p, list);
 }
 
-static bool ParseParamsC(Parser_t *p) {
-  while (true) {
-    if (p->current.type == TOKEN_RPAR)
-      return true;
-
+static bool ParseParamsC(Parser_t *p, ASTList_t *list) {
+  while (p->current.type != TOKEN_RPAR) {
     if (!Consume(p, TOKEN_COMMA))
       return false;
 
-    if (!ParseParam(p))
+    if (p->current.type == TOKEN_RPAR) { // trailing comma
+      if (p->current.nlBefore)
+        return true;
+      SetError(p);
+      return false;
+    }
+
+    if (!ASTAppend(list, ParseParam(p)))
       return false;
   }
+  return true;
 }
