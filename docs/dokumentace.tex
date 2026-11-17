@@ -12,8 +12,11 @@
 \setlength\parskip{1em}
 \setlength\parindent{0pt}
 
-\usepackage{tabularx}
 \usepackage[hidelinks]{hyperref}
+
+\usepackage{tabularx}
+\usepackage{graphicx}
+\graphicspath{{./img}}
 \usepackage{float}
 \usepackage{adjustbox}
 
@@ -157,7 +160,7 @@
   % kterých jste imple- mentovali syntaktický analyzátor;
 
   Rozdelenie zátvoriek na viacero riadkov je riešené externe v predprocesore
-  tokenov.
+  tokenov (viď. \ref{sec:predprocessor}).
   % TODO: make a separate section explaining the filters
 
   \subsection{LL Gramatika}
@@ -280,21 +283,7 @@
   \end{table}
 
   ,,u+'', ,,u-'' sú generované v predprocesore tokenov podľa
-  nasledujúcich pravidiel.
-
-  % TODO: move this to a separate section
-  Nech $p$ je predchádzajúci token. Potom predprocesor transformuje súčastný
-  token
-
-  \begin{table}[H]
-    \centering
-    \begin{tabular}{rclll}
-      \id{+} & $\longrightarrow$ & \id{u+}    & pre & $p \notin \{\; \id{id},\; \id{)}\; \}$ \\
-      \id{-} & $\longrightarrow$ & \id{u-}    & pre & $p \notin \{\; \id{id},\; \id{)}\; \}$ \\
-             & inak              &            &     & \\
-      $t$    & $\longrightarrow$ & $t$        &     & \\
-    \end{tabular}
-  \end{table}
+  nasledujúcich pravidiel (viď. \ref{sec:predprocessor}).
 
   \begin{verbatim}
     ####### Expressions #######
@@ -359,6 +348,40 @@
       \id{\$}    & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{ } & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
     \end{tabular}
     \caption{precedenčná tabuľka.}
+  \end{table}
+
+  \subsection{Predprocesor} \label{sec:predprocessor}
+
+  Predprocessor je prvá časť syntaktického analyzátora, ktorá pripravuje tokeny
+  na spracovanie predom definovanými gramatikami. Chybové tokeny sa
+  nespracovávajú a rovno sa prepustia.
+
+  Správnosť formátovania \textbf{viacriadkových zátvoriek} rieši stavový
+  automat znázornený na obrázku \ref{fig:pp_state_machine} nižšie.
+
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{pp_state_machine.pdf}
+    \caption{Diagram vnútorného stavového automatu pre riešenie viacriadkových
+             zátvoriek. Stavy označené ,,E'' sú stavy z ktorých môže vyplynúť
+             ,,error''. ,,S'' je východzí stav. Čiarkované šípky značia prechod
+             pri nastatí chyby. Pravidlá nad cykliacimi šípkami sú v tvare
+             ,,\texttt{TOKEN -> AKCIA}''. Premenné ,,l'' a ,,d'' sú
+             inicializované na 0.}
+    \label{fig:pp_state_machine}
+  \end{figure}
+
+  \textbf{Transformácie tokenov} sú nasledovné. Nech $p$ je predchádzajúci
+  token. Potom predprocesor transformuje súčastný token
+
+  \begin{table}[H]
+    \centering
+    \begin{tabular}{lrclll}
+           & \id{+} & $\longrightarrow$ & \id{u+}    & pre & $p \notin \{\; \id{id},\; \id{)}\; \}$ \\
+           & \id{-} & $\longrightarrow$ & \id{u-}    & pre & $p \notin \{\; \id{id},\; \id{)}\; \}$ \\
+      inak &        &                   &            &     & \\
+           & $t$    & $\longrightarrow$ & $t$        &     & \\
+    \end{tabular}
   \end{table}
 
   \section{Moduly}
