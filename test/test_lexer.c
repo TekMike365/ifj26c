@@ -17,87 +17,87 @@
                                                                                \
     rewind(tmp);                                                               \
                                                                                \
-    LayoutFilter_t filter;                                                     \
-    ASSERT_TRUE(LayoutFilterInit(&filter, tmp));                               \
+    LayoutFilter_t *filter = LayoutFilterCreate(tmp);                          \
+    ASSERT_TRUE(filter != NULL);                                               \
                                                                                \
-    {test_body} LayoutFilterTerminate(&filter);                                \
+    {test_body} LayoutFilterTerminate(filter);                                 \
     fclose(tmp);                                                               \
   }
 
 TESTFUNC(RecognizeIdentifier, "myVar", {
-  Token_t next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
   TerminateToken(&next);
 })
 
 TESTFUNC(RecognizeKeyword, "for", {
-  Token_t next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_KEYWORD_FOR);
 })
 
 TESTFUNC(RecognizeInt, "12343", {
-  Token_t next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
   ASSERT_INT_EQ(next.lexemeI, 12343);
 })
 
 TESTFUNC(RecognizeIntUnderscore, "12_34_3", {
-  Token_t next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_INT);
   ASSERT_INT_EQ(next.lexemeI, 12343);
 })
 
 TESTFUNC(RecognizeEOF, "Int", {
-  Token_t next = GetNextToken(&filter);
-  next = GetNextToken(&filter);
-  next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
+  next = GetNextToken(filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_EOF);
 })
 
 TESTFUNC(RecognizeNewline, "i\n", {
-  Token_t next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
   TerminateToken(&next);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
 })
 
 TESTFUNC(RecognizeIndent, "i\n  x\n", {
-  Token_t next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
   TerminateToken(&next);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_INDENT);
-  next = GetNextToken(&filter); // 'x' is in stash, call once more to avoid
-                                // mem leak
+  next = GetNextToken(filter); // 'x' is in stash, call once more to avoid
+                               // mem leak
   TerminateToken(&next);
 })
 
 TESTFUNC(RecognizeDedent, "i\n  x\n=", {
-  Token_t next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
   TerminateToken(&next);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_INDENT);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
   TerminateToken(&next);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_DEDENT);
 })
 
 TESTFUNC(RejectToken, "i /* helo\n s*/  x", {
-  Token_t next = GetNextToken(&filter);
+  Token_t next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
   TerminateToken(&next);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_ERROR);
-  next = GetNextToken(&filter);
+  next = GetNextToken(filter);
   TerminateToken(&next);
 })
 int main(void) {

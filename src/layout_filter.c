@@ -6,10 +6,39 @@
 #include "lexer.h"
 #include "token.h"
 #include <assert.h>
+#include <stdlib.h>
 
 // ##############################################################
 //                LAYOUT_FILTER.C INTERNAL STUFF
 // ##############################################################
+
+struct LayoutFilter {
+  Lexer_t *lexer;
+  // indent stack
+  IntStack_t *indents;
+
+  // storage for one token
+  Token_t stash;
+  // is something stored?
+  _Bool hasStash;
+
+  // line start?
+  _Bool atLineStart;
+  // "queue" for TOKEN_DEDENT
+  // TOKEN_INDENT can be only one at a time,
+  // so it gets emitted right away
+  int dedentQueue;
+
+  // needed to validate whether no token follows after
+  // /* of the last line in block comment
+  _Bool expectEOL;
+
+  // info about current line`s indent
+  IndentInfo_t nextIndent;
+
+  // count of bracket nesting
+  int bracketDepth;
+};
 
 /* Function tries to put 'indent' on top of the indent stack
  * * indent - incoming indent to validate
@@ -84,26 +113,31 @@ static inline Token_t LayoutFilterUnstashToken(LayoutFilter_t *filter) {
  * Pushes 0 on indentation stack and may thus fail on memory
  * returns 0 on mem failure or NULL args, else 1
  */
-_Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
-  if (!filter || !src) {
-    return 0;
+LayoutFilter_t *LayoutFilterCreate(FILE *src) {
+  if (!src) {
+    return NULL;
+  }
+  LayoutFilter_t *filter = malloc(sizeof(*filter));
+
+  if (!filter) {
+    return NULL;
   }
 
   filter->lexer = LexerCreate(src);
 
   if (!filter->lexer) {
-    return 0;
+    return NULL;
   }
 
   filter->indents = IntStackCreate();
   if (!filter->indents) {
-    return 0;
+    return NULL;
   }
   // push 0 on the stack
   // acts as a reference value that is never popped
   // until terminated
   if (!IntStackPush(filter->indents, 0)) {
-    return 0;
+    return NULL;
   }
   filter->stash = (Token_t){0};
   filter->hasStash = 0;
@@ -115,7 +149,8 @@ _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
   filter->nextIndent = (IndentInfo_t){0};
 
   filter->bracketDepth = 0;
-  return 1;
+
+  return filter;
 }
 
 /* terminate */
@@ -125,16 +160,8 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
   }
   LexerTerminate(filter->lexer);
   IntStackTerminate(filter->indents);
-  filter->stash = (Token_t){0};
-  filter->hasStash = 0;
 
-  filter->atLineStart = 1;
-  filter->dedentQueue = 0;
-
-  filter->expectEOL = 0;
-  filter->nextIndent = (IndentInfo_t){0};
-
-  filter->bracketDepth = 0;
+  free(filter);
 }
 
 /* Wrapper function that encapsulates Lexer, Indent stack and flags
