@@ -2,6 +2,14 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
+// ###################################################
+//                     DESCRIPTION
+// ###################################################
+/* Module implements the character buffer ADT its ope-
+ * rations
+ */
+// ###################################################
+
 #ifndef CHAR_BUF_H
 #define CHAR_BUF_H
 

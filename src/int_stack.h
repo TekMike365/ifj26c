@@ -1,9 +1,14 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Dominik Makuka <xmakukd00>
- *
- * Implementation of the integer stack ADT
+ */
+
+// ###################################################
+//                     DESCRIPTION
+// ###################################################
+/* Module mplementats the integer stack ADT
  * and the core operation on it
  */
+// ###################################################
 
 #ifndef INT_STACK_H
 #define INT_STACK_H

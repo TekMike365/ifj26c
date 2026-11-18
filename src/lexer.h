@@ -2,6 +2,14 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
+// ###################################################
+//                     DESCRIPTION
+// ###################################################
+/* Module directly implements the FSM, converting
+ *  character stream into raw tokens
+ */
+// ###################################################
+
 #ifndef LEXER_H
 #define LEXER_H
 

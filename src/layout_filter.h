@@ -2,6 +2,26 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
+// ###################################################
+//                     DESCRIPTION
+// ###################################################
+/* Module defines the Layout Filter, which is a layer
+ * sitting above lexer but below parser. its jobs is
+ * to pull raw tokens from the stream and use a set of
+ * flags do decide which tokens to let through,
+ * which to intercept and which to store for later
+ * emission
+ *
+ * it handles correct newline emission, indentation,
+ * etc.
+ *
+ * the most important takeaway is that to get the next
+ * token, GetNextToken function should be called
+ * (as opposed to GetRawToken defined in lexer.h,
+ * which emits tokens without context)
+ */
+// ###################################################
+
 #include "int_stack.h"
 #include "lexer.h"
 #include "token.h"

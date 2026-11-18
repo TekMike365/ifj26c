@@ -2,6 +2,14 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
+// ###################################################
+//                     DESCRIPTION
+// ###################################################
+/* Module defines the Token_t structure, token types
+ * and operations on tokens
+ */
+// ###################################################
+
 #ifndef TOKEN_H
 #define TOKEN_H
 
