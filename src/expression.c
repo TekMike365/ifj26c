@@ -1,12 +1,14 @@
+/* Implementace překladače imperativního jazyka IFJ26.
+ * Author[s]: Ondrej Dedič <xdedico00>
+ */
 #include "parser_internal.h"
-#include <stdlib.h>
-
-// begin PSA:
 
 #define MAX_RULE_LENGTH 4
 
 typedef enum {
-  PSA_ID = 0, // id (int, double, string)
+  // Terminals:
+
+  PSA_ID = 0, // id, int, double, string
   PSA_COMMA,  // ,
   PSA_UPLUS,  // unary +
   PSA_UMINUS, // unary -
@@ -25,13 +27,13 @@ typedef enum {
   PSA_DOLLAR, // $
 
   // Nonterminals:
+
   PSA_HANDLE,
   PSA_E,
-  PSA_COND,
   PSA_ARGS,
 } PSASymbol_t;
 
-// made by AI and asked me to change PTable[1][1] = '>'
+// made by AI and asked me to change PTable[1][1] to '>'
 static const char PTable[17][17] = {
     {' ', '>', ' ', ' ', '=', '>', '>', '>', '>', '>', '>', '>', '>', '>', '>',
      '>', '>'},
@@ -68,11 +70,14 @@ static const char PTable[17][17] = {
     {'<', '<', '<', '<', '<', ' ', '<', '<', '<', '<', '<', '<', '<', '<', '<',
      '<', ' '}};
 
-static PSASymbol_t TokenToSym(TokenType_t t, PSASymbol_t top) {
+static PSASymbol_t SymFromToken(TokenType_t t) {
   switch (t) {
   case TOKEN_IDENTIFIER:
+    return PSA_ID;
   case TOKEN_INT:
+    return PSA_ID;
   case TOKEN_DOUBLE:
+    return PSA_ID;
   case TOKEN_STRING:
     return PSA_ID;
   case TOKEN_COMMA:
@@ -86,12 +91,12 @@ static PSASymbol_t TokenToSym(TokenType_t t, PSASymbol_t top) {
   case TOKEN_SLASH:
     return PSA_DIV;
   case TOKEN_PLUS:
-    if (top == PSA_ID || top == PSA_E || top == PSA_RPAR)
-      return PSA_PLUS;
+    return PSA_PLUS;
+  case TOKEN_UPLUS:
     return PSA_UPLUS;
   case TOKEN_MINUS:
-    if (top == PSA_ID || top == PSA_E || top == PSA_RPAR)
-      return PSA_MINUS;
+    return PSA_MINUS;
+  case TOKEN_UMINUS:
     return PSA_UMINUS;
   case TOKEN_LESS:
     return PSA_LT;
@@ -101,7 +106,7 @@ static PSASymbol_t TokenToSym(TokenType_t t, PSASymbol_t top) {
     return PSA_GT;
   case TOKEN_GREATER_EQ:
     return PSA_GTE;
-  case TOKEN_EQ:
+  case TOKEN_DOUBLE_EQ:
     return PSA_EQ;
   case TOKEN_NOT_EQ:
     return PSA_NEQ;
@@ -110,15 +115,88 @@ static PSASymbol_t TokenToSym(TokenType_t t, PSASymbol_t top) {
   }
 }
 
+static Operator_t OpFromSym(PSASymbol_t sym) {
+  switch (sym) {
+  case PSA_EQ:
+    return OP_EQ;
+  case PSA_NEQ:
+    return OP_NEQ;
+  case PSA_LT:
+    return OP_LT;
+  case PSA_LTE:
+    return OP_LTE;
+  case PSA_GT:
+    return OP_GT;
+  case PSA_GTE:
+    return OP_GTE;
+  case PSA_PLUS:
+    return OP_PLUS;
+  case PSA_MINUS:
+    return OP_MINUS;
+  case PSA_DIV:
+    return OP_DIV;
+  case PSA_MUL:
+    return OP_MUL;
+  default:
+    return OP_ERR;
+  }
+}
+
+// Returns AST node containing data from tokens: id, string, int, double, if
+// malloc failed returns NULL and sets error.
+static ASTNode_t *CreateLeaf(Parser_t *p) {
+  ASTNode_t *node = ASTCreate(NODE_ID, p->current.pos);
+  if (node == NULL) {
+    p->errorCode = ERROR_MEM;
+    return NULL;
+  }
+
+  switch (p->current.type) {
+  case TOKEN_IDENTIFIER:
+    if (p->current.lexemeS == NULL)
+      break;
+    node->kind = NODE_ID;
+    node->string = p->current.lexemeS;
+    p->current.lexemeS = NULL;
+    return node;
+
+  case TOKEN_STRING:
+    if (p->current.lexemeS == NULL)
+      break;
+    node->kind = NODE_STRING;
+    node->string = p->current.lexemeS;
+    p->current.lexemeS = NULL;
+    return node;
+
+  case TOKEN_INT:
+    node->kind = NODE_INT;
+    node->intVal = p->current.lexemeI;
+    return node;
+
+  case TOKEN_DOUBLE:
+    node->kind = NODE_DOUBLE;
+    node->dblVal = p->current.lexemeD;
+    return node;
+
+  default:
+    break;
+  }
+  ASTFree(node);
+  SetError(p);
+  return NULL;
+}
+
+// conatins symbol used for PSA
+// if terminal or nonterminal, the node points to AS tree, else NULL
 typedef struct PStackItem_t {
-  Token_t token;
+  ASTNode_t *node;
   PSASymbol_t sym;
   struct PStackItem_t *next;
 } PStackItem_t;
 
+// contains terminals nonterminals or handles plus AS trees.
 typedef struct PStack_t {
   PStackItem_t *top;
-  PStackItem_t *afterTerminal;
 } PStack_t;
 
 static bool StackInit(PStack_t *stack) {
@@ -128,10 +206,9 @@ static bool StackInit(PStack_t *stack) {
     return false;
 
   newItem->sym = PSA_DOLLAR;
-  newItem->token = CreateToken();
+  newItem->node = NULL;
   newItem->next = NULL;
   stack->top = newItem;
-  stack->afterTerminal = NULL;
 
   return true;
 }
@@ -140,265 +217,366 @@ static void StackFree(PStack_t *stack) {
   PStackItem_t *current = stack->top;
   while (current != NULL) {
     PStackItem_t *next = current->next;
-    TerminateToken(&current->token);
+    ASTFree(current->node);
     free(current);
     current = next;
   }
   stack->top = NULL;
-  stack->afterTerminal = NULL;
 }
 
-static bool StackPushAfterTerminal(PStack_t *stack) {
-  PStackItem_t *newItem = (PStackItem_t *)malloc(sizeof(PStackItem_t));
+// inserts handle after top-most terminal
+static bool StackInsertHandle(PStack_t *stack) {
+  if (stack == NULL || stack->top == NULL)
+    return false;
 
+  PStackItem_t *newItem = (PStackItem_t *)malloc(sizeof(PStackItem_t));
   if (newItem == NULL)
     return false;
 
   newItem->sym = PSA_HANDLE;
-  newItem->token = CreateToken();
+  newItem->node = NULL;
   // terminal is on top
-  if (stack->afterTerminal == NULL) {
+  if (stack->top->sym <= PSA_DOLLAR) {
     newItem->next = stack->top;
     stack->top = newItem;
-    stack->afterTerminal = newItem;
-  } else {
-    newItem->next = stack->afterTerminal->next;
-    stack->afterTerminal->next = newItem;
-    stack->afterTerminal = newItem;
+    return true;
   }
+  // terminal is deeper in stack
+  PStackItem_t *current = stack->top;
+  while (current->next != NULL && current->next->sym > PSA_DOLLAR) {
+    current = current->next;
+  }
+
+  if (current->next == NULL) {
+    free(newItem);
+    return false;
+  }
+
+  newItem->next = current->next;
+  current->next = newItem;
   return true;
 }
 
-static bool StackPush(PStack_t *stack, Token_t *token, PSASymbol_t sym) {
-  PStackItem_t *newItem = (PStackItem_t *)malloc(sizeof(PStackItem_t));
+// If fails on memory allocation returns false, else true.
+static bool StackPush(PStack_t *stack, PSASymbol_t sym, ASTNode_t *node) {
+  if (stack == NULL)
+    return false;
 
+  PStackItem_t *newItem = (PStackItem_t *)malloc(sizeof(PStackItem_t));
   if (newItem == NULL)
     return false;
 
   newItem->sym = sym;
-
-  if (sym <= PSA_DOLLAR)
-    stack->afterTerminal = NULL;
-  else if (stack->afterTerminal == NULL)
-    stack->afterTerminal = newItem;
-
-  if (token != NULL) {
-    newItem->token = *token;
-    token->lexemeS = NULL;
-  } else
-    newItem->token = CreateToken();
-
   newItem->next = stack->top;
+  newItem->node = node;
   stack->top = newItem;
 
   return true;
 }
 
+// returns the top-most terminal on the stack, return NULL if no terminal found
 static PStackItem_t *StackTopTerminal(const PStack_t *stack) {
-  return (stack->afterTerminal == NULL) ? stack->top
-                                        : stack->afterTerminal->next;
+  if (stack == NULL)
+    return NULL;
+
+  PStackItem_t *current = stack->top;
+  while (current != NULL && current->sym > PSA_DOLLAR) {
+    current = current->next;
+  }
+  return current;
 }
 
-static bool Reduce(PStack_t *stack) {
+// Takes ownership of AST node from item, returns the node.
+static ASTNode_t *TakeNode(PStackItem_t *item) {
+  ASTNode_t *node = item->node;
+  item->node = NULL;
+  return node;
+}
+
+// If unable to append, sets ERROR_MEM in p->errorCode and returns false.
+static bool AppendNode(Parser_t *p, ASTList_t *list, PStackItem_t *item) {
+  if (!ASTAppend(list, item->node)) {
+    p->errorCode = ERROR_MEM;
+    return false;
+  }
+  item->node = NULL;
+  return true;
+}
+
+// If unable to create, sets ERROR_MEM in p->errorCode and returns NULL.
+static ASTNode_t *NewNode(Parser_t *p, ASTKind_t kind, PStackItem_t *item) {
+  SourceSpan_t pos =
+      (item != NULL && item->node != NULL) ? item->node->pos : p->current.pos;
+
+  ASTNode_t *node = ASTCreate(kind, pos);
+
+  if (node == NULL)
+    p->errorCode = ERROR_MEM;
+
+  return node;
+}
+
+// Reduces items on stack based on rule
+// If none of the reduction rules apply, sets ERROR_SYNTAX in p->errorCode.
+// If fails to allocate memory, sets ERROR_MEM in p->errorCode.
+// If successful returns true, else false.
+static bool Reduce(Parser_t *p, PStack_t *stack) {
   PStackItem_t *items[MAX_RULE_LENGTH];
   PStackItem_t *current = stack->top;
   int len = 0;
 
+  // load items from top of stack up until handle
   while (len < MAX_RULE_LENGTH && current != NULL &&
          current->sym != PSA_HANDLE) {
     items[len] = current;
     current = current->next;
     len++;
   }
+
+  // handle not found
   if (current == NULL || current->sym != PSA_HANDLE)
-    return false;
+    goto syntaxErr;
 
-  PSASymbol_t resultSym = PSA_E;
+  ASTNode_t *newNode = NULL;
+  PSASymbol_t newSym = PSA_E;
 
+  // execute reduction rule
   switch (len) {
   case 1:
+    // E -> id
     if (items[0]->sym != PSA_ID)
-      return false;
-    // Action for: E -> id
-    resultSym = PSA_E;
+      goto syntaxErr;
+    newNode = TakeNode(items[0]);
     break;
+
   case 2:
     if (items[0]->sym != PSA_E ||
         (items[1]->sym != PSA_UMINUS && items[1]->sym != PSA_UPLUS))
-      return false;
+      goto syntaxErr;
     // Action for: E -> u+ E / u- E
-    resultSym = PSA_E;
+    if (!(newNode = NewNode(p, NODE_UNOP, items[0])))
+      return false;
+    newNode->unOp.operand = TakeNode(items[0]);
+    newNode->unOp.op = (items[1]->sym == PSA_UMINUS) ? OP_UMINUS : OP_UPLUS;
     break;
+
   case 3:
     switch (items[2]->sym) {
     case PSA_LPAR:
+      // E -> ( E )
       if (items[1]->sym != PSA_E || items[0]->sym != PSA_RPAR)
-        return false;
+        goto syntaxErr;
 
-      // Action for: E -> ( E )
-      resultSym = PSA_E;
+      newNode = TakeNode(items[1]);
       break;
 
-    case PSA_ID:
-      if (items[1]->sym != PSA_LPAR || items[0]->sym != PSA_RPAR)
-        return false;
-
-      if (items[2]->token.type != TOKEN_IDENTIFIER)
-        return false;
-
-      // Action for: E -> id ( )
-      resultSym = PSA_E;
+    case PSA_ID: {
+      // E -> id ( )
+      if (items[1]->sym != PSA_LPAR || items[0]->sym != PSA_RPAR ||
+          items[2]->node->kind != NODE_ID)
+        goto syntaxErr;
+      // changes node ID to node FNCALL
+      newNode = TakeNode(items[2]);
+      char *name = newNode->name;
+      newNode->kind = NODE_FNCALL;
+      newNode->fncall.name = name;
+      newNode->fncall.args = (ASTList_t){0};
       break;
+    }
 
     case PSA_ARGS:
+      // ARGS -> ARGS , E
       if (items[1]->sym != PSA_COMMA || items[0]->sym != PSA_E)
+        goto syntaxErr;
+      // takes helper node FNCALL, and appends E in the args list
+      newNode = TakeNode(items[2]);
+      if (!AppendNode(p, &newNode->fncall.args, items[0])) {
+        ASTFree(newNode);
         return false;
-
-      // Action for: ARGS -> ARGS , E
-      resultSym = PSA_ARGS;
+      }
+      newSym = PSA_ARGS;
       break;
 
     case PSA_E:
       switch (items[1]->sym) {
       case PSA_COMMA:
+        // ARGS -> E , E
         if (items[0]->sym != PSA_E)
+          goto syntaxErr;
+        // Creates helper node FNCALL to then append E, E in the args list
+        if (!(newNode = NewNode(p, NODE_FNCALL, items[2])))
           return false;
-        // Action for: ARGS -> E , E
-        resultSym = PSA_ARGS;
+        if (!AppendNode(p, &newNode->fncall.args, items[2])) {
+          ASTFree(newNode);
+          return false;
+        }
+        if (!AppendNode(p, &newNode->fncall.args, items[0])) {
+          ASTFree(newNode);
+          return false;
+        }
+        newSym = PSA_ARGS;
         break;
 
       case PSA_PLUS:
       case PSA_MINUS:
       case PSA_DIV:
       case PSA_MUL:
-        if (items[0]->sym != PSA_E)
-          return false;
-        // Action for: E -> E op E
-        resultSym = PSA_E;
-        break;
-
       case PSA_NEQ:
       case PSA_EQ:
       case PSA_GTE:
       case PSA_GT:
       case PSA_LTE:
       case PSA_LT:
+        // E -> E op E
+        // COND -> E op E ? i think we dont need it explicitely
         if (items[0]->sym != PSA_E)
+          goto syntaxErr;
+        if (!(newNode = NewNode(p, NODE_BINOP, items[2])))
           return false;
-        // Action for: COND -> E op E
-        resultSym = PSA_COND;
+        newNode->binOp.left = TakeNode(items[2]);
+        newNode->binOp.right = TakeNode(items[0]);
+        newNode->binOp.op = OpFromSym(items[1]->sym);
         break;
 
       default:
-        return false;
+        goto syntaxErr;
       }
       break;
 
     default:
-      return false;
+      goto syntaxErr;
     }
     break;
 
   case 4:
     if (items[3]->sym != PSA_ID || items[2]->sym != PSA_LPAR ||
-        items[0]->sym != PSA_RPAR)
-      return false;
+        items[0]->sym != PSA_RPAR || items[3]->node->kind != NODE_ID)
+      goto syntaxErr;
 
-    if (items[3]->token.type != TOKEN_IDENTIFIER)
-      return false;
+    // E -> id ( E )
+    if (items[1]->sym == PSA_E) {
+      // changes node ID to node FNCALL and appends E in args list
+      newNode = TakeNode(items[3]);
+      char *name = newNode->name;
+      newNode->kind = NODE_FNCALL;
+      newNode->fncall.name = name;
+      newNode->fncall.args = (ASTList_t){0};
+      if (!AppendNode(p, &newNode->fncall.args, items[1])) {
+        ASTFree(newNode);
+        return false;
+      }
+    }
 
-    if (items[1]->sym != PSA_E && items[1]->sym != PSA_ARGS)
-      return false;
-    // Action for: E -> id ( E ) or E -> id ( ARGS )
-    resultSym = PSA_E;
+    // E -> id ( ARGS )
+    else if (items[1]->sym == PSA_ARGS) {
+      // takes helper node FNCALL which already stores the arguments and
+      // sets the FNCALL name to the name from node ID, then frees node ID
+      newNode = TakeNode(items[1]);
+      newNode->fncall.name = items[3]->node->name;
+      items[3]->node->name = NULL;
+      newNode->pos = items[3]->node->pos;
+      ASTFree(TakeNode(items[3]));
+    } else
+      goto syntaxErr;
     break;
 
   default:
-    return false;
+    goto syntaxErr;
   }
 
+  // set the new stack top after the handle
   stack->top = current->next;
-  stack->afterTerminal = NULL;
-
+  // free node handle
+  free(current);
+  // free popped nodes from stack
   for (int i = 0; i < len; i++) {
-    TerminateToken(&items[i]->token);
     free(items[i]);
   }
-  free(current);
-  return StackPush(stack, NULL, resultSym);
+  // push the new reduced item to stack
+  if (!StackPush(stack, newSym, newNode)) {
+    p->errorCode = ERROR_MEM;
+    ASTFree(newNode);
+    return false;
+  }
+  return true;
+
+syntaxErr:
+  p->errorCode = ERROR_SYNTAX;
+  return false;
 }
 
-/* Parses nonterminal expression using preceding parsing
-* returns false on error, else true, more info about error in p->errorCode
-* should return ASTNode_t in the future
-* */
-bool ParseExpression(Parser_t *p) {
+/* Parses nonterminal expression using precedence parsing.
+ * returns AS tree of the expression if successful, else NULL. Error info in
+ * p->errorCode
+ * */
+ASTNode_t *ParseExpression(Parser_t *p) {
   PStack_t stack;
 
   if (!StackInit(&stack)) {
     p->errorCode = ERROR_MEM;
-    return false;
+    return NULL;
   }
 
   while (true) {
     if (p->current.type == TOKEN_ERROR) {
-      if (p->errorCode == ERROR_NOERR) {
+      if (p->errorCode == ERROR_NOERR)
         p->errorCode = p->current.error;
-      }
-      StackFree(&stack);
-      return false;
+
+      goto stackFree;
     }
 
     PSASymbol_t topTerminal = StackTopTerminal(&stack)->sym;
-    PSASymbol_t currentSymbol = TokenToSym(p->current.type, stack.top->sym);
+    PSASymbol_t currentSymbol = SymFromToken(p->current.type);
 
     if (topTerminal == PSA_DOLLAR && currentSymbol == PSA_DOLLAR) {
-      if ((stack.top->sym != PSA_E && stack.top->sym != PSA_COND) ||
-          stack.top->next == NULL || stack.top->next->sym != PSA_DOLLAR) {
-        if (p->errorCode == ERROR_NOERR) {
-          p->errorCode = ERROR_SYNTAX;
-        }
-        StackFree(&stack);
-        return false;
-      }
+
+      if (stack.top->sym != PSA_E || stack.top->next == NULL ||
+          stack.top->next->sym != PSA_DOLLAR)
+        goto failure;
+
+      ASTNode_t *expr = TakeNode(stack.top);
       StackFree(&stack);
-      return true;
+      return expr;
     }
 
     switch (PTable[topTerminal][currentSymbol]) {
     case '<':
-      if (!StackPushAfterTerminal(&stack)) {
+      if (!StackInsertHandle(&stack)) {
         p->errorCode = ERROR_MEM;
-        StackFree(&stack);
-        return false;
+        goto stackFree;
       }
     // fallthrough
-    case '=':
-      if (!StackPush(&stack, &p->current, currentSymbol)) {
+    case '=': {
+      ASTNode_t *node = NULL;
+      if (currentSymbol == PSA_ID)
+        if (!(node = CreateLeaf(p)))
+          goto stackFree;
+
+      if (!StackPush(&stack, currentSymbol, node)) {
+        ASTFree(node);
         p->errorCode = ERROR_MEM;
-        StackFree(&stack);
-        return false;
+        goto stackFree;
       }
+
       if (!Advance(p)) {
-        StackFree(&stack);
-        return false;
+        goto stackFree;
       }
       break;
-
+    }
+      // ============================
     case '>':
-      if (!Reduce(&stack)) {
-        if (p->errorCode == ERROR_NOERR)
-          p->errorCode = ERROR_SYNTAX;
-        StackFree(&stack);
-        return false;
-      }
+      if (!Reduce(p, &stack))
+        goto stackFree;
       break;
 
     default:
-      if (p->errorCode == ERROR_NOERR)
-        p->errorCode = ERROR_SYNTAX;
-      StackFree(&stack);
-      return false;
+      goto failure;
     }
   }
+failure:
+  if (p->errorCode == ERROR_NOERR)
+    p->errorCode = ERROR_SYNTAX;
+stackFree:
+  StackFree(&stack);
+  return NULL;
 }
