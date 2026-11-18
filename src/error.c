@@ -12,11 +12,7 @@ void ReportLexicalError(MsgContext_t ctx, const char *code, const char *msg,
 
   if (addContext) {
     MsgAddContext(message, MSG_CONTEXT_T(0), "%s", code);
-    MsgAddContext(message,
-                  MSG_CONTEXT_T(.lineNum = ctx.lineNum,
-                                .hlStartCol = ctx.hlStartCol,
-                                .hlEndCol = ctx.hlEndCol, .poiCol = ctx.poiCol),
-                  "here");
+    MsgAddContext(message, ctx, "here");
   }
 
   MsgSend(message);
