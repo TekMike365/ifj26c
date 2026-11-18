@@ -2,8 +2,8 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
-#include "lexer.h"
-#include "messenger.h"
+#include "src/lexer.h"
+#include "src/messenger.h"
 #include "tester.h"
 #include <stdio.h>
 #include <string.h>
