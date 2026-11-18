@@ -353,6 +353,11 @@ static inline IndentInfo_t MeasureIndent(Lexer_t *lexer) {
 static ErrorCode_t UpdateIndentStack(int indent, IntStack_t *indents,
                                      int *levelsChanged) {
   assert(indents != NULL);
+
+  if (IntStackIsEmpty(indents)) {
+    return ERROR_INTERNAL;
+  }
+
   int change = 0; // level change, zero initially
 
   // top is smaller -> indent, push
@@ -747,11 +752,14 @@ _Bool LayoutFilterInit(LayoutFilter_t *filter, FILE *src) {
 
   if (!LexerInit(&filter->lexer, src))
     return 0;
-  IntStackInit(&filter->indents);
+  filter->indents = IntStackCreate();
+  if (!filter->indents) {
+    return 0;
+  }
   // push 0 on the stack
   // acts as a reference value that is never popped
   // until terminated
-  if (!IntStackPush(&filter->indents, 0)) {
+  if (!IntStackPush(filter->indents, 0)) {
     return 0;
   }
   filter->stash = (Token_t){0};
@@ -773,7 +781,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
     return;
   }
   LexerTerminate(&filter->lexer);
-  IntStackTerminate(&filter->indents);
+  IntStackTerminate(filter->indents);
   filter->stash = (Token_t){0};
   filter->hasStash = 0;
 
@@ -941,8 +949,8 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       // normal indent processing
       int change;
 
-      ErrorCode_t error = UpdateIndentStack(filter->nextIndent.width,
-                                            &filter->indents, &change);
+      ErrorCode_t error =
+          UpdateIndentStack(filter->nextIndent.width, filter->indents, &change);
       if (error != ERROR_NOERR) {
 
         if (error == ERROR_INTERNAL) {

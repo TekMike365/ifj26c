@@ -118,7 +118,7 @@ typedef struct {
 typedef struct {
   Lexer_t lexer;
   // indent stack
-  IntStack_t indents;
+  IntStack_t *indents;
 
   // storage for one token
   Token_t stash;
