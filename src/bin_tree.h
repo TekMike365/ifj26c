@@ -20,7 +20,7 @@ typedef struct SymbolHeader {
 typedef struct SymbolTreeNode SymbolTreeNode_t;
 
 /** Function used to release a symbol's optional payload. */
-typedef void (*SymbolDataDestroyFn)(void *data);
+typedef void (*SymbolDataDestroyFn_t)(void *data);
 
 /**
  * Red-black search tree backed by a resizable array.
@@ -39,7 +39,7 @@ typedef struct SymbolTree {
   /** Index of the root node, or SIZE_MAX when the tree is empty. */
   size_t root;
   /** Optional destructor for payloads owned by the tree. */
-  SymbolDataDestroyFn destroyData;
+  SymbolDataDestroyFn_t destroyData;
 } SymbolTree_t;
 
 /**
@@ -57,7 +57,7 @@ bool SymbolTreeInit(SymbolTree_t *tree);
  * needed, use SymbolTreeInit.
  */
 bool SymbolTreeInitWithDestructor(SymbolTree_t *tree,
-                                  SymbolDataDestroyFn destroyData);
+                                  SymbolDataDestroyFn_t destroyData);
 
 /** Free all identifiers, payloads, and storage owned by the tree. */
 void SymbolTreeDestroy(SymbolTree_t *tree);

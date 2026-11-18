@@ -43,7 +43,7 @@ bool SymbolTreeInit(SymbolTree_t *tree) {
 }
 
 bool SymbolTreeInitWithDestructor(SymbolTree_t *tree,
-                                  SymbolDataDestroyFn destroyData) {
+                                  SymbolDataDestroyFn_t destroyData) {
   if (tree == NULL) {
     return false;
   }
