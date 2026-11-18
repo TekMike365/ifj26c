@@ -1,6 +1,10 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Dominik Makuka <xmakukd00>
- */
+ *
+ * this module defines error codes as per spec
+ * and provides functions for reporting compiler errors
+ * via messenger.h
+ * */
 
 #ifndef IFJ26_ERROR_H
 #define IFJ26_ERROR_H
