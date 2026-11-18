@@ -2,7 +2,7 @@
  * Author[s]: Dominik Makuka <xmakukd00>
  */
 
-#include "src/lexer.h"
+#include "src/layout_filter.h"
 #include "src/messenger.h"
 #include "tester.h"
 #include <stdio.h>
