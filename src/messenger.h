@@ -88,13 +88,13 @@ Message_t *MsgStart(MsgType_t type, int errCode, const char *fmt, ...);
  */
 void MsgDrop(Message_t *msg);
 
-/* MsgDrop()
+/* MsgSend()
  *   Sends `msg' to stderr and frees it's resources. Using `msg' after it was
  * sent will result in undefined behavior.
  *
  *   This function tries to read context from the input file. If it fails to
- * return to the original possition it returns error `MSG_ERR_NORETURN'. If such
- * error occures the file offset is pointed to a random place in the file, it
+ * return to the original position it returns error `MSG_ERR_NORETURN'. If such
+ * error occurs the file offset is pointed to a random place in the file, it
  * can be both before or after the original place.
  *
  * Returns:

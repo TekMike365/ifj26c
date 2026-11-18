@@ -73,7 +73,9 @@ long MessengerStoreNewLine(long offset) {
   if (m_lineOffsetVec.size == m_lineOffsetVec.cap) {
     DLOG_TRACE("<messenger> Reallocating line offset buffer.");
     m_lineOffsetVec.cap = m_lineOffsetVec.cap * 3 / 2;
-    m_lineOffsetVec.data = realloc(m_lineOffsetVec.data, m_lineOffsetVec.cap);
+    m_lineOffsetVec.data =
+        realloc(m_lineOffsetVec.data,
+                m_lineOffsetVec.cap * sizeof *m_lineOffsetVec.data);
 
     if (!m_lineOffsetVec.data) {
       DLOG_WARNING("<messenger> Failed to reallocate line offset buffer.");
@@ -138,7 +140,7 @@ MsgErr_t TryPrintCtxLine(FILE *fp, MsgContext_t *ctx) {
   errno = 0;
   long oldPos = ftell(fp);
   if (oldPos < 0) {
-    if (errno = ESPIPE)
+    if (errno == ESPIPE)
       DLOG_INFO("<msg-ctx> Failed to get current file position, file isn't "
                 "seekable.");
     else
