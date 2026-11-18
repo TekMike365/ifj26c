@@ -33,7 +33,7 @@ static ASTNode_t *ParseParam(Parser_t *p);
 /*Sets p->errorCode as either ERROR_LEX or ERROR_SYNTAX depending on the token
  * p->current
  * */
-static void SetError(Parser_t *p) {
+void SetError(Parser_t *p) {
   if (p->current.type == TOKEN_ERROR)
     p->errorCode = p->current.error;
   else
@@ -65,9 +65,9 @@ static ASTNode_t *NewNode(Parser_t *p, ASTKind_t kind) {
 }
 
 static bool AppendNode(Parser_t *p, ASTList_t *list, ASTNode_t *node) {
-  if (node == NULL) {
+  if (node == NULL)
     return false;
-  }
+
   if (!ASTAppend(list, node)) {
     ASTFree(node);
     p->errorCode = ERROR_MEM;
