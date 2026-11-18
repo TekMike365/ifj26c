@@ -101,11 +101,11 @@ typedef struct {
 
 // lexer structure
 typedef struct {
-  FILE *src;     // source file
-  CharBuf_t buf; // buffer for read characters
-  size_t offset; // file offset
-  size_t line;   // counts newlines
-  size_t col;    // line offset
+  FILE *src;      // source file
+  CharBuf_t *buf; // buffer for read characters
+  size_t offset;  // file offset
+  size_t line;    // counts newlines
+  size_t col;     // line offset
 
   // stores the previous character
   // used to replace ungetc

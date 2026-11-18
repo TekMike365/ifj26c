@@ -446,7 +446,7 @@ RESET:
   new.pos.start = lexer->col; // set start
 
   // reset buffer
-  CharBufClear(&lexer->buf);
+  CharBufClear(lexer->buf);
 
   current = STATE_START;
 
@@ -460,7 +460,7 @@ RESET:
       break;
     }
 
-    if (!CharBufInsert(&lexer->buf, c)) {
+    if (!CharBufInsert(lexer->buf, c)) {
       TokenSetError(ERROR_INTERNAL, &new);
       ReportInternalError("Out of memory.");
       return new;
@@ -468,13 +468,6 @@ RESET:
 
     current = next;
   }
-
-  // null-terminate
-  if (!CharBufInsert(&lexer->buf, '\0')) {
-    TokenSetError(ERROR_INTERNAL, &new);
-    ReportInternalError("Out of memory.");
-    return new;
-  };
 
   // next char was consumed to determine end
   // i.e. '+' in "pos+1" is a delimiter for "pos"
@@ -493,9 +486,10 @@ RESET:
     // IF STRING POOL CONTAINED STRING+METADATA i.e. TOKEN POOL
     // Token type could be a part of it?
     // ParseIdentifier not needed?
-    new.type = ParseIdentifier(lexer->buf.buf);
+    new.type = ParseIdentifier(CharBufGetBuf(lexer->buf));
     if (new.type == TOKEN_IDENTIFIER) {
-      if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
+      if (!TokenSetLexemeS(&new, CharBufGetBuf(lexer->buf),
+                           CharBufGetSize(lexer->buf))) {
         TokenSetError(ERROR_INTERNAL, &new);
         ReportInternalError("Out of memory.");
         return new;
@@ -552,10 +546,10 @@ RESET:
   case STATE_BLOCK_COMMENT:
     // if unclosed
     if (!SkipBlockComment(lexer, &isMultiline)) {
-      ReportLexicalError(MSG_CONTEXT_T(.lineNum = lexer->line,
-                                       .hlStartCol = lexer->col,
-                                       .hlEndCol = lexer->col, .poiCol = 0),
-                         lexer->buf.buf, "Unclosed block comment.", 1);
+      ReportLexicalError(
+          MSG_CONTEXT_T(.lineNum = lexer->line, .hlStartCol = lexer->col,
+                        .hlEndCol = lexer->col, .poiCol = 0),
+          CharBufGetBuf(lexer->buf), "Unclosed block comment.", 1);
       TokenSetError(ERROR_LEX, &new);
       break;
     }
@@ -599,14 +593,14 @@ RESET:
 
   case STATE_INT:
     new.type = TOKEN_INT;
-    new.lexemeI = StrToInt(lexer->buf.buf, NULL);
+    new.lexemeI = StrToInt(CharBufGetBuf(lexer->buf), NULL);
     break;
 
   case STATE_DOUBLE:
   case STATE_EXPONENT:
   case STATE_END_DOUBLE:
     new.type = TOKEN_DOUBLE;
-    new.lexemeD = StrToDouble(lexer->buf.buf, NULL);
+    new.lexemeD = StrToDouble(CharBufGetBuf(lexer->buf), NULL);
     break;
 
   case STATE_DOT:
@@ -630,7 +624,8 @@ RESET:
     new.type = TOKEN_STRING;
 
     // set lexemeS
-    if (!TokenSetLexemeS(&new, lexer->buf.buf, lexer->buf.size)) {
+    if (!TokenSetLexemeS(&new, CharBufGetBuf(lexer->buf),
+                         CharBufGetSize(lexer->buf))) {
       TokenSetError(ERROR_INTERNAL, &new);
       ReportInternalError("Out of memory.");
       return new;
@@ -639,7 +634,7 @@ RESET:
     // string literal is likely much longer than
     // identifier or any other buffered lexeme
     // try to shrink it
-    if (!CharBufTryShrink(&lexer->buf)) {
+    if (!CharBufTryShrink(lexer->buf)) {
       TokenSetError(ERROR_INTERNAL, &new);
       ReportInternalError("Out of memory.");
       return new;
@@ -658,7 +653,7 @@ RESET:
     ReportLexicalError(
         MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
                       .hlEndCol = new.pos.end, .poiCol = new.pos.end),
-        lexer->buf.buf, "Unexpected character sequence.", 1);
+        CharBufGetBuf(lexer->buf), "Unexpected character sequence.", 1);
 
     break;
 
@@ -705,7 +700,10 @@ _Bool LexerInit(Lexer_t *lexer, FILE *src) {
   }
 
   lexer->src = src;
-  CharBufInit(&lexer->buf);
+  lexer->buf = CharBufCreate();
+  if (!lexer->buf) {
+    return 0;
+  }
   lexer->offset = 0;
   lexer->line = 1; // first line
   lexer->col = 1;  // col 0
@@ -729,7 +727,7 @@ void LexerTerminate(Lexer_t *lexer) {
   }
 
   lexer->src = NULL;
-  CharBufTerminate(&lexer->buf);
+  CharBufTerminate(lexer->buf);
   lexer->prevChar = 0;
   lexer->line = 1;
   lexer->col = 1;
@@ -905,7 +903,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       ReportLexicalError(
           MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
                         .hlEndCol = new.pos.end, .poiCol = 0),
-          filter->lexer.buf.buf,
+          CharBufGetBuf(filter->lexer.buf),
           "No token allowed on the last line of a block comment.", 1);
 
       LayoutFilterStashToken(filter, new);
@@ -930,7 +928,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
         ReportLexicalError(
             MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = 1,
                           .hlEndCol = new.pos.end, .poiCol = 0),
-            filter->lexer.buf.buf,
+            CharBufGetBuf(filter->lexer.buf),
             "Tabulator can`t be used to indent a logical line.", 1);
 
         LayoutFilterStashToken(filter, new);
@@ -951,10 +949,11 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
           ReportInternalError("Indent stack push failure: Out of memory.");
         }
 
-        ReportLexicalError(
-            MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
-                          .hlEndCol = new.pos.end, .poiCol = 0),
-            filter->lexer.buf.buf, "No matching indent for dedent found.", 1);
+        ReportLexicalError(MSG_CONTEXT_T(.lineNum = new.pos.line,
+                                         .hlStartCol = new.pos.start,
+                                         .hlEndCol = new.pos.end, .poiCol = 0),
+                           CharBufGetBuf(filter->lexer.buf),
+                           "No matching indent for dedent found.", 1);
 
         LayoutFilterStashToken(filter, new);
 
