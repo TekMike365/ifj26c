@@ -42,6 +42,12 @@ typedef struct SymbolTree {
   SymbolDataDestroyFn_t destroyData;
 } SymbolTree_t;
 
+/** A linked-list node containing one symbol array index. */
+typedef struct SymbolTreeIndexNode {
+  size_t index;
+  struct SymbolTreeIndexNode *next;
+} SymbolTreeIndexNode_t;
+
 /**
  * Initialize an empty tree.
  *
@@ -110,6 +116,23 @@ const SymbolHeader_t *SymbolTreeSearch(const SymbolTree_t *tree,
                                        const char *identifier);
 
 /**
+ * Find the indexes of all symbols with the given identifier.
+ *
+ * The returned list is allocated by this function and prepended while
+ * scanning, so indexes are in reverse array order. The caller must free it
+ * with SymbolTreeIndexListDestroy. On failure, *indices is set to NULL.
+ *
+ * @return true on success (including when there are no matches), or false for
+ * invalid arguments or allocation failure.
+ */
+bool SymbolTreeFindAllIndices(const SymbolTree_t *tree,
+                              const char *identifier,
+                              SymbolTreeIndexNode_t **indices);
+
+/** Free a list returned by SymbolTreeFindAllIndices. */
+void SymbolTreeIndexListDestroy(SymbolTreeIndexNode_t *indices);
+
+/**
  * Find a symbol by identifier for mutation.
  *
  * The identifier is a tree key and must not be changed. The payload may be
@@ -122,14 +145,12 @@ const SymbolHeader_t *SymbolTreeSearch(const SymbolTree_t *tree,
 SymbolHeader_t *SymbolTreeSearchMutable(SymbolTree_t *tree,
                                         const char *identifier);
 
-#ifdef DEBUG
 /**
  * Write a diagnostic visualization of the tree through the debug logger.
  *
- * This function is available only in DEBUG builds and writes to stderr, not
- * stdout.
+ * In DEBUG builds, output is written to stderr. In release builds, this
+ * function does nothing.
  */
 void SymbolTreeDebugPrint(const SymbolTree_t *tree);
-#endif
 
 #endif

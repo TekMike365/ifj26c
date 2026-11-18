@@ -32,11 +32,9 @@ static void SetColor(SymbolTree_t *tree, size_t node, BtColor_t color);
 static void DestroyData(const SymbolTree_t *tree, void *data);
 static void Rotate(SymbolTree_t *tree, size_t node,
                    BtDirection_t direction);
-#ifdef DEBUG
 static void SymbolTreeDebugPrintNode(const SymbolTree_t *tree, size_t node,
                                      const char *prefix, size_t prefixLength,
                                      bool isLast, bool isRoot);
-#endif
 
 bool SymbolTreeInit(SymbolTree_t *tree) {
   return SymbolTreeInitWithDestructor(tree, NULL);
@@ -96,13 +94,50 @@ const SymbolHeader_t *SymbolTreeSearch(const SymbolTree_t *tree,
   return node == NO_NODE ? NULL : &tree->items[node].header;
 }
 
+bool SymbolTreeFindAllIndices(const SymbolTree_t *tree,
+                              const char *identifier,
+                              SymbolTreeIndexNode_t **indices) {
+  if (indices == NULL) {
+    return false;
+  }
+  *indices = NULL;
+  if (tree == NULL || identifier == NULL) {
+    return false;
+  }
+
+  for (size_t index = 0; index < tree->size; index++) {
+    if (strcmp(tree->items[index].header.identifier, identifier) != 0) {
+      continue;
+    }
+
+    SymbolTreeIndexNode_t *match = malloc(sizeof *match);
+    if (match == NULL) {
+      SymbolTreeIndexListDestroy(*indices);
+      *indices = NULL;
+      return false;
+    }
+
+    match->index = index;
+    match->next = *indices;
+    *indices = match;
+  }
+  return true;
+}
+
+void SymbolTreeIndexListDestroy(SymbolTreeIndexNode_t *indices) {
+  while (indices != NULL) {
+    SymbolTreeIndexNode_t *next = indices->next;
+    free(indices);
+    indices = next;
+  }
+}
+
 SymbolHeader_t *SymbolTreeSearchMutable(SymbolTree_t *tree,
                                         const char *identifier) {
   size_t node = FindNode(tree, identifier);
   return node == NO_NODE ? NULL : &tree->items[node].header;
 }
 
-#ifdef DEBUG
 void SymbolTreeDebugPrint(const SymbolTree_t *tree) {
   if (tree == NULL || tree->root == NO_NODE) {
     DLOG_TRACE("(empty tree)");
@@ -120,12 +155,13 @@ static void SymbolTreeDebugPrintNode(const SymbolTree_t *tree, size_t node,
   }
 
   const SymbolTreeNode_t *symbol = &tree->items[node];
-  const char *color = symbol->color == BT_RED ? "RED" : "BLACK";
   if (isRoot) {
-    DLOG_TRACE("%s [%s]", symbol->header.identifier, color);
+    DLOG_TRACE("%s [%s]", symbol->header.identifier,
+               symbol->color == BT_RED ? "RED" : "BLACK");
   } else {
     DLOG_TRACE("%s%s%s [%s]", prefix, isLast ? "\\-- " : "|-- ",
-               symbol->header.identifier, color);
+               symbol->header.identifier,
+               symbol->color == BT_RED ? "RED" : "BLACK");
   }
 
   size_t childPrefixLength = prefixLength;
@@ -151,7 +187,6 @@ static void SymbolTreeDebugPrintNode(const SymbolTree_t *tree, size_t node,
                              childPrefixLength, true, false);
   }
 }
-#endif
 
 const SymbolHeader_t *SymbolTreeAt(const SymbolTree_t *tree, size_t index) {
   if (tree == NULL || index >= tree->size) {

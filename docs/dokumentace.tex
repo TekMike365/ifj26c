@@ -172,6 +172,13 @@
   Duplicitné identifikátory sú povolené. \texttt{SymbolTreeSearch} vráti
   jeden zodpovedajúci symbol, zatiaľ čo \texttt{SymbolTreeAt} umožňuje
   prechádzať položky podľa indexu poľa; toto poradie nie je lexikografické.
+  \texttt{SymbolTreeFindAllIndices} vyhľadá všetky výskyty identifikátora a
+  vráti ich indexy ako jednosmerný spájaný zoznam. Zoznam sa vytvára
+  pridávaním na začiatok, preto sú indexy v opačnom poradí, než v akom sú
+  položky v poli. Volajúci musí zoznam uvoľniť funkciou
+  \texttt{SymbolTreeIndexListDestroy}. Funkcia vracia \texttt{true} aj v
+  prípade, že neexistuje zhoda; pri neplatnom argumente alebo chybe alokácie
+  vráti \texttt{false} a výstupný ukazovateľ nastaví na \texttt{NULL}.
 
   Hlavička \texttt{SymbolHeader\_t} obsahuje identifikátor a používateľský
   payload typu \texttt{void *}. \texttt{SymbolTreeInsertWithData} pri úspechu
@@ -190,9 +197,10 @@
   Verejné API momentálne neposkytuje odstránenie položky.
 
   Diagnostická funkcia \texttt{SymbolTreeDebugPrint} vykreslí štruktúru a
-  farby uzlov. Je deklarovaná a kompilovaná iba pri \texttt{DEBUG}; jej
-  jednotlivé riadky zapisuje cez \texttt{DLOG\_TRACE}. Funkcia tak používa
-  debug logger a nezasahuje do štandardného výstupu programu.
+  farby uzlov. Možno ju volať vo všetkých zostaveniach bez podmieneného
+  \texttt{\#ifdef}; v debug zostavení zapisuje jednotlivé riadky cez
+  \texttt{DLOG\_TRACE} na \texttt{stderr}, zatiaľ čo v release zostavení
+  nerobí nič. Nezasahuje tak do štandardného výstupu programu.
 
   Modul \texttt{logger} poskytuje úrovňovaný debug výpis. Jeho makrá a výstup
   sú aktívne iba v zostavení s \texttt{DEBUG}; správy zapisuje na \texttt{stderr}.
