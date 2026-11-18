@@ -1,5 +1,13 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Dominik Makuka <xmakukd00>
+ *
+ * this module implements structures necessary for the lexer FSM
+ * these include:
+ * * CharType_t - enum which groups ASCII characters into groups to make the
+ * *	 transtion table more compact
+ * * ASCIIMap - maps ASCII character to its CharType
+ * * State_t - enum of FSM states
+ * * Transition Table - 2d map where (current state, CharType) -> next state
  */
 
 #ifndef LEXER_FSM_H
@@ -137,7 +145,7 @@ static inline CharType_t MapChar(unsigned char c) {
 
 // FSM states
 typedef enum {
-  STATE_END,
+  STATE_END = 0,
   STATE_ERROR,
   STATE_START,
   STATE_IDENTIFIER,
@@ -194,7 +202,7 @@ typedef enum {
 } State_t;
 
 // abstraction to prevent typing these out repeatedly
-#define ALPHA_GROUP(state_curr, state_next)                                    \
+#define ALPHA_GROUP(X, state_curr, state_next)                                 \
   X((state_curr), CHAR_ALPHA, (state_next))                                    \
   X((state_curr), CHAR_D, (state_next))                                        \
   X((state_curr), CHAR_E, (state_next))                                        \
@@ -203,13 +211,13 @@ typedef enum {
   X((state_curr), CHAR_T, (state_next))
 
 // same for num
-#define NUM_GROUP(state_curr, state_next)                                      \
+#define NUM_GROUP(X, state_curr, state_next)                                   \
   X((state_curr), CHAR_ZERO, (state_next))                                     \
   X((state_curr), CHAR_NUM, (state_next))
 
 // FSM transitions: (current, char type, next)
 #define X_TRANSITIONS(X)                                                       \
-  ALPHA_GROUP(STATE_START, STATE_IDENTIFIER)                                   \
+  ALPHA_GROUP(X, STATE_START, STATE_IDENTIFIER)                                \
   X(STATE_START, CHAR_UNDERSCORE, STATE_IDENTIFIER)                            \
   X(STATE_START, CHAR_LPAR, STATE_LPAR)                                        \
   X(STATE_START, CHAR_RPAR, STATE_RPAR)                                        \
@@ -234,8 +242,8 @@ typedef enum {
   X(STATE_START, CHAR_LINE_FEED, STATE_NEWLINE)                                \
   X(STATE_START, CHAR_WHITESPACE, STATE_WHITESPACE)                            \
                                                                                \
-  ALPHA_GROUP(STATE_IDENTIFIER, STATE_IDENTIFIER)                              \
-  NUM_GROUP(STATE_IDENTIFIER, STATE_IDENTIFIER)                                \
+  ALPHA_GROUP(X, STATE_IDENTIFIER, STATE_IDENTIFIER)                           \
+  NUM_GROUP(X, STATE_IDENTIFIER, STATE_IDENTIFIER)                             \
   X(STATE_IDENTIFIER, CHAR_UNDERSCORE, STATE_IDENTIFIER)                       \
                                                                                \
   X(STATE_LPAR, CHAR_RPAR, STATE_UNIT)                                         \
@@ -252,17 +260,17 @@ typedef enum {
   X(STATE_SLASH, CHAR_SLASH, STATE_COMMENT)                                    \
   X(STATE_SLASH, CHAR_STAR, STATE_BLOCK_COMMENT)                               \
                                                                                \
-  NUM_GROUP(STATE_INT, STATE_INT)                                              \
+  NUM_GROUP(X, STATE_INT, STATE_INT)                                           \
   X(STATE_INT, CHAR_UNDERSCORE, STATE_INT_UNDERSCORE)                          \
   X(STATE_INT, CHAR_DOT, STATE_START_DOUBLE)                                   \
   X(STATE_INT, CHAR_E, STATE_START_EXPONENT)                                   \
-  NUM_GROUP(STATE_INT_UNDERSCORE, STATE_INT)                                   \
+  NUM_GROUP(X, STATE_INT_UNDERSCORE, STATE_INT)                                \
   X(STATE_INT_UNDERSCORE, CHAR_UNDERSCORE, STATE_INT_UNDERSCORE)               \
                                                                                \
-  NUM_GROUP(STATE_DOT, STATE_DOUBLE)                                           \
+  NUM_GROUP(X, STATE_DOT, STATE_DOUBLE)                                        \
   X(STATE_ZERO, CHAR_DOT, STATE_START_DOUBLE)                                  \
                                                                                \
-  NUM_GROUP(STATE_START_DOUBLE, STATE_DOUBLE)                                  \
+  NUM_GROUP(X, STATE_START_DOUBLE, STATE_DOUBLE)                               \
                                                                                \
   X(STATE_QUOTE, CHAR_QUOTE, STATE_DQUOTE)                                     \
   X(STATE_QUOTE, CHAR_BACKSLASH, STATE_ESCAPE)                                 \
@@ -279,20 +287,20 @@ typedef enum {
                                                                                \
   X(STATE_START_EXPONENT, CHAR_PLUS, STATE_SIGN)                               \
   X(STATE_START_EXPONENT, CHAR_MINUS, STATE_SIGN)                              \
-  NUM_GROUP(STATE_START_EXPONENT, STATE_EXPONENT)                              \
-  NUM_GROUP(STATE_SIGN, STATE_EXPONENT)                                        \
+  NUM_GROUP(X, STATE_START_EXPONENT, STATE_EXPONENT)                           \
+  NUM_GROUP(X, STATE_SIGN, STATE_EXPONENT)                                     \
                                                                                \
-  NUM_GROUP(STATE_EXPONENT, STATE_EXPONENT)                                    \
+  NUM_GROUP(X, STATE_EXPONENT, STATE_EXPONENT)                                 \
   X(STATE_EXPONENT, CHAR_UNDERSCORE, STATE_EXPONENT_UNDERSCORE)                \
   X(STATE_EXPONENT, CHAR_D, STATE_END_DOUBLE)                                  \
-  NUM_GROUP(STATE_EXPONENT_UNDERSCORE, STATE_EXPONENT)                         \
+  NUM_GROUP(X, STATE_EXPONENT_UNDERSCORE, STATE_EXPONENT)                      \
   X(STATE_EXPONENT_UNDERSCORE, CHAR_UNDERSCORE, STATE_EXPONENT_UNDERSCORE)     \
                                                                                \
-  NUM_GROUP(STATE_DOUBLE, STATE_DOUBLE)                                        \
+  NUM_GROUP(X, STATE_DOUBLE, STATE_DOUBLE)                                     \
   X(STATE_DOUBLE, CHAR_UNDERSCORE, STATE_DOUBLE_UNDERSCORE)                    \
   X(STATE_DOUBLE, CHAR_E, STATE_START_EXPONENT)                                \
   X(STATE_DOUBLE, CHAR_D, STATE_END_DOUBLE)                                    \
-  NUM_GROUP(STATE_DOUBLE_UNDERSCORE, STATE_DOUBLE)                             \
+  NUM_GROUP(X, STATE_DOUBLE_UNDERSCORE, STATE_DOUBLE)                          \
   X(STATE_DOUBLE_UNDERSCORE, CHAR_UNDERSCORE, STATE_DOUBLE_UNDERSCORE)         \
                                                                                \
   X(STATE_DQUOTE, CHAR_QUOTE, STATE_MULTILINE_STR)                             \
@@ -315,27 +323,32 @@ static void TransitionTableInit(void) {
       // -> error
       if (idx == STATE_START) {
         m_transitionTable[idx][idy] = STATE_ERROR;
+        continue;
       }
 
       // STATE_STRING and STATE_QUOTE
       // all CHARS constitute the string except CHAR_QUOTE
       // CHAR_QUOTE handled in transitions macro
-      else if (idx == STATE_STRING || idx == STATE_QUOTE) {
+      if (idx == STATE_STRING || idx == STATE_QUOTE) {
         m_transitionTable[idx][idy] = STATE_STRING;
+        continue;
       }
 
       // same for multiline string
       // all CHARS default to MULTILINE_STR except on '"'
       // CHAR_QUOTE handled in transitions macro
-      else if (idx == STATE_MULTILINE_STR || idx == STATE_END_QUOTE ||
-               idx == STATE_END_DQUOTE) {
+      if (idx == STATE_MULTILINE_STR || idx == STATE_END_QUOTE ||
+          idx == STATE_END_DQUOTE) {
         m_transitionTable[idx][idy] = STATE_MULTILINE_STR;
-      } else {
-        m_transitionTable[idx][idy] = STATE_END;
+        continue;
       }
+
+      // default
+      m_transitionTable[idx][idy] = STATE_END;
     }
   }
 
+#undef X
 #define X(curr, ch, next) m_transitionTable[curr][ch] = next;
   X_TRANSITIONS(X)
 #undef X
