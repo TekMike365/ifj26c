@@ -30,11 +30,17 @@ void DebugLog(DLogLevel_t lvl, const char *fmt, ...);
 #define DLOG_INFO(...) DebugLog(DLOG_LVL_INFO, __VA_ARGS__)
 #define DLOG_WARNING(...) DebugLog(DLOG_LVL_WARNING, __VA_ARGS__)
 #define DLOG_ERROR(...) DebugLog(DLOG_LVL_ERROR, __VA_ARGS__)
+
 #else /* ifdef DEBUG */
-#define DLOG_TRACE(...)
-#define DLOG_INFO(...)
-#define DLOG_WARNING(...)
-#define DLOG_ERROR(...)
+#define DLOG_NO_IMPL                                                           \
+  do {                                                                         \
+  } while (0)
+
+#define DLOG_TRACE(...) DLOG_NO_IMPL
+#define DLOG_INFO(...) DLOG_NO_IMPL
+#define DLOG_WARNING(...) DLOG_NO_IMPL
+#define DLOG_ERROR(...) DLOG_NO_IMPL
+
 #endif /* ifdef DEBUG */
 
 #endif
