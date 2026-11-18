@@ -96,6 +96,8 @@ TESTFUNC(RejectToken, "i /* helo\n s*/  x", {
   ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
   TerminateToken(&next);
   next = GetNextToken(filter);
+  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  next = GetNextToken(filter);
   ASSERT_INT_EQ(next.type, TOKEN_ERROR);
   next = GetNextToken(filter);
   TerminateToken(&next);

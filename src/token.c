@@ -23,10 +23,8 @@ void TerminateToken(Token_t *token) {
     return;
 
   if (token->type == TOKEN_IDENTIFIER || token->type == TOKEN_STRING) {
-    if (token->lexemeS) {
-      free(token->lexemeS);
-      token->lexemeS = NULL;
-    }
+    free(token->lexemeS);
+    token->lexemeS = NULL;
   }
   *token = (Token_t){.pos = {0}, .type = TOKEN_NONE};
 }
@@ -43,7 +41,14 @@ Token_t MakeToken(TokenType_t type) {
  * * token - token to be set
  */
 void TokenSetError(ErrorCode_t error, Token_t *token) {
-  assert(token != NULL);
+  if (!token) {
+    return;
+  }
+  // if identifier or string, lexemeS could be set
+  // free before changing type
+  if (token->type == TOKEN_IDENTIFIER || token->type == TOKEN_STRING) {
+    free(token->lexemeS);
+  }
   token->type = TOKEN_ERROR;
   token->error = error;
 }
@@ -55,8 +60,9 @@ void TokenSetError(ErrorCode_t error, Token_t *token) {
  * returns 0 on malloc failure, else 1
  */
 _Bool TokenSetLexemeS(Token_t *token, const char *src, size_t length) {
-  assert(token != NULL);
-  assert(src != NULL);
+  if (!token || !src) {
+    return 0;
+  }
 
   token->lexemeS = malloc(length * sizeof(char));
   if (!token->lexemeS) {

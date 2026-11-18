@@ -35,9 +35,6 @@ struct LayoutFilter {
 
   // info about current line`s indent
   IndentInfo_t nextIndent;
-
-  // count of bracket nesting
-  int bracketDepth;
 };
 
 /* Function tries to put 'indent' on top of the indent stack
@@ -114,9 +111,8 @@ static inline Token_t LayoutFilterUnstashToken(LayoutFilter_t *filter) {
  * returns 0 on mem failure or NULL args, else 1
  */
 LayoutFilter_t *LayoutFilterCreate(FILE *src) {
-  if (!src) {
-    return NULL;
-  }
+  assert(src != NULL);
+
   LayoutFilter_t *filter = malloc(sizeof(*filter));
 
   if (!filter) {
@@ -148,8 +144,6 @@ LayoutFilter_t *LayoutFilterCreate(FILE *src) {
 
   filter->nextIndent = (IndentInfo_t){0};
 
-  filter->bracketDepth = 0;
-
   return filter;
 }
 
@@ -173,10 +167,7 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
  * emits synthetic tokens as well (i.e. TOKEN_NEWLINE before TOKEN_EOF)
  */
 Token_t GetNextToken(LayoutFilter_t *filter) {
-  // return TOKEN_NONE
-  if (!filter) {
-    return CreateToken();
-  }
+  assert(filter != NULL);
 
   if (filter->dedentQueue > 0) {
     filter->dedentQueue--;
@@ -203,11 +194,18 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
     // set flag and discard it
     if (new.type == TOKEN_EXPECT_EOL) {
       filter->expectEOL = 1;
-      continue;
+      // consume the newline block comment is replaced by
+      // else it will cancel expectEOL check
+      // this newline will be emitted at the check ** <- here
+      new = GetRawToken(filter->lexer);
     }
 
     // if TOKEN_NEWLINE
     if (new.type == TOKEN_NEWLINE) {
+      // ** here return it
+      if (filter->expectEOL) {
+        return new;
+      }
 
       // last multiline comment line ended
       filter->expectEOL = 0;
@@ -233,14 +231,6 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
       }
       // set valid indent to dedent all blocks
       filter->nextIndent = (IndentInfo_t){0};
-    }
-
-    if (new.type == TOKEN_LPAR) {
-      filter->bracketDepth++;
-    }
-
-    if (new.type == TOKEN_RPAR) {
-      filter->bracketDepth--;
     }
 
     // expected EOL after multiline block comment, but other token came

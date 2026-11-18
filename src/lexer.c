@@ -250,7 +250,7 @@ static double StrToDouble(char *restrict nptr, char **restrict end) {
 
 /* Function skips block comment
  * If comment spans one line, it is replaced by ' '
- * else if multiple, replaced by newline
+ * else with newline
  * if last line continues with non-whitespace, error
  * * isMultiline - optional argument
  * */
@@ -297,7 +297,7 @@ static _Bool SkipBlockComment(Lexer_t *lexer, _Bool *isMultiline) {
 
   // if multi line block comment, return c
   // else replace the comment by space
-  lexer->prevChar = hasNewline ? c : ' ';
+  lexer->prevChar = hasNewline ? '\n' : ' ';
 
   // return: 1 => skipped without problem; 0 => EOF before comment end
   return depth == 0;
@@ -323,9 +323,8 @@ static inline void SkipWhitespace(Lexer_t *lexer) {
   int c;
 
   // whitespace as allowed per spec
-  while ((c = GetNextChar(lexer)) == ' ' || c == '\t' || c == '\r') {
-    continue;
-  }
+  while ((c = GetNextChar(lexer)) == ' ' || c == '\t' || c == '\r')
+    ;
 
   lexer->prevChar = c;
 }
@@ -370,7 +369,9 @@ static inline IndentInfo_t MeasureIndent(Lexer_t *lexer) {
  * all other tokens are recognizable by their TokenType
  * */
 Token_t GetRawToken(Lexer_t *lexer) {
-  assert(lexer != NULL);
+  if (!lexer) {
+    return MakeToken(TOKEN_NONE);
+  }
   // used for multiline comments to emit TOKEN_EXPECT_EOL
   _Bool isMultiline;
   // create new token
@@ -421,8 +422,12 @@ RESET:
   // can be optimized by STATE->TOKEN_TYPE map
   switch (current) {
 
+    // transition table is initalized so that on unknow symbol,
+    // STATE_START goes to STATE_ERROR
+    // this case shouldn`t occurr
   case STATE_START:
-    new.type = TOKEN_EOF;
+    new.type = TOKEN_ERROR;
+    ReportInternalError("Lexer terminated without reading characters.");
     break;
 
   case STATE_IDENTIFIER:
@@ -621,9 +626,8 @@ RESET:
  * src - pointer to buffer to scan
  */
 Lexer_t *LexerCreate(FILE *src) {
-  if (!src) {
-    return NULL;
-  }
+  assert(src != NULL);
+
   Lexer_t *lexer = malloc(sizeof(*lexer));
   if (!lexer) {
     return NULL;
