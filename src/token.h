@@ -72,7 +72,6 @@ typedef enum {
   TOKEN_AND,
   TOKEN_OR,
   TOKEN_DOT,
-  TOKEN_UNIT,
   TOKEN_EOF,
   TOKEN_NEWLINE,
   TOKEN_ERROR,

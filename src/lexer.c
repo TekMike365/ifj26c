@@ -309,9 +309,9 @@ static inline void SkipLineComment(Lexer_t *lexer) {
 
   int c;
   // read until EOF or line feed
-  while ((c = GetNextChar(lexer)) != EOF && c != '\n') {
-    continue;
-  }
+  while ((c = GetNextChar(lexer)) != EOF && c != '\n')
+    ;
+
   // return c to "stream"
   lexer->prevChar = c;
 }
@@ -377,15 +377,15 @@ Token_t GetRawToken(Lexer_t *lexer) {
   // create new token
   Token_t new = CreateToken();
 
+  State_t current, next;
+
+RESET:
   // on EOF, return TOKEN_EOF
   if (lexer->prevChar == EOF) {
     new.type = TOKEN_EOF;
     return new;
   }
 
-  State_t current, next;
-
-RESET:
   new.pos.line = lexer->line; // set line
   new.pos.start = lexer->col; // set start
 
@@ -528,10 +528,6 @@ RESET:
 
   case STATE_OR:
     new.type = TOKEN_OR;
-    break;
-
-  case STATE_UNIT:
-    new.type = TOKEN_UNIT;
     break;
 
   case STATE_ZERO:
