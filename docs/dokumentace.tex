@@ -286,8 +286,11 @@
   nasledujúcich pravidiel (viď. \ref{sec:predprocessor}).
 
   \begin{verbatim}
+    # pre zjednodušenie taubľky je val jeden z nižšie uvedených tokenov
+    val := id | int | double | string | unit
+
     ####### Expressions #######
-    <expr> :: id
+    <expr> :: val
     <expr> :: <fncall>
     <expr> :: ( <expr> )
 
@@ -377,8 +380,8 @@
   \begin{table}[H]
     \centering
     \begin{tabular}{lrclll}
-           & \id{+} & $\longrightarrow$ & \id{u+}    & pre & $p \notin \{\; \id{id},\; \id{)}\; \}$ \\
-           & \id{-} & $\longrightarrow$ & \id{u-}    & pre & $p \notin \{\; \id{id},\; \id{)}\; \}$ \\
+           & \id{+} & $\longrightarrow$ & \id{u+}    & pre & $p \notin \{\; \id{id},\; \id{)},\; \id{int},\; \id{double},\; \id{string},\; \id{unit}\; \}$ \\
+           & \id{-} & $\longrightarrow$ & \id{u-}    & pre & $p \notin \{\; \id{id},\; \id{)},\; \id{int},\; \id{double},\; \id{string},\; \id{unit}\; \}$ \\
       inak &        &                   &            &     & \\
            & $t$    & $\longrightarrow$ & $t$        &     & \\
     \end{tabular}
