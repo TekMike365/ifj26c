@@ -1,5 +1,6 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Dominik Makuka <xmakukd00>
+ *            Michael Sklenka <xsklenm00>
  */
 
 // ###################################################
@@ -74,7 +75,11 @@ typedef enum {
   TOKEN_UNIT,
   TOKEN_EOF,
   TOKEN_NEWLINE,
-  TOKEN_ERROR
+  TOKEN_ERROR,
+
+  /* `virtual' tokens */
+  TOKEN_UNARY_PLUS,
+  TOKEN_UNARY_MINUS,
 } TokenType_t;
 
 // stores the position of a token

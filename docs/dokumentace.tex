@@ -1,3 +1,4 @@
+
 \documentclass[11pt,a4paper]{article}
 \usepackage[
   top=2.5cm,
@@ -11,12 +12,23 @@
 \setlength\parskip{1em}
 \setlength\parindent{0pt}
 
-\usepackage{tabularx}
 \usepackage[hidelinks]{hyperref}
+
+\usepackage{tabularx}
+\usepackage{graphicx}
+\graphicspath{{./img}}
+\usepackage{float}
+\usepackage{adjustbox}
+
+\usepackage{amsmath}
 
 \def\variant{vv-BVS}
 \def\repo{https://github.com/TekMike365/ifj26c.git}
 \def\extensions{}
+
+% custom commands
+\newcommand*\rid[1]{\begin{adjustbox}{angle=90}\texttt{#1}\end{adjustbox}}
+\newcommand*\id[1]{\texttt{#1}}
 
 \begin{document}
   \begin{titlepage}
@@ -142,9 +154,238 @@
   % přednášených v IFJ; s případným slovním popisem odchylek od standardního
   % modelu konečného automatu);
 
+  \clearpage
   \section{Syntaktický analyzátor}
   % LL gramatiku a z ní vycházející LL tabulku; a precedenční tabulku, podle
   % kterých jste imple- mentovali syntaktický analyzátor;
+
+  Rozdelenie zátvoriek na viacero riadkov je riešené externe v predprocesore
+  tokenov (viď. \ref{sec:predprocessor}).
+  % TODO: make a separate section explaining the filters
+
+  \subsection{LL Gramatika}
+
+  \begin{verbatim}
+    # <expr> a <cond> sú riešené precedenčnou SA
+
+    ####### Root #######
+    rt1: <root> :: <prolog> <prog>
+
+    ####### Optional types #######
+    ty1: <type?> :: : type
+    ty2: <type?> :: {}
+
+    ex1: <expr?> :: <expr>
+    ex2: <expr?> :: {}
+
+    ####### Program #######
+    pg1: <prolog> :: import ifj26.* LF
+
+    pr1: <prog> :: <main> <prog>
+    pr2: <prog> :: <fndef> <prog>
+    pr3: <prog> :: {}
+
+    ma1: <main>    :: @main <maindef>
+    md1: <maindef> :: LF <fndef>
+    md2: <maindef> :: <fndef>
+
+    ####### Block & Statements #######
+    bl1: <block> :: LF INDENT <stmnts> DEDENT
+
+    # ,,sc2'' a ,,sc3'' sú rozlíšené pozeraním sa o jeden token dopredu:
+    #   LF predict(<stmnt>) -> sc2
+    #   LF DEDENT           -> sc3
+    ss1: <stmnts>   :: <stmnt> <stmnts_c> LF
+    sc1: <stmnts_c> :: ; <stmnt> <stmnts_c>
+    sc2: <stmnts_c> :: LF <stmnt> <stmnts_c>
+    sc3: <stmnts_c> :: {}
+
+    # ,,st1'' a ,,st3'' sú rozlíšené (v prípade, že obe začínajú ,,id'')
+    # pozeraním sa o jeden token dopredu:
+    #   id =             -> st1
+    #   id predict(expr) -> st3
+    st1: <stmnt> :: <assign>
+    st2: <stmnt> :: <vardef>
+    st3: <stmnt> :: <expr>
+    st4: <stmnt> :: <ifelse>
+    st5: <stmnt> :: <while>
+    st6: <stmnt> :: return <expr?>
+
+    ####### Statement types #######
+    vd1: <vardef> :: val id <type?> = <expr> LF
+    vd2: <vardef> :: var id <type?> = <expr> LF
+
+    as1: <assign> :: id = <expr> LF
+
+    fd1: <fndef>  :: def id ( <params> ) <type?> = <fnbody>
+    fb1: <fnbody> :: <expr> LF
+    fb2: <fnbody> :: <block>
+
+    ie1: <ifelse> :: if <cond> then <block> else <block>
+
+    wh1: <while> :: while <cond> do <block>
+
+    ####### Params #######
+    pa1: <param> :: id : type
+
+    ps1: <params>   :: <param> <params_c>
+    ps2: <params>   :: {}
+    pc1: <params_c> :: , <param> <params_c>
+    pc2: <params_c> :: {}
+  \end{verbatim}
+
+  \begin{table}[H]
+    \centering
+    \begin{adjustbox}{width=\textwidth}
+      \begin{tabular}{|r||c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+        \hline
+                         & \rid{id}   & \rid{LF}   & \rid{EOF} & \rid{import ifj26.*$\;$} & \rid{@main} & \id{;}   & \id{,}   & \id{:}   & \id{=}   & \id{+}   & \id{-}   & \id{)}   & \rid{var} & \rid{val} & \rid{def} & \rid{if} & \rid{while} & \rid{return}  \\ \hline
+        \hline
+        \id{<root>}      & \id{   }   & \id{   }   & \id{   }  & \id{rt1}                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<type?>}     & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{ty1} & \id{ty2} & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<expr?>}     & \id{ex1}   & \id{ex2}   & \id{ex2}  & \id{   }                 & \id{   }    & \id{ex2} & \id{   } & \id{   } & \id{   } & \id{ex1} & \id{ex1} & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<prolog>}    & \id{   }   & \id{   }   & \id{   }  & \id{pg1}                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<prog>}      & \id{   }   & \id{pr3}   & \id{pr3}  & \id{   }                 & \id{pr1}    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{pr2}  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<main>}      & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{ma1}    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<maindef>}   & \id{   }   & \id{md1}   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{md2}  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<block>}     & \id{   }   & \id{bl1}   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<stmnts>}    & \id{ss1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{ss1} & \id{ss1} & \id{   } & \id{ss1}  & \id{ss1}  & \id{   }  & \id{ss1} & \id{ss1}    & \id{ss1}      \\ \hline
+        \id{<stmnts\_c>} & \id{   }   & \id{sc2/3} & \id{   }  & \id{   }                 & \id{   }    & \id{sc1} & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<stmnt>}     & \id{st1/3} & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{st3} & \id{st3} & \id{   } & \id{st2}  & \id{st2}  & \id{   }  & \id{st4} & \id{st5}    & \id{st6}      \\ \hline
+        \id{<vardef>}    & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{vd2}  & \id{vd1}  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<assign>}    & \id{as1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<fndef>}     & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{fd1}  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<fnbody>}    & \id{fb1}   & \id{fb2}   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{fb1} & \id{fb1} & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<ifelse>}    & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{ie1} & \id{   }    & \id{   }      \\ \hline
+        \id{<while>}     & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{wh1}    & \id{   }      \\ \hline
+        \id{<param>}     & \id{pa1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<params>}    & \id{ps1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{ps2} & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \id{<params\_c>} & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{pc1} & \id{   } & \id{   } & \id{   } & \id{   } & \id{pc2} & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+      \end{tabular}
+    \end{adjustbox}
+    \caption{LL tabuľka.}
+  \end{table}
+
+  \subsection{Precedenčná syntaktická analýza}
+
+  \begin{table}[H]
+    \centering
+    \begin{tabular}{|r|l|l|}
+      \hline
+      Priorita & Operátor     & Asociativita \\ \hline
+             1 & unárne +, -  & pravá        \\ \hline
+             2 & *, /         & ľavá         \\ \hline
+             3 & +, -         & ľavá         \\ \hline
+             4 & <, <=, >, >= & žiadna       \\ \hline
+             5 & ==, !=       & žiadna       \\ \hline
+    \end{tabular}
+    \caption{priority operátorov od 1 (najvyššia).}
+  \end{table}
+
+  ,,u+'', ,,u-'' sú generované v predprocesore tokenov podľa
+  nasledujúcich pravidiel (viď. \ref{sec:predprocessor}).
+
+  \begin{verbatim}
+    # pre zjednodušenie taubľky je val jeden z nižšie uvedených tokenov
+    val := id | int | double | string | unit
+
+    ####### Expressions #######
+    <expr> :: val
+    <expr> :: <fncall>
+    <expr> :: ( <expr> )
+
+    # ,,u+'' a ,,u-'' sú unárne ,,+'' a unárne ,,-''
+    <expr> :: u+ <expr>
+    <expr> :: u- <expr>
+
+    <expr> :: <expr> * <expr>
+    <expr> :: <expr> / <expr>
+
+    <expr> :: <expr> + <expr>
+    <expr> :: <expr> - <expr>
+
+    ####### Conditions #######
+    <cond> :: <expr> < <expr>
+    <cond> :: <expr> <= <expr>
+    <cond> :: <expr> > <expr>
+    <cond> :: <expr> >= <expr>
+
+    <cond> :: <expr> == <expr>
+    <cond> :: <expr> != <expr>
+
+    ####### Function call #######
+    <fncall> :: id call( <args> )
+    <args>   :: <expr> <args_c>
+    <args>   :: {}
+    <args_c> :: , <expr> <args_c>
+    <args_c> :: {}
+  \end{verbatim}
+
+  \begin{table}[H]
+    \centering
+    \begin{tabular}{|r||c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+      \hline
+                 & \id{id} & \id{,} & \id{u+} & \id{u-} & \id{(} & \id{)} & \id{*} & \id{/} & \id{+} & \id{-} & \id{<} & \id{<=} & \id{>} & \id{>=} & \id{==} & \id{!=} & \id{\$} \\ \hline
+      \hline
+      \id{id}    & \id{ }  & \id{>} & \id{ }  & \id{ }  & \id{=} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{,}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{u+}    & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{u-}    & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{(}     & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{=} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
+      \id{)}     & \id{ }  & \id{>} & \id{ }  & \id{ }  & \id{ } & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+
+      \id{*}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{/}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+
+      \id{+}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{-}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+
+      \id{<}     & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{<=}    & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{>}     & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{>=}    & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+
+      \id{==}    & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{!=}    & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+
+      \id{\$}    & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{ } & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
+    \end{tabular}
+    \caption{precedenčná tabuľka.}
+  \end{table}
+
+  \subsection{Predprocesor} \label{sec:predprocessor}
+
+  Predprocessor je prvá časť syntaktického analyzátora, ktorá pripravuje tokeny
+  na spracovanie predom definovanými gramatikami. Chybové tokeny sa
+  nespracovávajú a rovno sa prepustia.
+
+  Správnosť formátovania \textbf{viacriadkových zátvoriek} rieši stavový
+  automat znázornený na obrázku \ref{fig:pp_state_machine} nižšie.
+
+  \begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{pp_state_machine.pdf}
+    \caption{Diagram vnútorného stavového automatu pre riešenie viacriadkových
+             zátvoriek. Stavy označené ,,E'' sú stavy z ktorých môže vyplynúť
+             ,,error''. ,,S'' je východzí stav. Čiarkované šípky značia prechod
+             pri nastatí chyby. Pravidlá nad cykliacimi šípkami sú v tvare
+             ,,\texttt{TOKEN -> AKCIA}''. Premenné ,,l'' a ,,d'' sú
+             inicializované na 0.}
+    \label{fig:pp_state_machine}
+  \end{figure}
+
+  \textbf{Transformácie tokenov} sú nasledovné. Nech $p$ je predchádzajúci
+  token. Potom predprocesor transformuje súčastný token
+
+  \begin{table}[H]
+    \centering
+    \begin{tabular}{lrclll}
+           & \id{+} & $\longrightarrow$ & \id{u+}    & pre & $p \notin \{\; \id{id},\; \id{)},\; \id{int},\; \id{double},\; \id{string},\; \id{unit}\; \}$ \\
+           & \id{-} & $\longrightarrow$ & \id{u-}    & pre & $p \notin \{\; \id{id},\; \id{)},\; \id{int},\; \id{double},\; \id{string},\; \id{unit}\; \}$ \\
+      inak &        &                   &            &     & \\
+           & $t$    & $\longrightarrow$ & $t$        &     & \\
+    \end{tabular}
+  \end{table}
 
   \section{Moduly}
   % stručný popis každého modulu (informačně obhacující věta na dvojici .c/.h);
