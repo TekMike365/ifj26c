@@ -377,15 +377,15 @@ Token_t GetRawToken(Lexer_t *lexer) {
   // create new token
   Token_t new = CreateToken();
 
+  State_t current, next;
+
+RESET:
   // on EOF, return TOKEN_EOF
   if (lexer->prevChar == EOF) {
     new.type = TOKEN_EOF;
     return new;
   }
 
-  State_t current, next;
-
-RESET:
   new.pos.line = lexer->line; // set line
   new.pos.start = lexer->col; // set start
 
