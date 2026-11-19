@@ -287,10 +287,12 @@
 
   \begin{verbatim}
     # pre zjednodušenie taubľky je val jeden z nižšie uvedených tokenov
-    val := id | int | double | string | unit
+    val := int | double | string
 
     ####### Expressions #######
     <expr> :: val
+    <expr> :: id
+    <expr> :: ()
     <expr> :: <fncall>
     <expr> :: ( <expr> )
 
@@ -314,7 +316,7 @@
     <cond> :: <expr> != <expr>
 
     ####### Function call #######
-    <fncall> :: id call( <args> )
+    <fncall> :: id ( <args> )
     <args>   :: <expr> <args_c>
     <args>   :: {}
     <args_c> :: , <expr> <args_c>
@@ -325,30 +327,31 @@
     \centering
     \begin{tabular}{|r||c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
       \hline
-                 & \id{id} & \id{,} & \id{u+} & \id{u-} & \id{(} & \id{)} & \id{*} & \id{/} & \id{+} & \id{-} & \id{<} & \id{<=} & \id{>} & \id{>=} & \id{==} & \id{!=} & \id{\$} \\ \hline
+               & \id{id} & \id{val} & \id{,} & \id{u+} & \id{u-} & \id{(} & \id{)} & \id{*} & \id{/} & \id{+} & \id{-} & \id{<} & \id{<=} & \id{>} & \id{>=} & \id{==} & \id{!=} & \id{\$} \\ \hline
       \hline
-      \id{id}    & \id{ }  & \id{>} & \id{ }  & \id{ }  & \id{=} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{,}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{u+}    & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{u-}    & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{(}     & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{=} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
-      \id{)}     & \id{ }  & \id{>} & \id{ }  & \id{ }  & \id{ } & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{id}  & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{=} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{val} & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{ } & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{,}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{u+}  & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{u-}  & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{(}   & \id{<}  & \id{<}   & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{=} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
+      \id{)}   & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{ } & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
 
-      \id{*}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{/}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{*}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{/}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
 
-      \id{+}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{-}     & \id{<}  & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{+}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{-}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
 
-      \id{<}     & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{<=}    & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{>}     & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{>=}    & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{<}   & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{<=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{>}   & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{>=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
 
-      \id{==}    & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{!=}    & \id{<}  & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{==}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{!=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
 
-      \id{\$}    & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{ } & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
+      \id{\$}  & \id{<}  & \id{<}   & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{ } & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
     \end{tabular}
     \caption{precedenčná tabuľka.}
   \end{table}
@@ -380,8 +383,8 @@
   \begin{table}[H]
     \centering
     \begin{tabular}{lrclll}
-           & \id{+} & $\longrightarrow$ & \id{u+}    & pre & $p \notin \{\; \id{id},\; \id{)},\; \id{int},\; \id{double},\; \id{string},\; \id{unit}\; \}$ \\
-           & \id{-} & $\longrightarrow$ & \id{u-}    & pre & $p \notin \{\; \id{id},\; \id{)},\; \id{int},\; \id{double},\; \id{string},\; \id{unit}\; \}$ \\
+           & \id{+} & $\longrightarrow$ & \id{u+}    & pre & $p \notin \{\; \id{id},\; \id{)},\; \id{int},\; \id{double},\; \id{string}\; \}$ \\
+           & \id{-} & $\longrightarrow$ & \id{u-}    & pre & $p \notin \{\; \id{id},\; \id{)},\; \id{int},\; \id{double},\; \id{string}\; \}$ \\
       inak &        &                   &            &     & \\
            & $t$    & $\longrightarrow$ & $t$        &     & \\
     \end{tabular}
