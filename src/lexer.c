@@ -530,10 +530,6 @@ RESET:
     new.type = TOKEN_OR;
     break;
 
-  case STATE_UNIT:
-    new.type = TOKEN_UNIT;
-    break;
-
   case STATE_ZERO:
     new.type = TOKEN_ZERO;
     new.lexemeI = 0;

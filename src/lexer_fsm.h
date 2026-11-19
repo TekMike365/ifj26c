@@ -158,7 +158,6 @@ typedef enum {
   STATE_AND,
   STATE_OR,
   STATE_NOT_EQ,
-  STATE_UNIT,
   STATE_SEMICOLON,
   STATE_COMMA,
   STATE_COLON,
@@ -246,7 +245,6 @@ typedef enum {
   NUM_GROUP(X, STATE_IDENTIFIER, STATE_IDENTIFIER)                             \
   X(STATE_IDENTIFIER, CHAR_UNDERSCORE, STATE_IDENTIFIER)                       \
                                                                                \
-  X(STATE_LPAR, CHAR_RPAR, STATE_UNIT)                                         \
   X(STATE_AMPERSAND, CHAR_AMPERSAND, STATE_AND)                                \
   X(STATE_PIPE, CHAR_PIPE, STATE_OR)                                           \
                                                                                \
