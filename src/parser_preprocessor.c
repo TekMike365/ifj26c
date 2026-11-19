@@ -37,7 +37,7 @@ static void TBInit(TokenBuffer_t *b) {
     b->tokens[i] = CreateToken();
 }
 
-static void TBTerminnate(TokenBuffer_t *b) {
+static void TBTerminate(TokenBuffer_t *b) {
   if (!b)
     return;
 
@@ -104,7 +104,7 @@ static void TBRemove(TokenBuffer_t *b) {
 
   /* move all tokens back one */
   while (i != b->nextIdx) {
-    size_t n = (b->thisIdx + 1) % TOKEN_BUFFER_SIZE;
+    size_t n = (i + 1) % TOKEN_BUFFER_SIZE;
     b->tokens[i] = b->tokens[n];
     i = n;
   }
@@ -162,7 +162,7 @@ void PPDelete(Preprocessor_t *p) {
     return;
 
   LayoutFilterTerminate(p->lf);
-  TBTerminnate(&p->tb);
+  TBTerminate(&p->tb);
 
   DLOG_INFO("<preprocessor:%p> terminated.", p);
   free(p);
