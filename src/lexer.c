@@ -309,9 +309,9 @@ static inline void SkipLineComment(Lexer_t *lexer) {
 
   int c;
   // read until EOF or line feed
-  while ((c = GetNextChar(lexer)) != EOF && c != '\n') {
-    continue;
-  }
+  while ((c = GetNextChar(lexer)) != EOF && c != '\n')
+    ;
+
   // return c to "stream"
   lexer->prevChar = c;
 }
