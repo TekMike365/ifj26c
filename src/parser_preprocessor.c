@@ -232,10 +232,13 @@ static void FilterBrackets(Preprocessor_t *p) {
         }
         break; /* eat the DEDENT */
       } else if (t.type == TOKEN_NEWLINE) {
-        if (p->bf.blevel <= 0)
-          p->bf.state = BFS_EDEDENT; /* expects dedent*/
+        if (p->bf.blevel > 0)
+          break; /* eat the NEWLINE */
 
-        break; /* eat the NEWLINE */
+        p->bf.state = BFS_EDEDENT; /* expects dedent*/
+        TBUnget(&p->tb);
+        loop = false;
+        break; /* don't eat this one*/
       }
 
       if (p->bf.blevel <= 0 && t.type == TOKEN_COMMA)
