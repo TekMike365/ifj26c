@@ -391,7 +391,63 @@
   \end{table}
 
   \section{Moduly}
-  % stručný popis každého modulu (informačně obhacující věta na dvojici .c/.h);
+  \subsection{Strom symbolov}
+
+  Modul \texttt{bin\_tree} (\texttt{src/bin\_tree.c},
+  \texttt{src/bin\_tree.h}) implementuje červeno-čierny vyhľadávací strom
+  \texttt{SymbolTree\_t}. Uzly sú uložené v rastúcom poli; pri naplnení
+  kapacity sa úložisko zväčší. Väzby medzi rodičom a potomkami sú indexy do
+  tohto poľa, takže presun poľa pri realokácii neporuší väzby. Prázdny
+  potomok alebo koreň je označený hodnotou \texttt{SIZE\_MAX}.
+
+  Verejná štruktúra \texttt{SymbolTree\_t} uchováva pole, jeho veľkosť a
+  kapacitu, index koreňa a voliteľný callback na uvoľnenie payloadov.
+  Implementačný uzol \texttt{SymbolTreeNode} je definovaný iba v súbore
+  \texttt{.c}; obsahuje hlavičku symbolu, farbu a indexy ľavého, pravého a
+  rodičovského uzla. Vyvažovacie operácie, rotácie a typy farby a smeru nie sú
+  súčasťou verejného API.
+
+  Vkladanie skopíruje identifikátor do vlastníctva stromu. Kapacita začína na
+  ôsmich uzloch a pri potrebe sa zdvojnásobuje. Po vložení sa vykonajú
+  prefarbenia a rotácie, ktoré obnovia vlastnosti červeno-čierneho stromu.
+  Vyhľadávanie porovnáva identifikátory funkciou \texttt{strcmp}. Cesta
+  vyhľadávania a vyvažovania má vďaka vlastnostiam stromu zložitosť
+  \texttt{O(log n)}; pri zväčšení poľa môže realokácia presunúť všetky uzly.
+  Duplicitné identifikátory sú povolené. \texttt{SymbolTreeSearch} vráti
+  jeden zodpovedajúci symbol, zatiaľ čo \texttt{SymbolTreeAt} umožňuje
+  prechádzať položky podľa indexu poľa; toto poradie nie je lexikografické.
+  \texttt{SymbolTreeFindAllIndices} vyhľadá všetky výskyty identifikátora a
+  vráti ich indexy ako jednosmerný spájaný zoznam. Zoznam sa vytvára
+  pridávaním na začiatok, preto sú indexy v opačnom poradí, než v akom sú
+  položky v poli. Volajúci musí zoznam uvoľniť funkciou
+  \texttt{SymbolTreeIndexListDestroy}. Funkcia vracia \texttt{true} aj v
+  prípade, že neexistuje zhoda; pri neplatnom argumente alebo chybe alokácie
+  vráti \texttt{false} a výstupný ukazovateľ nastaví na \texttt{NULL}.
+
+  Hlavička \texttt{SymbolHeader\_t} obsahuje identifikátor a používateľský
+  payload typu \texttt{void *}. \texttt{SymbolTreeInsertWithData} pri úspechu
+  preberá vlastníctvo payloadu; pri chybe ho ponecháva volajúcemu. Ak bol
+  strom inicializovaný cez \texttt{SymbolTreeInitWithDestructor}, callback
+  uvoľní payload pri zničení stromu alebo pri jeho bezpečnej náhrade cez
+  \texttt{SymbolTreeSetDataAt}. Bez callbacku strom uvoľňuje iba vlastné
+  identifikátory a úložisko.
+
+  \texttt{SymbolTreeSearchMutable} poskytuje modifikovateľnú hlavičku
+  nájdeného symbolu, napríklad na úpravu obsahu payloadu. Identifikátor sa
+  nesmie meniť, pretože je kľúčom stromu. Priradením nového ukazovateľa do
+  \texttt{data} sa jeho vlastníctvo prenáša na strom, ale pôvodný payload sa
+  tým neuvoľní. Pri nahradení existujúceho payloadu treba použiť
+  \texttt{SymbolTreeSetDataAt}, aby sa zavolal destructor pôvodného payloadu.
+  Verejné API momentálne neposkytuje odstránenie položky.
+
+  Diagnostická funkcia \texttt{SymbolTreeDebugPrint} vykreslí štruktúru a
+  farby uzlov. Možno ju volať vo všetkých zostaveniach bez podmieneného
+  \texttt{\#ifdef}; v debug zostavení zapisuje jednotlivé riadky cez
+  \texttt{DLOG\_TRACE} na \texttt{stderr}, zatiaľ čo v release zostavení
+  nerobí nič. Nezasahuje tak do štandardného výstupu programu.
+
+  Modul \texttt{logger} poskytuje úrovňovaný debug výpis. Jeho makrá a výstup
+  sú aktívne iba v zostavení s \texttt{DEBUG}; správy zapisuje na \texttt{stderr}.
 
   % TODO: bibliography
   % bibliografické citace všech převzatých zdrojů (vč. kódu, algoritmů);
