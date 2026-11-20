@@ -54,6 +54,7 @@ void TokenSetError(ErrorCode_t error, Token_t *token) {
 }
 
 /* Allocates memory for lexemeS and copies src into it
+ * function null-terminates lexemeS
  * * token - token whose lexemeS is to be set
  * * src - source string
  * * length - length of the string
@@ -64,10 +65,13 @@ _Bool TokenSetLexemeS(Token_t *token, const char *src, size_t length) {
     return 0;
   }
 
-  token->lexemeS = malloc(length * sizeof(char));
+  // account for null terminator
+  token->lexemeS = malloc((length + 1) * sizeof(char));
   if (!token->lexemeS) {
     return 0;
   }
   memcpy(token->lexemeS, src, length);
+  // null-terminate
+  token->lexemeS[length] = '\0';
   return 1;
 }
