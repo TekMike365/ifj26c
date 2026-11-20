@@ -50,8 +50,6 @@ PTSymbol_t SymFromToken(TokenType_t t) {
     return PT_ID;
   case TOKEN_INT:
     return PT_VAL;
-  case TOKEN_ZERO:
-    return PT_VAL;
   case TOKEN_DOUBLE:
     return PT_VAL;
   case TOKEN_STRING:

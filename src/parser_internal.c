@@ -136,8 +136,6 @@ const char *TokenToString(TokenType_t type) {
     return "','";
   case TOKEN_COLON:
     return "':'";
-  case TOKEN_ZERO:
-    return "'0'";
   case TOKEN_INT:
     return "integer literal";
   case TOKEN_DOUBLE:
@@ -160,8 +158,6 @@ const char *TokenToString(TokenType_t type) {
     return "'||'";
   case TOKEN_DOT:
     return "'.'";
-  case TOKEN_UNIT:
-    return "'()'";
   case TOKEN_EOF:
     return "end of file";
   case TOKEN_NEWLINE:

@@ -36,7 +36,6 @@ static ASTNode_t *CreateLeaf(Parser_t *p) {
     return node;
 
   /* get int value from token, dont mind the zero */
-  case TOKEN_ZERO:
   case TOKEN_INT:
     node->kind = NODE_INT;
     node->type = TYPE_INT;
