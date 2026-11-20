@@ -377,6 +377,17 @@
     \label{fig:pp_state_machine}
   \end{figure}
 
+  Špeciálnym prípadom je funkcia s parametrami rozdelenými na viac riadkov
+  obsahujúca definíciu vo forme bloku, ako je ukázané nižšie. V tomto prípade
+  predprocesor pridá extra \texttt{INDENT} token pred začiatkom bloku aby bola
+  gramatika spokojná a správne ho začala.
+
+  \begin{verbatim}
+    def foo(
+      a: Int): Int =
+      a * a
+  \end{verbatim}
+
   \textbf{Transformácie tokenov} sú nasledovné. Nech $p$ je predchádzajúci
   token. Potom predprocesor transformuje súčastný token
 

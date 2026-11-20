@@ -262,7 +262,43 @@ static void FilterBrackets(Preprocessor_t *p) {
       loop = false;
     } break;
     case BFS_EDEDENT: {
-      Token_t t = TBGet(&p->tb, p->lf);
+      Token_t t;
+
+      /* def foo(
+       *   a: Int): Int =
+       *   a * a
+       * ^ this one
+       */
+
+      /* = LF SMTHN
+       *      ^ we're here */
+      TBUnget(&p->tb);
+      TBUnget(&p->tb);
+
+      /* = LF SMTHN
+       * ^ we're here */
+      t = TBGet(&p->tb, p->lf);
+      if (t.type == TOKEN_EQ) {
+        /* = LF SMTHN
+         *   ^ we're here */
+        t = TBGet(&p->tb, p->lf);
+        t.type = TOKEN_INDENT;
+
+        /* no need for that LF token */
+        TBUnget(&p->tb);
+        TBReplace(&p->tb, t);
+
+        p->bf.state = BFS_START;
+        loop = false;
+        break;
+      }
+
+      /* X LF SMTHN
+       *   ^ we're here */
+      TBGet(&p->tb, p->lf);
+
+      /* the normal case */
+      t = TBGet(&p->tb, p->lf);
 
       if (p->bf.ilevel == 0 && t.type == TOKEN_DEDENT) {
         p->bf.state = BFS_START;
@@ -280,8 +316,8 @@ static void FilterBrackets(Preprocessor_t *p) {
 
       /* Skip DEDENT error */
       if (t.type == TOKEN_DEDENT) {
-        loop = false;
         p->bf.state = BFS_START;
+        loop = false;
         break;
       }
 
