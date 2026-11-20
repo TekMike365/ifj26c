@@ -173,113 +173,162 @@ void PPDelete(Preprocessor_t *p) {
 static void FilterBrackets(Preprocessor_t *p) {
   assert(p);
 
-  /* skip error tokens */
-  Token_t t = TBGet(&p->tb, p->lf);
-  TBUnget(&p->tb);
-  if (t.type == TOKEN_ERROR)
-    return;
-
-  /* processing */
-  switch (p->bf.state) {
-  case BFS_START: {
+  bool loop = true;
+  while (loop) {
+    /* skip error tokens */
     Token_t t = TBGet(&p->tb, p->lf);
-
-    if (t.type == TOKEN_LPAR)
-      p->bf.blevel++;
-    else if (t.type == TOKEN_RPAR)
-      p->bf.blevel--;
-
-    if (p->bf.blevel > 0 && t.type == TOKEN_NEWLINE) {
-      p->bf.state = BFS_EINDENT;
-      break; /* eat the NEWLINE */
-    }
-
     TBUnget(&p->tb);
-  } break;
-  case BFS_EINDENT: {
-    Token_t t = TBGet(&p->tb, p->lf);
+    if (t.type == TOKEN_ERROR)
+      return; /* this can cause problems */
 
-    if (t.type == TOKEN_INDENT) {
+    /* processing */
+    switch (p->bf.state) {
+    case BFS_START: {
+      Token_t t = TBGet(&p->tb, p->lf);
+
+      if (t.type == TOKEN_LPAR)
+        p->bf.blevel++;
+      else if (t.type == TOKEN_RPAR)
+        p->bf.blevel--;
+
+      if (p->bf.blevel > 0 && t.type == TOKEN_NEWLINE) {
+        p->bf.state = BFS_EINDENT;
+        break; /* eat the NEWLINE */
+      }
+
+      TBUnget(&p->tb);
+      loop = false;
+    } break;
+    case BFS_EINDENT: {
+      Token_t t = TBGet(&p->tb, p->lf);
+
+      if (t.type == TOKEN_INDENT) {
+        p->bf.state = BFS_INSIDE;
+        break; /* eat the INDENT */
+      }
+
+      /* missing indent */
+      DLOG_ERROR("Error:%d: missing indent.", t.pos.line); /* TODO */
       p->bf.state = BFS_INSIDE;
-      break; /* eat the INDENT */
-    }
 
-    /* missing indent */
-    DLOG_ERROR("Error:%d: missing indent.", t.pos.line); /* TODO */
-    p->bf.state = BFS_INSIDE;
+      TBUnget(&p->tb);
+      loop = false;
+    } break;
+    case BFS_INSIDE: {
+      Token_t t = TBGet(&p->tb, p->lf);
 
-    TBUnget(&p->tb);
-  } break;
-  case BFS_INSIDE: {
-    Token_t t = TBGet(&p->tb, p->lf);
+      if (t.type == TOKEN_LPAR)
+        p->bf.blevel++;
+      else if (t.type == TOKEN_RPAR)
+        p->bf.blevel--;
+      else if (t.type == TOKEN_INDENT) {
+        p->bf.ilevel++;
+        break; /* eat the INDENT */
+      } else if (t.type == TOKEN_DEDENT) {
+        p->bf.ilevel--;
+        if (p->bf.ilevel < 0) {
+          DLOG_ERROR("Error:%d: indent underflow (too many dedents)",
+                     t.pos.line); /* TODO */
+        }
+        break; /* eat the DEDENT */
+      } else if (t.type == TOKEN_NEWLINE) {
+        if (p->bf.blevel > 0)
+          break; /* eat the NEWLINE */
 
-    if (t.type == TOKEN_LPAR)
-      p->bf.blevel++;
-    else if (t.type == TOKEN_RPAR)
-      p->bf.blevel--;
-    else if (t.type == TOKEN_INDENT) {
-      p->bf.ilevel++;
-      break; /* eat the INDENT */
-    } else if (t.type == TOKEN_DEDENT) {
-      p->bf.ilevel--;
-      if (p->bf.ilevel < 0) {
+        p->bf.state = BFS_EDEDENT; /* expects dedent*/
+        TBUnget(&p->tb);
+        loop = false;
+        break; /* don't eat this one*/
+      }
+
+      if (p->bf.blevel <= 0 && t.type == TOKEN_COMMA)
+        p->bf.state = BFS_COMMA;
+
+      TBUnget(&p->tb);
+      loop = false;
+    } break;
+    case BFS_COMMA: {
+      TBGet(&p->tb, p->lf); /* pop COMMA token */
+      Token_t t = TBGet(&p->tb, p->lf);
+
+      if (p->bf.blevel <= 0 && t.type == TOKEN_NEWLINE) {
+        p->bf.state = BFS_EDEDENT;
+        break; /* eat the NEWLINE & the COMMA */
+      }
+
+      /* return both, the COMMA and the NEWLINE */
+      TBUnget(&p->tb);
+      TBUnget(&p->tb);
+      loop = false;
+    } break;
+    case BFS_EDEDENT: {
+      Token_t t;
+
+      /* def foo(
+       *   a: Int): Int =
+       *   a * a
+       * ^ this one
+       */
+
+      /* = LF SMTHN
+       *      ^ we're here */
+      TBUnget(&p->tb);
+      TBUnget(&p->tb);
+
+      /* = LF SMTHN
+       * ^ we're here */
+      t = TBGet(&p->tb, p->lf);
+      if (t.type == TOKEN_EQ) {
+        /* = LF SMTHN
+         *   ^ we're here */
+        t = TBGet(&p->tb, p->lf);
+        t.type = TOKEN_INDENT;
+
+        /* no need for that LF token */
+        TBUnget(&p->tb);
+        TBReplace(&p->tb, t);
+
+        p->bf.state = BFS_START;
+        loop = false;
+        break;
+      }
+
+      /* X LF SMTHN
+       *   ^ we're here */
+      TBGet(&p->tb, p->lf);
+
+      /* the normal case */
+      t = TBGet(&p->tb, p->lf);
+
+      if (p->bf.ilevel == 0 && t.type == TOKEN_DEDENT) {
+        p->bf.state = BFS_START;
+        break; /* eat the DEDENT */
+      }
+
+      /* Inside indent level errors */
+      if (p->bf.ilevel > 0)
+        DLOG_ERROR("Error:%d: indent overflow (missing dedents)",
+                   t.pos.line); /* TODO */
+      else if (p->bf.ilevel < 0)
         DLOG_ERROR("Error:%d: indent underflow (too many dedents)",
                    t.pos.line); /* TODO */
+      p->bf.ilevel = 0;
+
+      /* Skip DEDENT error */
+      if (t.type == TOKEN_DEDENT) {
+        p->bf.state = BFS_START;
+        loop = false;
+        break;
       }
-      break; /* eat the DEDENT */
-    }
 
-    if (p->bf.blevel <= 0 && t.type == TOKEN_COMMA)
-      p->bf.state = BFS_COMMA;
-    else if (p->bf.blevel <= 0 && t.type == TOKEN_NEWLINE) {
-      p->bf.state = BFS_EDEDENT;
-      break; /* eat the NEWLINE */
-    }
-
-    TBUnget(&p->tb);
-  } break;
-  case BFS_COMMA: {
-    TBGet(&p->tb, p->lf); /* pop COMMA token */
-    Token_t t = TBGet(&p->tb, p->lf);
-
-    if (p->bf.blevel <= 0 && t.type == TOKEN_NEWLINE) {
-      p->bf.state = BFS_EDEDENT;
-      break; /* eat the NEWLINE & the COMMA */
-    }
-
-    /* return both, the COMMA and the NEWLINE */
-    TBUnget(&p->tb);
-    TBUnget(&p->tb);
-  } break;
-  case BFS_EDEDENT: {
-    Token_t t = TBGet(&p->tb, p->lf);
-
-    if (p->bf.ilevel == 0 && t.type == TOKEN_DEDENT) {
+      /* missing dedent */
       p->bf.state = BFS_START;
-      break; /* eat the DEDENT */
+      DLOG_ERROR("Error:%d: missing dedent.", t.pos.line); /* TODO */
+
+      TBUnget(&p->tb);
+      loop = false;
+    } break;
     }
-
-    /* Inside indent level errors */
-    if (p->bf.ilevel > 0)
-      DLOG_ERROR("Error:%d: indent overflow (missing dedents)",
-                 t.pos.line); /* TODO */
-    else if (p->bf.ilevel < 0)
-      DLOG_ERROR("Error:%d: indent underflow (too many dedents)",
-                 t.pos.line); /* TODO */
-    p->bf.ilevel = 0;
-
-    /* Skip DEDENT error */
-    if (t.type == TOKEN_DEDENT) {
-      p->bf.state = BFS_START;
-      break;
-    }
-
-    /* missing dedent */
-    p->bf.state = BFS_START;
-    DLOG_ERROR("Error:%d: missing dedent.", t.pos.line); /* TODO */
-
-    TBUnget(&p->tb);
-  } break;
   }
 }
 

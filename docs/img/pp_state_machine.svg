@@ -27,8 +27,8 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      inkscape:zoom="0.93607327"
-     inkscape:cx="378.17552"
-     inkscape:cy="287.90481"
+     inkscape:cx="400.60967"
+     inkscape:cy="283.63164"
      inkscape:window-width="1280"
      inkscape:window-height="972"
      inkscape:window-x="0"
@@ -327,30 +327,6 @@
          x="103.45077"
          y="34.286736"
          id="tspan21">DEDENT -&gt; d--</tspan></text>
-    <path
-       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.529167;stroke-dasharray:2.11666799,1.05833399,0.529167,1.05833399;stroke-dashoffset:0;stroke-opacity:1"
-       d="M 31.778601,83.543742 C 31.978465,70.952219 42.971063,66.15545 49.56662,65.955584 56.16218,65.75572 59.959623,55.76245 59.959623,55.76245"
-       id="path21" />
-    <path
-       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.529167;stroke-dasharray:2.11667, 1.05833, 0.529167, 1.05833;stroke-dashoffset:0;stroke-opacity:1"
-       d="m 61.358681,47.567968 c 0.199864,-8.794077 7.594886,-13.191119 7.594886,-13.191119"
-       id="path22" />
-    <text
-       xml:space="preserve"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:'Helvetica Neue';-inkscape-font-specification:'Helvetica Neue, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;writing-mode:lr-tb;direction:ltr;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.529167;stroke-dasharray:2.11667, 1.05833, 0.529167, 1.05833;stroke-dashoffset:0;stroke-opacity:1"
-       x="60.95895"
-       y="73.619064"
-       id="text22"><tspan
-         sodipodi:role="line"
-         id="tspan22"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:'Helvetica Neue';-inkscape-font-specification:'Helvetica Neue, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.529167"
-         x="60.95895"
-         y="73.619064">* Supress INDENT, DEDENT,</tspan><tspan
-         sodipodi:role="line"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:'Helvetica Neue';-inkscape-font-specification:'Helvetica Neue, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.529167"
-         x="60.95895"
-         y="78.028786"
-         id="tspan23">and LF</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:3.52778px;font-family:'Helvetica Neue';-inkscape-font-specification:'Helvetica Neue, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;writing-mode:lr-tb;direction:ltr;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.529167;stroke-dasharray:2.11667, 1.05833, 0.529167, 1.05833;stroke-dashoffset:0;stroke-opacity:1"
