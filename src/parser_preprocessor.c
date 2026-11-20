@@ -355,7 +355,6 @@ static void ProcessUnaryOps(Preprocessor_t *p) {
   case TOKEN_INT:
   case TOKEN_DOUBLE:
   case TOKEN_STRING:
-  case TOKEN_UNIT:
     return; /* change nothing */
   default:
     /* get the token to be changed */
