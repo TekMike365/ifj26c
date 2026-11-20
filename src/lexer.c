@@ -531,7 +531,7 @@ RESET:
     break;
 
   case STATE_ZERO:
-    new.type = TOKEN_ZERO;
+    new.type = TOKEN_INT;
     new.lexemeI = 0;
     break;
 
@@ -563,6 +563,7 @@ RESET:
     new.type = TOKEN_COLON;
     break;
 
+  case STATE_DQUOTE:
   case STATE_END_STRING:
   case STATE_END_MULTILINE_STR:
     new.type = TOKEN_STRING;
