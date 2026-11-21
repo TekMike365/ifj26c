@@ -23,7 +23,6 @@ static ASTNode_t *ParseFnDef(Parser_t *p);
 static ASTNode_t *ParseFnBody(Parser_t *p);
 static ASTNode_t *ParseBlock(Parser_t *p);
 static bool ParseStatements(Parser_t *p, ASTList_t *list);
-static bool ParseStatementsC(Parser_t *p, ASTList_t *list);
 static ASTNode_t *ParseStatement(Parser_t *p);
 static ASTNode_t *ParseVarDef(Parser_t *p);
 static ASTNode_t *ParseAssign(Parser_t *p);
@@ -170,7 +169,6 @@ static bool ParserInit(Parser_t *p) {
     return false;
   }
   p->lastValidPos = p->current.pos;
-  p->last = p->current;
   p->next = PPNextToken(p->pp);
 
   return true;
@@ -322,42 +320,43 @@ failure:
 }
 
 // <stmnts> = <stmnt> <stmntsC>
+//
+// if DEDENT:            <stmntsC> = epsilon
+// if LF, next DEDENT:   <stmntsC> = LF
+// if LF:                <stmntsC> = LF <stmnts>
+// if ';':               <stmntsC> = ; <stmnts>
+// else, if <stmnt> was IF or WHILE:
+//                       <stmntsC> = <stmnts>
 static bool ParseStatements(Parser_t *p, ASTList_t *list) {
-  if (!AppendNode(p, list, ParseStatement(p)))
-    return false;
-
-  return ParseStatementsC(p, list);
-}
-
-// if ';':                        <stmtsC>  = ;  <stmnt> <stmntsC>
-// else if LF and DEDENT:         <stmntsC> = LF <stmnt> <stmntsC>
-// else if DEDENT:                <stmntsC> = epsilon
-// else if last was DEDENT:       <stmntsC> = <stmnt> <stmntsC>
-static bool ParseStatementsC(Parser_t *p, ASTList_t *list) {
   while (true) {
-    if (p->current.type == TOKEN_SEMICOLON) {
+    /* If and While stattement blocks are indented */
+    bool isIndented = p->current.type == TOKEN_KEYWORD_IF ||
+                      p->current.type == TOKEN_KEYWORD_WHILE;
+
+    if (!AppendNode(p, list, ParseStatement(p)))
+      return false;
+
+    switch (p->current.type) {
+    case TOKEN_SEMICOLON:
       if (!Consume(p, TOKEN_SEMICOLON))
         return false;
-      if (!AppendNode(p, list, ParseStatement(p)))
-        return false;
+      continue;
 
-    } else if (p->current.type == TOKEN_NEWLINE) {
+    case TOKEN_NEWLINE:
       if (!Consume(p, TOKEN_NEWLINE))
         return false;
+
       if (p->current.type == TOKEN_DEDENT)
         return true;
+      continue;
 
-      if (!AppendNode(p, list, ParseStatement(p)))
-        return false;
-
-    } else if (p->current.type == TOKEN_DEDENT) {
+    case TOKEN_DEDENT:
       return true;
 
-    } else if (p->last.type == TOKEN_DEDENT) {
-      if (!AppendNode(p, list, ParseStatement(p)))
-        return false;
+    default:
+      if (isIndented)
+        continue;
 
-    } else {
       SyntaxError(p, "Invalid end of body");
       return false;
     }

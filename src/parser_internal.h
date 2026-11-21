@@ -12,7 +12,6 @@
 // stores current token and next token
 typedef struct Parser_t {
   SourceSpan_t lastValidPos;
-  Token_t last;
   Token_t current;
   Token_t next;
   Preprocessor_t *pp;

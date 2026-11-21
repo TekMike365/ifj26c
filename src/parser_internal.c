@@ -21,7 +21,6 @@ char *StrDup(const char *s) {
  * returns true if no error, else false
  */
 bool Advance(Parser_t *p) {
-  p->last = p->current;
   p->current = p->next;
   if (p->current.pos.line > 0 && p->current.type != TOKEN_NEWLINE)
     p->lastValidPos = p->current.pos;
