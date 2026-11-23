@@ -573,6 +573,43 @@
   Modul \texttt{logger} poskytuje úrovňovaný debug výpis. Jeho makrá a výstup
   sú aktívne iba v zostavení s \texttt{DEBUG}; správy zapisuje na \texttt{stderr}.
 
+  \subsection{Char buffer}
+  Modul \texttt{char\_buf} (\texttt{src/char\_buf.c}, \texttt{src/char\_buf.h})
+  implementuje ADT \textit{Char Buffer}, nafukovacie pole, ukladajúce typ \textit{char}.
+  \textit{GetRawToken} doň zapisuje prečítané znaky.
+
+  \subsection{Error}
+  Modul \texttt{error} (\texttt{src/error.c}, \texttt{src/error.h}) definuje chybové
+  kódy a funkcie pre ich ohlasovanie pomocou \texttt{messenger.h}.
+
+  \subsection{Int stack}
+  Modul \texttt{int\_stack} (\texttt{src/int\_stack.c}, \texttt{src/int\_stack.h})
+  implementuje ADT \textit{Integer Stack}, zásobník typu \textit{int}.
+  \textit{Layout Filter} ho používa ako zásobník indentácie.
+
+  \subsection{Lexer}
+  Modul \texttt{lexer} (\texttt{src/lexer.c}, \texttt{src/lexer.h}) definuje
+  typ \textit{Lexer\_t} a
+  implementuje funkciu \textit{GetRawToken} a pomocné funckie pre spracovanie
+  lexém. Je priamou implementáciou stavového automatu.
+
+  \subsection{Lexer FSM}
+  Modul \texttt{lexer\_fsm} (\texttt{src/lexer\_fsm.h}) definuje typ
+  \textit{CharType\_t}, stavy automatu (typ \textit{Statei\_t}) a jeho
+  prechody.
+
+  \subsection{Layout Filter}
+  Modul \texttt{layout\_filter} (\texttt{src/layout\_filter.c},
+  \texttt{src/layout\_filter.h}) definuje typ \textit{LayoutFilter\_t} a
+  implementuje funkciu \textit{GetNextToken}.
+
+  \subsection{Token}
+  Modul \texttt{token} (\texttt{src/token.c}, \texttt{src/token.h}) definuje
+  typ \textit{Token\_t} a operácie nad ním. Ďalej definuje typy
+  \textit{SourceSpan\_t} a \textit{IndentInfo\_t}.
+
+
+
   % TODO: bibliography
   % bibliografické citace všech převzatých zdrojů (vč. kódu, algoritmů);
 
