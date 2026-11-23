@@ -27,7 +27,7 @@ struct LayoutFilter {
   // "queue" for TOKEN_DEDENT
   // TOKEN_INDENT can be only one at a time,
   // so it gets emitted right away
-  int dedentQueue;
+  int pendingDedents;
 
   // needed to validate whether no token follows after
   // /* of the last line in block comment
@@ -139,7 +139,7 @@ LayoutFilter_t *LayoutFilterCreate(FILE *src) {
   filter->hasStash = 0;
 
   filter->atLineStart = 1;
-  filter->dedentQueue = 0;
+  filter->pendingDedents = 0;
   filter->expectEOL = 0;
 
   filter->nextIndent = (IndentInfo_t){0};
@@ -169,8 +169,8 @@ void LayoutFilterTerminate(LayoutFilter_t *filter) {
 Token_t GetNextToken(LayoutFilter_t *filter) {
   assert(filter != NULL);
 
-  if (filter->dedentQueue > 0) {
-    filter->dedentQueue--;
+  if (filter->pendingDedents > 0) {
+    filter->pendingDedents--;
     return MakeToken(TOKEN_DEDENT);
   }
 
@@ -310,7 +310,7 @@ Token_t GetNextToken(LayoutFilter_t *filter) {
         }
         // change is negative on dedent, so -change
         // -1 because one TOKEN_DEDENT is emitted right now
-        filter->dedentQueue = -change - 1;
+        filter->pendingDedents = -change - 1;
         return MakeToken(TOKEN_DEDENT);
       }
     }
