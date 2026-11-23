@@ -264,7 +264,12 @@
   \subsection{Lexer pipeline}
   Celú lexikálnu analýzu potom možno znázorniť:
 
-  \includegraphics[width=0.7\textwidth]{"img/lexer_pipeline.pdf"}
+  \begin{figure}[htbp]
+	  \centering
+  	  \includegraphics[width=0.7\textwidth]{"img/lexer_pipeline.pdf"}
+  	  \caption{Pipeline lexikálnej analýzy.}
+	  \label{fig:lex_pip}
+  \end{figure}
 
   \textit{GetRawToken} z vrstvy \textit{Lexer} opakovane získava znak zo zdrojového súboru, ktorý pomocou FSM mapuje na
   \textit{CharType} a následne na nasledujúci stav. Ak je tento stav koncový, emituje sa
