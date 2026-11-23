@@ -137,14 +137,15 @@ static bool Reduce(Parser_t *p, PStack_t *stack) {
     }
     /* E -> + E */
     /* E -> - E */
+    /* COND -> ! COND */
     if (items[0]->sym != PT_E ||
-        (items[1]->sym != PT_UMINUS && items[1]->sym != PT_UPLUS))
+        (items[1]->sym != PT_UMINUS && items[1]->sym != PT_UPLUS &&
+         items[1]->sym != PT_NEG))
       goto syntaxErr;
-
     if (!(newNode = NewNode(p, NODE_UNOP, items[0])))
       return false;
     newNode->unOp.operand = TakeNode(items[0]);
-    newNode->unOp.op = (items[1]->sym == PT_UMINUS) ? OP_UMINUS : OP_UPLUS;
+    newNode->unOp.op = OpFromSym(items[1]->sym);
     break;
 
   case 3:
@@ -213,8 +214,10 @@ static bool Reduce(Parser_t *p, PStack_t *stack) {
       case PT_GT:
       case PT_LTE:
       case PT_LT:
+      case PT_AND:
+      case PT_OR:
         /* E -> E op E  */
-        /* COND -> E op E,  i think we dont need it explicitely */
+        /* COND -> E op E,  is done implicitely as well as && and ||*/
         if (items[0]->sym != PT_E)
           goto syntaxErr;
         if (!(newNode = NewNode(p, NODE_BINOP, items[2])))

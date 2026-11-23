@@ -27,11 +27,15 @@ typedef enum {
   PT_GTE,    // >=
   PT_EQ,     // ==
   PT_NEQ,    // !=
+  PT_NEG,    // !
+  PT_AND,    // &&
+  PT_OR,     // ||
   PT_DOLLAR, // $
 
   // Nonterminals:
 
   PT_HANDLE,
+  PT_COND,
   PT_E,
   PT_ARGS,
 } PTSymbol_t;
