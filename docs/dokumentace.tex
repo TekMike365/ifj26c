@@ -209,6 +209,13 @@
   vtom istom volaní funkcie GetNextToken (viď ďalej) sa vráti buď
   TOKEN\_NEWLINE alebo TOKEN\_ERROR).
 
+  Funckia ParseIdentifier rozhoduje, či sa jedná o identifikátor, alebo
+  keyword. Kľúčové slová sú najprv rozdelené na triedy podľa dĺžky.
+  Identifikátor, ktorý je teda kratší/dlhší môže byť rovno vyhodnotený. V rámci
+  jednotlivých tried dĺžok sa potom používa hľadanie v prefixovom strome,
+  implementované switch-om nad ďalším znakom, pokým neexistuje jediný kandidát.
+  Zvyšok je vyhodnotený funckiou MatchKeywordSuffix.
+
   Ďalšiu odchýlku od čistého automatu predstavuje spracovanie indentácie,
   kde je použitá funkcia MeasureIndent.
 
