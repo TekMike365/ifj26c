@@ -49,6 +49,8 @@ typedef enum DataType_t {
   TYPE_UNKNOWN,
 } DataType_t;
 
+const char *DataTypeToStr(DataType_t type);
+
 /* Operator types*/
 typedef enum Operator_t {
   OP_EQ,
