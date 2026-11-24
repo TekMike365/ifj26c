@@ -432,7 +432,8 @@ RESET:
     // STATE_START goes to STATE_ERROR
     // this case shouldn`t occurr
   case STATE_START:
-    new.type = TOKEN_ERROR;
+    TokenSetError(ERROR_INTERNAL, &new);
+
     ReportInternalError("Lexer terminated without reading characters.");
     break;
 
@@ -603,7 +604,7 @@ RESET:
 
   case STATE_ERROR:
 
-    new.type = TOKEN_ERROR;
+    TokenSetError(ERROR_LEX, &new);
 
     ReportLexicalError(
         MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
@@ -613,7 +614,7 @@ RESET:
     break;
 
   default:
-    new.type = TOKEN_ERROR;
+    TokenSetError(ERROR_INTERNAL, &new);
 
     ReportInternalError("Unknown lexer state.");
     break;
