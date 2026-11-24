@@ -1,5 +1,6 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Ondrej Dedič <xdedico00>
+ *            Michael Sklenka <xsklenm00>
  */
 #ifndef IFJ26C_AS_TREE_H
 #define IFJ26C_AS_TREE_H
@@ -8,6 +9,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#define AST_LIST_FOREACH(list, epAST)                                          \
+  for (ASTNode_t *epAST = (list).items[0], **_epp_ = (list).items;             \
+       _epp_ != (list).items + (list).count; epAST = *(_epp_++))
 
 /* Node type, selects union members in node */
 typedef enum ASTKind_t {
