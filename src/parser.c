@@ -325,7 +325,8 @@ failure:
 // if LF, next DEDENT:   <stmntsC> = LF
 // if LF:                <stmntsC> = LF <stmnts>
 // if ';':               <stmntsC> = ; <stmnts>
-// else, if <stmnt> was IF or WHILE:
+//
+// if <stmnt> was IF or WHILE:
 //                       <stmntsC> = <stmnts>
 static bool ParseStatements(Parser_t *p, ASTList_t *list) {
   while (true) {
@@ -559,6 +560,9 @@ static ASTNode_t *ParseIfElse(Parser_t *p) {
   if (!(node->ifElse.cond = ParseExpression(p)))
     goto failure;
 
+  if (node->ifElse.cond != NODE_COND)
+    goto failure;
+
   if (!Consume(p, TOKEN_KEYWORD_THEN))
     goto failure;
 
@@ -590,6 +594,9 @@ static ASTNode_t *ParseWhile(Parser_t *p) {
   if (!(node->whileDo.cond = ParseExpression(p)))
     goto failure;
 
+  if (node->whileDo.cond != NODE_COND)
+    goto failure;
+
   if (!Consume(p, TOKEN_KEYWORD_DO))
     goto failure;
 
@@ -601,6 +608,120 @@ static ASTNode_t *ParseWhile(Parser_t *p) {
 failure:
   ASTFree(node);
   return NULL;
+}
+// for id <-
+//
+
+static ASTNode_t *ParseForBody(Parser_t *p) {
+  ASTNode_t *root = NewNode(p, NODE_BLOCK);
+  if (root == NULL)
+    return NULL;
+  ASTNode_t *nested = root;
+
+  while (true) {
+    switch (p->current.type) {
+
+    case TOKEN_KEYWORD_IF:
+      if (!Consume(p, TOKEN_KEYWORD_IF))
+        goto failure;
+      /* Create new node IF */
+      if (root == NULL)
+        root = NewNode(p, NODE_IF);
+
+      if (!AppendNode(p, &nested->block.items, NewNode(p, NODE_IF)))
+        goto failure;
+
+      /* move into the block of the node IF */
+      nested = nested->block.items[0];
+      if (!(nested->ifElse.cond = ParseExpression(p)))
+        goto failure;
+      break;
+
+    case TOKEN_IDENTIFIER:
+
+      if (root == NULL)
+        return ParseLoop(p);
+      /* Create nested loop inside the block */
+      if (!AppendNode(p, &nested->block.items, ParseLoop(p)))
+        goto failure;
+      return root;
+
+    case TOKEN_KEYWORD_DO:
+      if (!Consume(p, TOKEN_KEYWORD_DO))
+        goto failure;
+
+      if (root == NULL)
+        return ParseBlock(p);
+
+      return AppendNode(p, &nested->block.items, ParseBlock(p));
+
+    default:
+      goto failure;
+    }
+  }
+failure:
+  ASTFree(nested);
+  return NULL;
+}
+
+#define TOKEN_KEYWORD_UNTIL TOKEN_AMPERSAND
+#define TOKEN_KEYWORD_TO TOKEN_AND
+
+static ASTNode_t *ParseLoop(Parser_t *p) {
+  ASTNode_t *nodeFor = NewNode(p, NODE_FOR);
+  if (nodeFor == NULL)
+    return NULL;
+
+  ASTNode_t *nodeGen = NewNode(p, NODE_GEN);
+  if (nodeGen == NULL)
+    goto failure;
+
+  nodeFor->forLoop.generator = nodeGen;
+
+  /* id <- <expr> */
+  if (!GetIdentifier(p, &nodeGen->gen.name))
+    goto failure;
+
+  if (!Consume(p, TOKEN_LEFT_ARROW))
+    goto failure;
+
+  if (!(nodeGen->gen.from = ParseExpression(p)))
+    goto failure;
+
+  /* UNTIL <expr> or TO <expr> */
+  switch (p->current.type) {
+  case TOKEN_KEYWORD_TO:
+    nodeGen->gen.IncludeMax = true;
+    break;
+
+  case TOKEN_KEYWORD_UNTIL:
+    nodeGen->gen.IncludeMax = false;
+    break;
+
+  default:
+    SyntaxError(p, "Invalid generator");
+    goto failure;
+  }
+  if (!Advance(p))
+    goto failure;
+
+  /* optional: BY <expr> */
+  if (!(p->current.type == TOKEN_KEYWORD_BY))
+    goto failure;
+
+  nodeFor->forLoop.body = ParseForBody(p);
+
+failure:
+  ASTFree(nodeGen);
+  ASTFree(nodeFor);
+  return NULL;
+}
+
+static ASTNode_t *ParseFor(Parser_t *p) {
+  if (!Consume(p, TOKEN_KEYWORD_FOR))
+    return NULL;
+
+  return ParseLoop(p);
 }
 
 // <param> = id <type?>

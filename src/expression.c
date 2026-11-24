@@ -208,6 +208,15 @@ static bool Reduce(Parser_t *p, PStack_t *stack) {
       case PT_MINUS:
       case PT_DIV:
       case PT_MUL:
+        /* E -> E op E  */
+        if (items[0]->sym != PT_E)
+          goto syntaxErr;
+        if (!(newNode = NewNode(p, NODE_BINOP, items[2])))
+          return false;
+        newNode->binOp.left = TakeNode(items[2]);
+        newNode->binOp.right = TakeNode(items[0]);
+        newNode->binOp.op = OpFromSym(items[1]->sym);
+        break;
       case PT_NEQ:
       case PT_EQ:
       case PT_GTE:
@@ -216,11 +225,10 @@ static bool Reduce(Parser_t *p, PStack_t *stack) {
       case PT_LT:
       case PT_AND:
       case PT_OR:
-        /* E -> E op E  */
         /* COND -> E op E,  is done implicitely as well as && and ||*/
         if (items[0]->sym != PT_E)
           goto syntaxErr;
-        if (!(newNode = NewNode(p, NODE_BINOP, items[2])))
+        if (!(newNode = NewNode(p, NODE_COND, items[2])))
           return false;
         newNode->binOp.left = TakeNode(items[2]);
         newNode->binOp.right = TakeNode(items[0]);
