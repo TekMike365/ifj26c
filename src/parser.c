@@ -733,7 +733,11 @@ failure:
 // <loopBody> = id <loop>
 // <loopBody> = DEDENT DO <block>
 static ASTNode_t *ParseLoopBody(Parser_t *p) {
-  ASTNode_t *root = NULL, *nested = NULL;
+  ASTNode_t *root = NewNode(p, NODE_BLOCK);
+  if (root == NULL)
+    return NULL;
+  ASTNode_t *nested = root;
+  ASTNode_t **nestedPtr = &root;
 
   while (true) {
     if (!Consume(p, TOKEN_NEWLINE))
@@ -741,31 +745,32 @@ static ASTNode_t *ParseLoopBody(Parser_t *p) {
 
     switch (p->current.type) {
 
-    case TOKEN_KW_IF:
+    case TOKEN_KW_IF: {
       if (!Consume(p, TOKEN_KW_IF))
         goto failure;
       /* Create new node IF */
-      if (root == NULL) {
-        if (!(root = NewNode(p, NODE_IF)))
-          goto failure;
-
-        nested = root;
-      } else {
-        if (!(nested->ifElse.thenBlock = NewNode(p, NODE_IF)))
-          goto failure;
-        nested = nested->ifElse.thenBlock;
-      }
-      /* move into the block of the node IF */
-      if (!(nested->ifElse.cond = ParseExpression(p)))
+      ASTNode_t *node = NewNode(p, NODE_IF);
+      if (node == NULL)
         goto failure;
+
+      if (!AppendNode(p, &nested->block, node))
+        goto failure;
+
+      if (!(node->ifElse.cond = ParseExpression(p)))
+        goto failure;
+
+      if (!(node->ifElse.thenBlock = NewNode(p, NODE_BLOCK)))
+        goto failure;
+
+      nested = node->ifElse.thenBlock;
+      nestedPtr = &node->ifElse.thenBlock;
       break;
+    }
 
     case TOKEN_IDENTIFIER:
-      if (root == NULL)
-        return ParseLoop(p);
-      /* Create nested loop inside the block */
-      if (!(nested->ifElse.thenBlock = ParseLoop(p)))
+      if (!AppendNode(p, &nested->block, ParseLoop(p)))
         goto failure;
+
       return root;
 
     case TOKEN_DEDENT:
@@ -775,20 +780,23 @@ static ASTNode_t *ParseLoopBody(Parser_t *p) {
       if (!Consume(p, TOKEN_KW_DO))
         goto failure;
 
-      if (root == NULL)
-        return ParseBlock(p);
-
-      if (!(nested->ifElse.thenBlock = ParseBlock(p)))
+      ASTNode_t *node = ParseBlock(p);
+      if (node == NULL)
         goto failure;
+
+      ASTFree(*nestedPtr);
+
+      *nestedPtr = node;
 
       return root;
 
     default:
+      SyntaxError(p, "Invalid for loop");
       goto failure;
     }
   }
 failure:
-  ASTFree(nested);
+  ASTFree(root);
   return NULL;
 }
 
