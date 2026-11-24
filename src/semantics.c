@@ -26,6 +26,7 @@ static inline MsgContext_t SpanToCtxUnderline(SourceSpan_t span) {
 typedef enum {
   VS_UNDEFINED = 0,
   VS_MUTABLE,
+  VS_CONST,
 } VarState_t;
 
 typedef struct {
@@ -255,7 +256,7 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
   return AERR_OK;
 }
 
-static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root) {
+static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
   assert(a && root && root->kind == NODE_VARDEF);
 
   AError_t err = AERR_OK;
@@ -282,23 +283,18 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root) {
       return AERR_MEM;
 
     vs->blockID = a->blockID;
-    vs->dtype = tree->varDef.declType;
-    vs->vstate = VS_MUTABLE;
-    vs->pos = tree->pos;
+    vs->dtype = root->varDef.declType;
+    vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
+    vs->pos = root->pos;
   }
 
   /* treat as assignment */
   ASTNode_t assign = *root;
   assign.kind = NODE_ASSIGN;
-  assign.assign.value = root.varDef->value;
+  assign.assign.value = root->varDef.init;
 
   bool anotheroneoftheseerrors = AnalyzeAssign(a, &assign);
-  return err == ERROR_NOERR ? err : anotheroneoftheseerrors;
-}
-
-static AError_t AnalyzeValDef(Analyzer_t *a, ASTNode_t *root) {
-  assert(a && root);
-  return AERR_OK;
+  return err != AERR_OK ? err : anotheroneoftheseerrors;
 }
 
 static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root) {
@@ -323,9 +319,9 @@ AError_t A_AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
   case NODE_ASSIGN:
     return AnalyzeAssign(a, stmnt);
   case NODE_VARDEF:
-    return AnalyzeVarDef(a, stmnt);
+    return AnalyzeVarDef(a, stmnt, true);
   case NODE_VALDEF:
-    return AnalyzeValDef(a, stmnt);
+    return AnalyzeVarDef(a, stmnt, false);
   case NODE_IF:
     return AnalyzeIf(a, stmnt);
   case NODE_WHILE:
