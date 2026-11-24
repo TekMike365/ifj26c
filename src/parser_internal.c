@@ -59,49 +59,49 @@ const char *TokenToString(TokenType_t type) {
     return "indent";
   case TOKEN_DEDENT:
     return "dedent";
-  case TOKEN_KEYWORD_DO:
+  case TOKEN_KW_DO:
     return "'do'";
-  case TOKEN_KEYWORD_IF:
+  case TOKEN_KW_IF:
     return "'if'";
-  case TOKEN_KEYWORD_DEF:
+  case TOKEN_KW_DEF:
     return "'def'";
-  case TOKEN_KEYWORD_FOR:
+  case TOKEN_KW_FOR:
     return "'for'";
-  case TOKEN_KEYWORD_INT:
+  case TOKEN_KW_INT:
     return "'Int'";
-  case TOKEN_KEYWORD_VAL:
+  case TOKEN_KW_VAL:
     return "'val'";
-  case TOKEN_KEYWORD_VAR:
+  case TOKEN_KW_VAR:
     return "'var'";
-  case TOKEN_KEYWORD_CASE:
+  case TOKEN_KW_CASE:
     return "'case'";
-  case TOKEN_KEYWORD_ELSE:
+  case TOKEN_KW_ELSE:
     return "'else'";
-  case TOKEN_KEYWORD_LIST:
+  case TOKEN_KW_LIST:
     return "'List'";
-  case TOKEN_KEYWORD_THEN:
+  case TOKEN_KW_THEN:
     return "'then'";
-  case TOKEN_KEYWORD_TYPE:
+  case TOKEN_KW_TYPE:
     return "'type'";
-  case TOKEN_KEYWORD_UNIT:
+  case TOKEN_KW_UNIT:
     return "'Unit'";
-  case TOKEN_KEYWORD_CLASS:
+  case TOKEN_KW_CLASS:
     return "'class'";
-  case TOKEN_KEYWORD_MATCH:
+  case TOKEN_KW_MATCH:
     return "'match'";
-  case TOKEN_KEYWORD_WHILE:
+  case TOKEN_KW_WHILE:
     return "'while'";
-  case TOKEN_KEYWORD_DOUBLE:
+  case TOKEN_KW_DOUBLE:
     return "'Double'";
-  case TOKEN_KEYWORD_IMPORT:
+  case TOKEN_KW_IMPORT:
     return "'import'";
-  case TOKEN_KEYWORD_RETURN:
+  case TOKEN_KW_RETURN:
     return "'return'";
-  case TOKEN_KEYWORD_STRING:
+  case TOKEN_KW_STRING:
     return "'String'";
-  case TOKEN_KEYWORD_BOOLEAN:
+  case TOKEN_KW_BOOLEAN:
     return "'Boolean'";
-  case TOKEN_KEYWORD_EXTENSION:
+  case TOKEN_KW_EXTENSION:
     return "'extension'";
   case TOKEN_EQ:
     return "'='";
@@ -147,10 +147,6 @@ const char *TokenToString(TokenType_t type) {
     return "')'";
   case TOKEN_AT:
     return "'@'";
-  case TOKEN_AMPERSAND:
-    return "'&'";
-  case TOKEN_PIPE:
-    return "'|'";
   case TOKEN_AND:
     return "'&&'";
   case TOKEN_OR:

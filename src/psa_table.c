@@ -74,7 +74,7 @@ PTSymbol_t SymFromToken(TokenType_t t) {
     return PT_AND;
   case TOKEN_OR:
     return PT_OR;
-  case TOKEN_NEG:
+  case TOKEN_EXCL_MARK:
     return PT_NEG;
   default:
     return PT_DOLLAR;

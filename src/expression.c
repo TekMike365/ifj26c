@@ -68,7 +68,7 @@ static ASTNode_t *TakeNode(PStackItem_t *item) {
  * If unable to append, sets ERROR_INTERNAL and returns false.
  */
 static bool AppendNode(Parser_t *p, ASTList_t *list, PStackItem_t *item) {
-  if (!ASTAppend(list, item->node)) {
+  if (!ASTListAppend(list, item->node)) {
     ReportInternalError("Out of memory.");
     p->errorCode = ERROR_INTERNAL;
     return false;

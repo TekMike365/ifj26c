@@ -40,7 +40,7 @@ typedef enum {
   PT_ARGS,
 } PTSymbol_t;
 
-extern const char PTable[18][18];
+extern const char PTable[21][21];
 
 PTSymbol_t SymFromToken(TokenType_t t);
 
