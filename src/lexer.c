@@ -78,7 +78,7 @@ static TokenType_t ParseIdentifier(const char *str) {
     case 'b':
       // match the rest with "y" as in "by"
       //                    rest has len 1 ---+
-      //                    		      |
+      //                                      |
       //                                      v
       return MatchKeywordSuffix(str + 1, "y", 1, TOKEN_KW_BY); // 'by'
     case 'd':
@@ -132,16 +132,13 @@ static TokenType_t ParseIdentifier(const char *str) {
       case 'y':
         return MatchKeywordSuffix(str + 2, "pe", 2,
                                   TOKEN_KW_TYPE); // 'type'
-
-      default:
-        return TOKEN_IDENTIFIER;
       }
+      break;
     case 'U':
       return MatchKeywordSuffix(str + 1, "nit", 3,
                                 TOKEN_KW_UNIT); // 'Unit'
     }
     break;
-
   case 5:
     switch (str[0]) {
     case 'c':
