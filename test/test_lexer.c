@@ -32,7 +32,7 @@ TESTFUNC(RecognizeIdentifier, "myVar", {
 
 TESTFUNC(RecognizeKeyword, "for", {
   Token_t next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_KEYWORD_FOR);
+  ASSERT_INT_EQ(next.type, TOKEN_KW_FOR);
 })
 
 TESTFUNC(RecognizeInt, "12343", {
