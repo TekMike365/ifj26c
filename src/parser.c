@@ -473,39 +473,6 @@ failure:
   return NULL;
 }
 
-static ASTNode_t *ParseInlineCond(Parser_t *p) {
-  ASTNode_t *node = NewNode(p, NODE_IF);
-  if (node == NULL)
-    return NULL;
-
-  if (!Consume(p, TOKEN_KW_IF))
-    goto failure;
-
-  if (!(node->ifElse.cond = ParseExpression(p)))
-    goto failure;
-
-  if (!Consume(p, TOKEN_KW_THEN))
-    goto failure;
-
-  if (!(node->ifElse.thenBlock = ParseExpression(p)))
-    goto failure;
-
-  if (!Consume(p, TOKEN_KW_ELSE))
-    goto failure;
-
-  if (p->current.type == TOKEN_KW_IF)
-    node->ifElse.elseBlock = ParseInlineCond(p);
-  else
-    node->ifElse.elseBlock = ParseExpression(p);
-
-  if (node->ifElse.elseBlock != NULL)
-    return node;
-
-failure:
-  ASTFree(node);
-  return NULL;
-}
-
 // <assign> = id = <expr>
 static ASTNode_t *ParseAssign(Parser_t *p) {
   ASTNode_t *node = NewNode(p, NODE_ASSIGN);
@@ -579,19 +546,32 @@ static ASTNode_t *ParseFnBody(Parser_t *p) {
   if (p->current.type == TOKEN_NEWLINE)
     return ParseBlock(p);
 
-  ASTNode_t *node = ParseExpression(p);
-
+  ASTNode_t *node = NewNode(p, NODE_BLOCK);
   if (node == NULL)
     return NULL;
+
+   ASTNode_t *ret = NewNode(p, NODE_RETURN);
+  if (ret == NULL)
+    goto failure;
+
+  if (!AppendNode(p, &node->block, ret))
+    goto failure;
+
+  if (!(ret->ret.value = ParseExpression(p)))
+    goto failure;
 
   if (p->current.type == TOKEN_EOF)
     return node;
 
   if (!Consume(p, TOKEN_NEWLINE)) {
-    return NULL;
+    goto failure;
   }
 
   return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
 // <ifelse> = if <expr> then <block> [<else> <block>?]
@@ -659,7 +639,93 @@ failure:
   return NULL;
 }
 
-//
+// <param> = id <type?>
+static ASTNode_t *ParseParam(Parser_t *p) {
+  ASTNode_t *node = NewNode(p, NODE_PARAM);
+  if (node == NULL)
+    return NULL;
+
+  if (!GetIdentifier(p, &node->param.name))
+    goto failure;
+
+  if (!(ParseType(p, &node->param.declType)))
+    goto failure;
+
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
+}
+
+// if ')': <params> = epsilon
+// else:          <params> = <param> <paramsC>
+static bool ParseParams(Parser_t *p, ASTList_t *list) {
+  if (p->current.type == TOKEN_RPAR)
+    return true;
+
+  if (!AppendNode(p, list, ParseParam(p)))
+    return false;
+
+  return ParseParamsC(p, list);
+}
+
+// if ')':  <paramsC> = epsilon
+// else:    <paramsC> = , <param> <paramsC>
+static bool ParseParamsC(Parser_t *p, ASTList_t *list) {
+  while (p->current.type != TOKEN_RPAR) {
+    if (!Consume(p, TOKEN_COMMA))
+      return false;
+
+    if (p->current.type == TOKEN_RPAR)
+      return true;
+
+    if (!AppendNode(p, list, ParseParam(p)))
+      return false;
+  }
+  return true;
+}
+
+// <InlineCond> = if <cond> then <expr> else <end>
+// <end> = <expr>
+// <end> = <InlineCond>
+static ASTNode_t *ParseInlineCond(Parser_t *p) {
+  ASTNode_t *node = NewNode(p, NODE_IF);
+  if (node == NULL)
+    return NULL;
+
+  if (!Consume(p, TOKEN_KW_IF))
+    goto failure;
+
+  if (!(node->ifElse.cond = ParseExpression(p)))
+    goto failure;
+
+  if (!Consume(p, TOKEN_KW_THEN))
+    goto failure;
+
+  if (!(node->ifElse.thenBlock = ParseExpression(p)))
+    goto failure;
+
+  if (!Consume(p, TOKEN_KW_ELSE))
+    goto failure;
+
+  if (p->current.type == TOKEN_KW_IF)
+    node->ifElse.elseBlock = ParseInlineCond(p);
+  else
+    node->ifElse.elseBlock = ParseExpression(p);
+
+  if (node->ifElse.elseBlock != NULL)
+    return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
+}
+
+// LF is mandatory
+// <loopBody> = if <cond> <loopBody>
+// <loopBody> = id <loop>
+// <loopBody> = DEDENT DO <block>
 static ASTNode_t *ParseLoopBody(Parser_t *p) {
   ASTNode_t *root = NULL, *nested = NULL;
 
@@ -720,6 +786,9 @@ failure:
   return NULL;
 }
 
+// <gen> = id <- <expr> <genEnd>
+// <genEnd> = to    <expr> [<cadence>]
+// <genEnd> = until <expr> [<cadence>]
 static ASTNode_t *ParseGen(Parser_t *p) {
   ASTNode_t *node = NewNode(p, NODE_GEN);
   if (node == NULL)
@@ -768,6 +837,8 @@ failure:
   return NULL;
 }
 
+// <loop> = <gen> DO <block>
+// <loop> = LF INDENT <gen> <loopBody>
 static ASTNode_t *ParseLoop(Parser_t *p) {
   ASTNode_t *node = NewNode(p, NODE_FOR);
   if (node == NULL)
@@ -807,56 +878,10 @@ failure:
   return NULL;
 }
 
+// <for> = for <loop>
 static ASTNode_t *ParseFor(Parser_t *p) {
   if (!Consume(p, TOKEN_KW_FOR))
     return NULL;
 
   return ParseLoop(p);
-}
-
-// <param> = id <type?>
-static ASTNode_t *ParseParam(Parser_t *p) {
-  ASTNode_t *node = NewNode(p, NODE_PARAM);
-  if (node == NULL)
-    return NULL;
-
-  if (!GetIdentifier(p, &node->param.name))
-    goto failure;
-
-  if (!(ParseType(p, &node->param.declType)))
-    goto failure;
-
-  return node;
-
-failure:
-  ASTFree(node);
-  return NULL;
-}
-
-// if ')': <params> = epsilon
-// else:          <params> = <param> <paramsC>
-static bool ParseParams(Parser_t *p, ASTList_t *list) {
-  if (p->current.type == TOKEN_RPAR)
-    return true;
-
-  if (!AppendNode(p, list, ParseParam(p)))
-    return false;
-
-  return ParseParamsC(p, list);
-}
-
-// if ')':  <paramsC> = epsilon
-// else:    <paramsC> = , <param> <paramsC>
-static bool ParseParamsC(Parser_t *p, ASTList_t *list) {
-  while (p->current.type != TOKEN_RPAR) {
-    if (!Consume(p, TOKEN_COMMA))
-      return false;
-
-    if (p->current.type == TOKEN_RPAR)
-      return true;
-
-    if (!AppendNode(p, list, ParseParam(p)))
-      return false;
-  }
-  return true;
 }
