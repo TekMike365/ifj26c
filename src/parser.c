@@ -13,6 +13,7 @@ static bool GetIdentifier(Parser_t *p, char **out);
 static bool Consume(Parser_t *p, TokenType_t expected);
 static bool ConsumeId(Parser_t *p, const char *name);
 static bool ParserInit(Parser_t *p);
+static ASTNode_t *BlockReturnExpr(Parser_t *p);
 
 /* recursive parser functions */
 static ASTNode_t *ParseRoot(Parser_t *p);
@@ -106,6 +107,31 @@ static ASTNode_t *NewNode(Parser_t *p, ASTKind_t kind) {
     p->errorCode = ERROR_INTERNAL;
   }
   return node;
+}
+
+/* on success returns node block which contains node return with value <expr>
+ * else sets error and returns NULL
+ */
+static ASTNode_t *BlockReturnExpr(Parser_t *p) {
+  ASTNode_t *node = NewNode(p, NODE_BLOCK);
+  if (node == NULL)
+    return NULL;
+
+  ASTNode_t *ret = NewNode(p, NODE_RETURN);
+  if (ret == NULL)
+    goto failure;
+
+  if (!AppendNode(p, &node->block, ret))
+    goto failure;
+
+  if (!(ret->ret.value = ParseExpression(p)))
+    goto failure;
+
+  return node;
+
+failure:
+  ASTFree(node);
+  return NULL;
 }
 
 /* Error handling wrapper funtion */
@@ -709,19 +735,26 @@ static ASTNode_t *ParseInlineCond(Parser_t *p) {
   if (!Consume(p, TOKEN_KW_THEN))
     goto failure;
 
-  if (!(node->ifElse.thenBlock = ParseExpression(p)))
+  /* create node block for the thenBlock */
+  if (!(node->ifElse.thenBlock = BlockReturnExpr(p)))
     goto failure;
 
   if (!Consume(p, TOKEN_KW_ELSE))
     goto failure;
 
-  if (p->current.type == TOKEN_KW_IF)
-    node->ifElse.elseBlock = ParseInlineCond(p);
-  else
-    node->ifElse.elseBlock = ParseExpression(p);
+  if (p->current.type == TOKEN_KW_IF) {
+    if (!(node->ifElse.elseBlock = NewNode(p, NODE_BLOCK)))
+      goto failure;
 
-  if (node->ifElse.elseBlock != NULL)
-    return node;
+    if (!AppendNode(p, &node->ifElse.elseBlock->block, ParseInlineCond(p)))
+      goto failure;
+
+  } else {
+    if (!(node->ifElse.elseBlock = BlockReturnExpr(p)))
+      goto failure;
+  }
+
+  return node;
 
 failure:
   ASTFree(node);
