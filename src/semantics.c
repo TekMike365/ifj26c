@@ -36,6 +36,7 @@ typedef struct {
 
   /* Debug info */
   SourceSpan_t pos;
+  const char *id;
 } VarSymbol_t;
 
 static VarSymbol_t *CreateVarSymbol(void) {
@@ -49,12 +50,14 @@ static VarSymbol_t *CreateVarSymbol(void) {
   s->vstate = VS_UNDEFINED;
 
   s->pos = (SourceSpan_t){.line = 0, .start = 0, .end = 0};
+  s->id = NULL;
 
   return s;
 }
 
 static void DeleteVarSymbol(void *data) {
   VarSymbol_t *s = data;
+  free(s->id);
   free(s);
 }
 
@@ -65,6 +68,7 @@ typedef struct {
 
   /* Debug info */
   SourceSpan_t pos;
+  const char *id;
 } FunSymbol_t;
 
 static FunSymbol_t *CreateFunSymbol(void) {
@@ -73,6 +77,7 @@ static FunSymbol_t *CreateFunSymbol(void) {
   if (!s)
     return NULL;
 
+  s->id = NULL;
   s->pos = (SourceSpan_t){.line = 0, .start = 0, .end = 0};
   s->isMain = false;
   s->returnType = TYPE_UNKNOWN;
@@ -86,6 +91,7 @@ static FunSymbol_t *CreateFunSymbol(void) {
 
 static void DeleteFunSymbol(void *data) {
   FunSymbol_t *s = data;
+  free(s->id);
   SymbolTreeDestroy(&s->symbols);
   free(s);
 }
@@ -97,6 +103,7 @@ static void DeleteFunSymbol(void *data) {
 struct analyzer {
   SymbolTree_t funs;
   FunSymbol_t *thisFun;
+  VarSymbol_t *lastVar;
 
   IntStack_t *blockStack;
   int blockID;
@@ -109,6 +116,7 @@ Analyzer_t *CreateAnalyzer(void) {
     return NULL;
 
   a->thisFun = NULL;
+  a->lastVar = NULL;
   if (!SymbolTreeInitWithDestructor(&a->funs, DeleteFunSymbol)) {
     free(a);
     return NULL;
@@ -152,6 +160,12 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
   fs->returnType = fndef->fnDef.declType;
   fs->isMain = fndef->fnDef.isMain;
   fs->pos = fndef->pos;
+
+  size_t idLen = strlen(fndef->fnDef.name);
+  fs->id = malloc(idLen);
+  if (!fs->id)
+    return AERR_MEM;
+  memcpy(fs->id, fndef->fnDef.name, idLen);
 
   /* Add parameters */
   AST_LIST_FOREACH(fndef->fnDef.params, param) {
@@ -204,10 +218,41 @@ AError_t A_BeginBlock(Analyzer_t *a) {
   return IntStackPush(a->blockStack, a->blockID++) ? AERR_OK : AERR_MEM;
 }
 
-void A_EndBlock(Analyzer_t *a) {
+AError_t A_EndBlock(Analyzer_t *a) {
   assert(a);
 
+  AError_t err = AERR_OK;
+
   IntStackPop(a->blockStack);
+  if (!IntStackIsEmpty(a->blockStack))
+    return AERR_OK;
+
+  /* statement variable return thing */
+  DataType_t rtype = TYPE_UNIT;
+  if (a->lastVar.blockID == A_PARAM_BLOCK + 1)
+    rtype = a->type;
+
+  /* assign type if it isn't */
+  if (a->thisFun->returnType == TYPE_UNKNOWN)
+    a->thisFun->returnType = rtype;
+
+  if (a->thisFun->returnType != rtype) {
+    /* error: incompatible types */
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_REDEF,
+                 "Incompatible return type type `%s' != `%s' at "
+                 "the end of function `%s'.",
+                 DataTypeToStr(a->thisFun->returnType), DataTypeToStr(rtype),
+                 a->thisFun->id ? a->thisFun->id : "<unknown>");
+    MsgAddContext(msg, SpanToCtxUnderline(a->thisFun->pos), "here");
+    MsgSend(msg);
+
+    err = AERR_SEM;
+  }
+
+  a->thisFun = NULL;
+  return err;
 }
 
 /* returns NULL if not found (or error) */
@@ -286,7 +331,15 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
     vs->dtype = root->varDef.declType;
     vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
     vs->pos = root->pos;
+
+    size_t idLen = strlen(root->varDef.name) + 1;
+    vs->id = malloc(idLen);
+    if (!vs->id)
+      return AERR_MEM;
+    memcpy(vs->id, root->varDef.name, idLen);
   }
+
+  a->lastVar = vs;
 
   /* treat as assignment */
   ASTNode_t assign = *root;

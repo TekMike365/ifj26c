@@ -56,8 +56,12 @@ AError_t A_BeginBlock(Analyzer_t *a);
 
 /* A_EndBlock()
  *   Ends the last open block. If no block has started, it does nothing.
+ *
+ * RETURN VALUE:
+ *   AERR_OK   on success
+ *   AERR_SEM  if the code isn't semantically OK
  */
-void A_EndBlock(Analyzer_t *a);
+AError_t A_EndBlock(Analyzer_t *a);
 
 /* A_AnalyzeStatement()
  *   Analyzes the passed in statement tree. If the statement requires a body
