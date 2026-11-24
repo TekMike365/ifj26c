@@ -550,7 +550,7 @@ static ASTNode_t *ParseFnBody(Parser_t *p) {
   if (node == NULL)
     return NULL;
 
-   ASTNode_t *ret = NewNode(p, NODE_RETURN);
+  ASTNode_t *ret = NewNode(p, NODE_RETURN);
   if (ret == NULL)
     goto failure;
 
@@ -596,13 +596,19 @@ static ASTNode_t *ParseIfElse(Parser_t *p) {
     if (!Consume(p, TOKEN_KW_ELSE))
       goto failure;
 
-    if (p->current.type == TOKEN_KW_IF)
-      node->ifElse.elseBlock = ParseIfElse(p);
-    else
-      node->ifElse.elseBlock = ParseBlock(p);
+    if (p->current.type == TOKEN_KW_IF) {
+      ASTNode_t *block = NewNode(p, NODE_BLOCK);
+      if (block == NULL)
+        goto failure;
 
-    if (node == NULL)
-      goto failure;
+      node->ifElse.elseBlock = block;
+      if (!AppendNode(p, &block->block, ParseIfElse(p)))
+        goto failure;
+
+    } else {
+      if (!(node->ifElse.elseBlock = ParseBlock(p)))
+        goto failure;
+    }
   }
   return node;
 
