@@ -490,16 +490,16 @@ static ASTNode_t *ParseInlineCond(Parser_t *p) {
   if (!(node->ifElse.thenBlock = ParseExpression(p)))
     goto failure;
 
-  if (p->current.type == TOKEN_KW_ELSE) {
-    if (!Consume(p, TOKEN_KW_ELSE))
-      goto failure;
+  if (!Consume(p, TOKEN_KW_ELSE))
+    goto failure;
 
-    if (p->current.type == TOKEN_KW_IF)
-      node->ifElse.elseBlock = ParseInlineCond(p);
-    else
-      node->ifElse.elseBlock = ParseExpression(p);
-  }
-  return node;
+  if (p->current.type == TOKEN_KW_IF)
+    node->ifElse.elseBlock = ParseInlineCond(p);
+  else
+    node->ifElse.elseBlock = ParseExpression(p);
+
+  if (node->ifElse.elseBlock != NULL)
+    return node;
 
 failure:
   ASTFree(node);
