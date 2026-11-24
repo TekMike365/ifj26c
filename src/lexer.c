@@ -75,12 +75,18 @@ static TokenType_t ParseIdentifier(const char *str) {
   case 2:
     // trie search
     switch (str[0]) {
+    case 'b':
+      // match the rest with "y" as in "by"
+      //                    rest has len 1 ---+
+      //                    		      |
+      //                                      v
+      return MatchKeywordSuffix(str + 1, "y", 1, TOKEN_KEYWORD_BY); // 'by'
     case 'd':
-      // match the rest with "o" as in "do"
-      //                    rest has len 1 ---v
       return MatchKeywordSuffix(str + 1, "o", 1, TOKEN_KEYWORD_DO); // 'do'
     case 'i':
       return MatchKeywordSuffix(str + 1, "f", 1, TOKEN_KEYWORD_IF); // 'if'
+    case 't':
+      return MatchKeywordSuffix(str + 1, "o", 1, TOKEN_KEYWORD_TO); // 'to'
     }
     break;
   case 3:
@@ -144,6 +150,9 @@ static TokenType_t ParseIdentifier(const char *str) {
     case 'm':
       return MatchKeywordSuffix(str + 1, "atch", 4,
                                 TOKEN_KEYWORD_MATCH); // 'match'
+    case 'u':
+      return MatchKeywordSuffix(str + 1, "ntil", 4,
+                                TOKEN_KEYWORD_UNTIL); // 'until'
     case 'w':
       return MatchKeywordSuffix(str + 1, "hile", 4,
                                 TOKEN_KEYWORD_WHILE); // 'while'
