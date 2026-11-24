@@ -56,7 +56,7 @@ static inline TokenType_t MatchKeywordSuffix(const char *str, const char *ref,
 /* decides whether str is identifier or keyword
  * implemented using length-partition followed by trie matching
  * * str - pointer to a char array
- * return - TOKEN_NONE on str == NULL, TOKEN_KEYWORD_X on keyword X, else
+ * return - TOKEN_NONE on str == NULL, TOKEN_KW_X on keyword X, else
  * TOKEN_IDENTIFIER
  */
 static TokenType_t ParseIdentifier(const char *str) {
@@ -80,23 +80,23 @@ static TokenType_t ParseIdentifier(const char *str) {
       //                    rest has len 1 ---+
       //                    		      |
       //                                      v
-      return MatchKeywordSuffix(str + 1, "y", 1, TOKEN_KEYWORD_BY); // 'by'
+      return MatchKeywordSuffix(str + 1, "y", 1, TOKEN_KW_BY); // 'by'
     case 'd':
-      return MatchKeywordSuffix(str + 1, "o", 1, TOKEN_KEYWORD_DO); // 'do'
+      return MatchKeywordSuffix(str + 1, "o", 1, TOKEN_KW_DO); // 'do'
     case 'i':
-      return MatchKeywordSuffix(str + 1, "f", 1, TOKEN_KEYWORD_IF); // 'if'
+      return MatchKeywordSuffix(str + 1, "f", 1, TOKEN_KW_IF); // 'if'
     case 't':
-      return MatchKeywordSuffix(str + 1, "o", 1, TOKEN_KEYWORD_TO); // 'to'
+      return MatchKeywordSuffix(str + 1, "o", 1, TOKEN_KW_TO); // 'to'
     }
     break;
   case 3:
     switch (str[0]) {
     case 'd':
-      return MatchKeywordSuffix(str + 1, "ef", 2, TOKEN_KEYWORD_DEF); // 'def'
+      return MatchKeywordSuffix(str + 1, "ef", 2, TOKEN_KW_DEF); // 'def'
     case 'f':
-      return MatchKeywordSuffix(str + 1, "or", 2, TOKEN_KEYWORD_FOR); // 'for'
+      return MatchKeywordSuffix(str + 1, "or", 2, TOKEN_KW_FOR); // 'for'
     case 'I':
-      return MatchKeywordSuffix(str + 1, "nt", 2, TOKEN_KEYWORD_INT); // 'Int'
+      return MatchKeywordSuffix(str + 1, "nt", 2, TOKEN_KW_INT); // 'Int'
     case 'v':
       switch (str[1]) {
         // annoying, both ('var'/'val') start as 'va' and have length 3 :(
@@ -104,10 +104,10 @@ static TokenType_t ParseIdentifier(const char *str) {
       case 'a':
         switch (str[2]) {
         case 'l':
-          return TOKEN_KEYWORD_VAL; // 'val'
+          return TOKEN_KW_VAL; // 'val'
 
         case 'r':
-          return TOKEN_KEYWORD_VAR; // 'var'
+          return TOKEN_KW_VAR; // 'var'
         }
       }
     }
@@ -117,28 +117,28 @@ static TokenType_t ParseIdentifier(const char *str) {
     switch (str[0]) {
     case 'c':
       return MatchKeywordSuffix(str + 1, "ase", 3,
-                                TOKEN_KEYWORD_CASE); // 'case'
+                                TOKEN_KW_CASE); // 'case'
     case 'e':
       return MatchKeywordSuffix(str + 1, "lse", 3,
-                                TOKEN_KEYWORD_ELSE); // 'else'
+                                TOKEN_KW_ELSE); // 'else'
     case 'L':
       return MatchKeywordSuffix(str + 1, "ist", 3,
-                                TOKEN_KEYWORD_LIST); // 'List'
+                                TOKEN_KW_LIST); // 'List'
     case 't':
       switch (str[1]) {
       case 'h':
         return MatchKeywordSuffix(str + 2, "en", 2,
-                                  TOKEN_KEYWORD_THEN); // 'then'
+                                  TOKEN_KW_THEN); // 'then'
       case 'y':
         return MatchKeywordSuffix(str + 2, "pe", 2,
-                                  TOKEN_KEYWORD_TYPE); // 'type'
+                                  TOKEN_KW_TYPE); // 'type'
 
       default:
         return TOKEN_IDENTIFIER;
       }
     case 'U':
       return MatchKeywordSuffix(str + 1, "nit", 3,
-                                TOKEN_KEYWORD_UNIT); // 'Unit'
+                                TOKEN_KW_UNIT); // 'Unit'
     }
     break;
 
@@ -146,43 +146,43 @@ static TokenType_t ParseIdentifier(const char *str) {
     switch (str[0]) {
     case 'c':
       return MatchKeywordSuffix(str + 1, "lass", 4,
-                                TOKEN_KEYWORD_CLASS); // 'class'
+                                TOKEN_KW_CLASS); // 'class'
     case 'm':
       return MatchKeywordSuffix(str + 1, "atch", 4,
-                                TOKEN_KEYWORD_MATCH); // 'match'
+                                TOKEN_KW_MATCH); // 'match'
     case 'u':
       return MatchKeywordSuffix(str + 1, "ntil", 4,
-                                TOKEN_KEYWORD_UNTIL); // 'until'
+                                TOKEN_KW_UNTIL); // 'until'
     case 'w':
       return MatchKeywordSuffix(str + 1, "hile", 4,
-                                TOKEN_KEYWORD_WHILE); // 'while'
+                                TOKEN_KW_WHILE); // 'while'
     }
     break;
   case 6:
     switch (str[0]) {
     case 'D':
       return MatchKeywordSuffix(str + 1, "ouble", 5,
-                                TOKEN_KEYWORD_DOUBLE); // 'Double'
+                                TOKEN_KW_DOUBLE); // 'Double'
     case 'i':
       return MatchKeywordSuffix(str + 1, "mport", 5,
-                                TOKEN_KEYWORD_IMPORT); // 'import'
+                                TOKEN_KW_IMPORT); // 'import'
     case 'r':
       return MatchKeywordSuffix(str + 1, "eturn", 5,
-                                TOKEN_KEYWORD_RETURN); // 'return'
+                                TOKEN_KW_RETURN); // 'return'
     case 'S':
       return MatchKeywordSuffix(str + 1, "tring", 5,
-                                TOKEN_KEYWORD_STRING); // 'String'
+                                TOKEN_KW_STRING); // 'String'
     }
     break;
   case 7:
     return MatchKeywordSuffix(str + 0, "Boolean", 7,
-                              TOKEN_KEYWORD_BOOLEAN); // 'Boolean'
+                              TOKEN_KW_BOOLEAN); // 'Boolean'
     // no keyword with length 8
   case 8:
     return TOKEN_IDENTIFIER;
   case 9:
     return MatchKeywordSuffix(str + 0, "extension", 9,
-                              TOKEN_KEYWORD_EXTENSION); // 'extension'
+                              TOKEN_KW_EXTENSION); // 'extension'
 
   default:
     return TOKEN_IDENTIFIER;
