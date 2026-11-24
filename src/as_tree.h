@@ -21,9 +21,12 @@ typedef enum ASTKind_t {
   NODE_IF,
   NODE_WHILE,
   NODE_RETURN,
+  NODE_FOR,
+  NODE_GEN,
   /* expressions */
   NODE_UNOP,
   NODE_BINOP,
+  NODE_COND,
   NODE_FNCALL,
   /* lists */
   NODE_ID,
@@ -58,6 +61,9 @@ typedef enum Operator_t {
   OP_UMINUS,
   OP_DIV,
   OP_MUL,
+  OP_NEG,
+  OP_AND,
+  OP_OR,
 
   OP_ERR,
 } Operator_t;
@@ -146,6 +152,17 @@ struct ASTNode_t {
       char *name;
       ASTList_t args;
     } fncall;
+
+    /* NODE_FOR */
+    struct {
+      ASTNode_t *generator, *body;
+    } forLoop;
+
+    struct {
+      bool IncludeMax;
+      char *name;
+      ASTNode_t *from, *to, *by;
+    } gen;
   };
 };
 

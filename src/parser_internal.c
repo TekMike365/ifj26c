@@ -163,6 +163,14 @@ const char *TokenToString(TokenType_t type) {
     return "unary '+'";
   case TOKEN_UNARY_MINUS:
     return "unary '-'";
+  case TOKEN_EXCL_MARK:
+    return "'!'";
+  case TOKEN_KW_TO:
+    return "'to'";
+  case TOKEN_KW_UNTIL:
+    return "'until'";
+  case TOKEN_KW_BY:
+    return "'by'";
   default:
     return "unknown token";
   }
