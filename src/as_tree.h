@@ -13,7 +13,6 @@
 typedef enum ASTKind_t {
   NODE_PROGRAM,
   NODE_FNDEF,
-  NODE_PARAMS,
   NODE_PARAM,
   NODE_BLOCK,
   NODE_ASSIGN,
@@ -36,12 +35,13 @@ typedef enum ASTKind_t {
 
 /* Data types */
 typedef enum DataType_t {
-  TYPE_UNKNOWN = 0,
+  TYPE_NA = 0, /* Non applicable */
   TYPE_STRING,
   TYPE_DOUBLE,
   TYPE_INT,
   TYPE_UNIT,
-  TYPE_BOOLEAN
+  TYPE_BOOLEAN,
+  TYPE_UNKNOWN,
 } DataType_t;
 
 /* Operator types*/
@@ -150,7 +150,7 @@ struct ASTNode_t {
 };
 
 /* creates new empty node
- * returns false on memory allocation failure, else true
+ * returns NULL on memory allocation failure
  */
 ASTNode_t *ASTCreate(ASTKind_t kind, SourceSpan_t pos);
 
@@ -158,7 +158,7 @@ ASTNode_t *ASTCreate(ASTKind_t kind, SourceSpan_t pos);
  * returns false on mem allocation failure, else true
  * does not free on failure
  */
-bool ASTAppend(ASTList_t *list, ASTNode_t *node);
+bool ASTListAppend(ASTList_t *list, ASTNode_t *node);
 
 /* Frees block allocated for the tree */
 void ASTFree(ASTNode_t *node);

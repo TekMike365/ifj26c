@@ -2,6 +2,7 @@
  * Author[s]: Ondrej Dedič <xdedico00>
  */
 #include "as_tree.h"
+#include "logger.h"
 
 /* creates new empty node
  * returns false on memory allocation failure, else true
@@ -11,14 +12,27 @@ ASTNode_t *ASTCreate(ASTKind_t kind, SourceSpan_t pos) {
   if (node == NULL)
     return node;
 
+  switch (kind) {
+  case NODE_PROGRAM:
+  case NODE_BLOCK:
+  case NODE_ASSIGN:
+  case NODE_WHILE:
+  case NODE_IF:
+  case NODE_RETURN:
+    node->type = TYPE_NA;
+    break;
+  default:
+    node->type = TYPE_UNKNOWN;
+  }
+
   node->kind = kind;
   node->pos = pos;
   return node;
 }
 /* appends node at the end of list
- * returns false on mem allocation failure, else true
+ * returns NULL on mem allocation failure
  */
-bool ASTAppend(ASTList_t *list, ASTNode_t *node) {
+bool ASTListAppend(ASTList_t *list, ASTNode_t *node) {
   if (list == NULL || node == NULL)
     return false;
 
@@ -125,7 +139,8 @@ void ASTFree(ASTNode_t *node) {
   free(node); /* free current node as well */
 }
 
-/* for DEBUG */
+#ifdef DEBUG
+
 static const char *DataTypeToStr(DataType_t type) {
   switch (type) {
   case TYPE_INT:
@@ -181,13 +196,13 @@ static void ASTDumpList(const ASTList_t *list, const char *prefix) {
   }
 }
 
-// for DEBUG
 static void ASTDumpNode(const ASTNode_t *node, const char *prefix,
                         bool isLast) {
   if (node == NULL)
     return;
 
-  printf("%s%s", prefix, isLast ? "└── " : "├── ");
+#define LOG_NODE(fmt, ...)                                                     \
+  DLOG_INFO("%s%s" fmt, prefix, isLast ? "└── " : "├── ", __VA_ARGS__)
 
   char nextPrefix[512];
   snprintf(nextPrefix, sizeof(nextPrefix), "%s%s", prefix,
@@ -195,47 +210,47 @@ static void ASTDumpNode(const ASTNode_t *node, const char *prefix,
 
   switch (node->kind) {
   case NODE_PROGRAM:
-    printf("PROGRAM (line %ld)\n", node->pos.line);
+    LOG_NODE("PROGRAM (line %ld)", node->pos.line);
     ASTDumpList(&node->program, nextPrefix);
     break;
 
   case NODE_BLOCK:
-    printf("BLOCK (line %ld)\n", node->pos.line);
+    LOG_NODE("BLOCK (line %ld)", node->pos.line);
     ASTDumpList(&node->block, nextPrefix);
     break;
 
   case NODE_FNDEF:
-    printf("FNDEF \"%s\"%s : %s (line %ld)\n",
-           node->fnDef.name ? node->fnDef.name : "<null>",
-           node->fnDef.isMain ? " [@main]" : "",
-           DataTypeToStr(node->fnDef.declType), node->pos.line);
+    LOG_NODE("FNDEF \"%s\"%s : %s (line %ld)",
+             node->fnDef.name ? node->fnDef.name : "<null>",
+             node->fnDef.isMain ? " [@main]" : "",
+             DataTypeToStr(node->fnDef.declType), node->pos.line);
     ASTDumpList(&node->fnDef.params, nextPrefix);
     ASTDumpNode(node->fnDef.body, nextPrefix, true);
     break;
 
   case NODE_PARAM:
-    printf("PARAM \"%s\" : %s\n",
-           node->param.name ? node->param.name : "<null>",
-           DataTypeToStr(node->param.declType));
+    LOG_NODE("PARAM \"%s\" : %s",
+             node->param.name ? node->param.name : "<null>",
+             DataTypeToStr(node->param.declType));
     break;
 
   case NODE_VALDEF:
   case NODE_VARDEF:
-    printf("%s \"%s\" : %s (line %ld)\n",
-           node->kind == NODE_VALDEF ? "VALDEF" : "VARDEF",
-           node->varDef.name ? node->varDef.name : "<null>",
-           DataTypeToStr(node->varDef.declType), node->pos.line);
+    LOG_NODE("%s \"%s\" : %s (line %ld)",
+             node->kind == NODE_VALDEF ? "VALDEF" : "VARDEF",
+             node->varDef.name ? node->varDef.name : "<null>",
+             DataTypeToStr(node->varDef.declType), node->pos.line);
     ASTDumpNode(node->varDef.init, nextPrefix, true);
     break;
 
   case NODE_ASSIGN:
-    printf("ASSIGN \"%s\" (line %ld)\n",
-           node->assign.name ? node->assign.name : "<null>", node->pos.line);
+    LOG_NODE("ASSIGN \"%s\" (line %ld)",
+             node->assign.name ? node->assign.name : "<null>", node->pos.line);
     ASTDumpNode(node->assign.value, nextPrefix, true);
     break;
 
   case NODE_IF:
-    printf("IF (line %ld)\n", node->pos.line);
+    LOG_NODE("IF (line %ld)", node->pos.line);
     ASTDumpNode(node->ifElse.cond, nextPrefix, false);
     ASTDumpNode(node->ifElse.thenBlock, nextPrefix,
                 node->ifElse.elseBlock == NULL);
@@ -243,71 +258,77 @@ static void ASTDumpNode(const ASTNode_t *node, const char *prefix,
     break;
 
   case NODE_WHILE:
-    printf("WHILE (line %ld)\n", node->pos.line);
+    LOG_NODE("WHILE (line %ld)", node->pos.line);
     ASTDumpNode(node->whileDo.cond, nextPrefix, false);
     ASTDumpNode(node->whileDo.body, nextPrefix, true);
     break;
 
   case NODE_RETURN:
-    printf("RETURN (line %ld)\n", node->pos.line);
+    LOG_NODE("RETURN (line %ld)", node->pos.line);
     ASTDumpNode(node->ret.value, nextPrefix, true);
     break;
 
   case NODE_UNOP:
-    printf("UNOP (op= %c) [type: %s]\n",
-           (node->unOp.op == OP_UMINUS) ? '-' : '+', DataTypeToStr(node->type));
+    LOG_NODE("UNOP (op= %c) [type: %s]",
+             (node->unOp.op == OP_UMINUS) ? '-' : '+',
+             DataTypeToStr(node->type));
     ASTDumpNode(node->unOp.operand, nextPrefix, true);
     break;
 
   case NODE_BINOP:
-    printf("BINOP (op= %c) [type: %s]\n", BinOpChar(node->binOp.op),
-           DataTypeToStr(node->type));
+    LOG_NODE("BINOP (op= %c) [type: %s]", BinOpChar(node->binOp.op),
+             DataTypeToStr(node->type));
     ASTDumpNode(node->binOp.left, nextPrefix, false);
     ASTDumpNode(node->binOp.right, nextPrefix, true);
     break;
 
   case NODE_FNCALL:
-    printf("FNCALL \"%s\" [type: %s]\n",
-           node->fncall.name ? node->fncall.name : "<null>",
-           DataTypeToStr(node->type));
+    LOG_NODE("FNCALL \"%s\" [type: %s]",
+             node->fncall.name ? node->fncall.name : "<null>",
+             DataTypeToStr(node->type));
     ASTDumpList(&node->fncall.args, nextPrefix);
     break;
 
   case NODE_ID:
-    printf("ID \"%s\" [type: %s]\n", node->name ? node->name : "<null>",
-           DataTypeToStr(node->type));
+    LOG_NODE("ID \"%s\" [type: %s]", node->name ? node->name : "<null>",
+             DataTypeToStr(node->type));
     break;
 
   case NODE_INT:
-    printf("INT %lld [type: %s]\n", (long long)node->intVal,
-           DataTypeToStr(node->type));
+    LOG_NODE("INT %lld [type: %s]", (long long)node->intVal,
+             DataTypeToStr(node->type));
     break;
 
   case NODE_DOUBLE:
-    printf("DOUBLE %g [type: %s]\n", node->dblVal, DataTypeToStr(node->type));
+    LOG_NODE("DOUBLE %g [type: %s]", node->dblVal, DataTypeToStr(node->type));
     break;
 
   case NODE_STRING:
-    printf("STRING \"%s\" [type: %s]\n", node->string ? node->string : "",
-           DataTypeToStr(node->type));
+    LOG_NODE("STRING \"%s\" [type: %s]", node->string ? node->string : "",
+             DataTypeToStr(node->type));
     break;
 
   case NODE_UNIT:
-    printf("UNIT [type: %s]\n", DataTypeToStr(node->type));
+    LOG_NODE("UNIT [type: %s]", DataTypeToStr(node->type));
     break;
 
   default:
-    printf("UNKNOWN_NODE (kind=%d)\n", node->kind);
+    LOG_NODE("UNKNOWN_NODE (kind=%d)", node->kind);
     break;
   }
+#undef LOG_NODE
 }
 
 void ASTDump(const ASTNode_t *root) {
   if (root == NULL) {
-    printf("<empty AST>\n");
+    DLOG_INFO("<empty AST>");
     return;
   }
   ASTDumpNode(root, "", true);
 }
 
-/* DEBUG */
+#else /* ifdef DEBUG */
+
+void ASTDump(const ASTNode_t *root) { (void)root; }
+
+#endif /* ifdef DEBUG */
