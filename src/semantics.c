@@ -25,7 +25,7 @@ static inline MsgContext_t SpanToCtxUnderline(SourceSpan_t span) {
 
 typedef enum {
   VS_UNDEFINED = 0,
-  VS_DEFINED,
+  VS_MUTABLE,
 } VarState_t;
 
 typedef struct {
@@ -183,6 +183,8 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
     MsgAddContext(msg, SpanToCtxUnderline(((FunSymbol_t *)symbol->data)->pos),
                   "First defined here.");
     MsgSend(msg);
+
+    /* add anyways */
   }
 
   /* store the function symbol */
@@ -205,6 +207,29 @@ void A_EndBlock(Analyzer_t *a) {
   assert(a);
 
   IntStackPop(a->blockStack);
+}
+
+/* returns NULL if not found (or error) */
+static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
+  assert(a && id);
+
+  long vsDepth = -1;
+  VarSymbol_t *vs = NULL;
+
+  SymbolTreeIndexNode_t *symbol;
+  SymbolTreeFindAllIndices(&a->thisFun->symbols, id, &symbol);
+  for (; symbol; symbol = symbol->next) {
+    const SymbolHeader_t *sh =
+        SymbolTreeAt(&a->thisFun->symbols, symbol->index);
+    long d = IntStackDepth(a->blockStack, ((VarSymbol_t *)sh->data)->blockID);
+
+    if (vsDepth < 0 || (d < vsDepth && d >= 0)) {
+      vsDepth = d;
+      vs = (VarSymbol_t *)sh->data;
+    }
+  }
+
+  return vs;
 }
 
 static AError_t AnalyzeOp(Analyzer_t *a, ASTNode_t *root) {
@@ -231,8 +256,44 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
 }
 
 static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root) {
-  assert(a && root);
-  return AERR_OK;
+  assert(a && root && root->kind == NODE_VARDEF);
+
+  AError_t err = AERR_OK;
+
+  VarSymbol_t *vs = GetActiveVSymbol(a, root->varDef.name);
+
+  if (vs && vs->blockID == a->blockID && vs->vstate == VS_MUTABLE) {
+    /* redefinition error */
+    err = AERR_SEM;
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_REDEF, "Variable `%s' already exists.",
+                 root->varDef.name);
+    MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "First defined here.");
+    MsgSend(msg);
+
+    /* process like it is assignment */
+  }
+
+  /* create if it doesn't exist*/
+  if (vs == NULL) {
+    vs = CreateVarSymbol();
+    if (!vs)
+      return AERR_MEM;
+
+    vs->blockID = a->blockID;
+    vs->dtype = tree->varDef.declType;
+    vs->vstate = VS_MUTABLE;
+    vs->pos = tree->pos;
+  }
+
+  /* treat as assignment */
+  ASTNode_t assign = *root;
+  assign.kind = NODE_ASSIGN;
+  assign.assign.value = root.varDef->value;
+
+  bool anotheroneoftheseerrors = AnalyzeAssign(a, &assign);
+  return err == ERROR_NOERR ? err : anotheroneoftheseerrors;
 }
 
 static AError_t AnalyzeValDef(Analyzer_t *a, ASTNode_t *root) {
