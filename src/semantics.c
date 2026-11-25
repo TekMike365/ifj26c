@@ -269,23 +269,112 @@ static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
   return vs;
 }
 
-static AError_t AnalyzeOp(Analyzer_t *a, ASTNode_t *root) {
+/* if `type' is TYPE_UNKNOWN it is set to the expression type
+ * if `type' is not equal to the expression type => throw error and return
+ *   the origitnal type
+ */
+static AError_t AnalyzeOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   assert(a && root);
   /* TODO: implement */
   return AERR_OK;
 }
 
-static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root) {
+/* if `type' is TYPE_UNKNOWN it is set to the expression type
+ * if `type' is not equal to the expression type => throw error and return
+ *   the origitnal type
+ */
+static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root,
+                              DataType_t *type) {
   assert(a && root);
   /* TODO: implement */
   return AERR_OK;
 }
 
-/* type to whatever type the statetment is */
+/* if `type' is TYPE_UNKNOWN it is set to the expression type
+ * if `type' is not equal to the expression type => throw error and return
+ *   the origitnal type
+ */
+static AError_t AnalyzeLiteral(Analyzer_t *a, ASTNode_t *root,
+                               DataType_t *type) {
+  assert(a && root);
+  /* TODO: implement */
+  return AERR_OK;
+}
+
+/* if `type' is TYPE_UNKNOWN it is set to the expression type
+ * if `type' is not equal to the expression type => throw error and return
+ *   the origitnal type
+ */
 static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   assert(a && root);
-  /* TODO: implement */
-  return AERR_OK;
+
+  AError_t err = AERR_OK;
+
+  switch (root->kind) {
+  case NODE_UNOP:
+  case NODE_BINOP:
+    return AnalyzeOp(a, root, type);
+  case NODE_FNCALL:
+    return AnalyzeFnCall(a, root, type);
+  case NODE_INT:
+  case NODE_DOUBLE:
+  case NODE_STRING:
+  case NODE_UNIT:
+    return AnalyzeLiteral(a, root, type);
+  case NODE_ID:
+    break; /* analyzed below */
+  default:
+    return err;
+  }
+
+  /* Analyze ID */
+
+  VarSymbol_t *vs = GetActiveVSymbol(a, root->name);
+  if (!vs) {
+    /* create the symbol if it doesn't exist */
+    vs = CreateVarSymbol();
+    if (!vs)
+      return AERR_MEM;
+
+    vs->blockID = a->blockID;
+    vs->dtype = TYPE_UNKNOWN;
+    vs->vstate = VS_UNDEFINED;
+    vs->pos = root->pos;
+
+    vs->id = CopyStr(root->varDef.name);
+    if (!vs->id) {
+      DeleteVarSymbol(vs);
+      return AERR_MEM;
+    }
+  }
+
+  if (vs->vstate == VS_UNDEFINED) {
+    /* undefined variable error */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
+                              "Variable `%s' is used but not defined.", vs->id);
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first appeared here");
+    MsgSend(msg);
+  }
+
+  if (*type == TYPE_UNKNOWN)
+    *type = vs->dtype;
+
+  if (*type != vs->dtype) {
+    /* type error */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(
+        MSG_ERROR, ERROR_SEM_TYPE,
+        "Variable `%s' is of uncompatible type. Expected `%s' got `%s'.",
+        vs->id, DataTypeToStr(*type), DataTypeToStr(vs->dtype));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
+
+  return err;
 }
 
 static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
