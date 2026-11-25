@@ -281,14 +281,163 @@ static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
   return vs;
 }
 
+static void ReportBinOpValueError(const char *op, DataType_t ltype,
+                                  DataType_t rtype, SourceSpan_t opPos,
+                                  SourceSpan_t lpos, SourceSpan_t rpos) {
+  Message_t *msg =
+      MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+               "Unsupported operation `%s' for types `%s' and `%s'", op,
+               DataTypeToStr(ltype), DataTypeToStr(rtype));
+  MsgAddContext(msg, SpanToCtxUnderline(opPos), "used here");
+  MsgAddContext(msg, SpanToCtxUnderline(lpos), "typeof left expression: `%s'",
+                ltype);
+  MsgAddContext(msg, SpanToCtxUnderline(rpos), "typeof right expression: `%s'",
+                rtype);
+  MsgSend(msg);
+}
+
+static AError_t CorrectMathTypes(ASTNode_t **left, ASTNode_t **right,
+                                 DataType_t ltype, DataType_t rtype,
+                                 DataType_t *result) {
+  *result = ltype;
+  if (ltype == rtype)
+    return AERR_OK;
+  *result = TYPE_DOUBLE;
+
+  ASTNode_t *conv = ASTCreate(NODE_CONV_DOUBLE, (SourceSpan_t){0});
+  if (!conv)
+    return AERR_MEM;
+
+  if (ltype == TYPE_INT) {
+    conv->value = *left;
+    *left = conv;
+  } else {
+    conv->value = *right;
+    *right = conv;
+  }
+
+  return AERR_OK;
+}
+
 /* if `type' is TYPE_UNKNOWN it is set to the expression type
  * if `type' is not equal to the expression type => throw error and return
  *   the origitnal type
  */
 static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   assert(a && root && root->kind == NODE_BINOP);
-  /* TODO: implement */
-  return AERR_OK;
+
+  AError_t err = AERR_OK;
+  DataType_t otype = TYPE_UNKNOWN;
+
+  /* get subexpression types */
+  DataType_t ltype = TYPE_UNKNOWN;
+  DataType_t rtype = TYPE_UNKNOWN;
+  err = AnalyzeExpr(a, root->binOp.left, &ltype);
+  AError_t e = AnalyzeExpr(a, root->binOp.right, &rtype);
+  err = err != AERR_OK ? err : e;
+
+  if (err == AERR_MEM)
+    return err;
+
+  SourceSpan_t lpos = root->binOp.left->pos;
+  SourceSpan_t rpos = root->binOp.right->pos;
+
+  switch (root->binOp.op) {
+  /* maths */
+  case OP_DIV:
+  case OP_MUL:
+  case OP_MINUS: {
+    if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
+        (rtype != TYPE_INT && rtype != TYPE_DOUBLE)) {
+      /* type error */
+      err = AERR_SEM;
+      ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
+                            lpos, rpos);
+      break;
+    }
+
+    CorrectMathTypes(&root->binOp.left, &root->binOp.right, ltype, rtype,
+                     &otype);
+  } break;
+
+  /* special */
+  case OP_PLUS: {
+    if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
+        (rtype != TYPE_INT && rtype != TYPE_DOUBLE) ||
+        (ltype != TYPE_STRING || rtype != TYPE_STRING)) {
+      /* type error */
+      err = AERR_SEM;
+      ReportBinOpValueError("+", ltype, rtype, root->pos, lpos, rpos);
+      break;
+    }
+
+    if (ltype != TYPE_STRING)
+      CorrectMathTypes(&root->binOp.left, &root->binOp.right, ltype, rtype,
+                       &otype);
+    else
+      otype = TYPE_STRING;
+  } break;
+
+  /* relations */
+  case OP_LTE:
+  case OP_LT:
+  case OP_GTE:
+  case OP_GT: {
+    if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
+        (rtype != TYPE_INT && rtype != TYPE_DOUBLE) ||
+        (ltype != TYPE_STRING || rtype != TYPE_STRING)) {
+      /* type error */
+      err = AERR_SEM;
+      ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
+                            lpos, rpos);
+      break;
+    }
+
+    if (ltype != TYPE_STRING)
+      CorrectMathTypes(&root->binOp.left, &root->binOp.right, ltype, rtype,
+                       &otype);
+
+    otype = TYPE_BOOLEAN;
+  } break;
+
+  case OP_EQ:
+  case OP_NEQ: {
+    if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
+        (rtype != TYPE_INT && rtype != TYPE_DOUBLE) || (ltype != rtype)) {
+      /* type error */
+      err = AERR_SEM;
+      ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
+                            lpos, rpos);
+      break;
+    }
+
+    if (ltype != rtype)
+      CorrectMathTypes(&root->binOp.left, &root->binOp.right, ltype, rtype,
+                       &otype);
+
+    otype = TYPE_BOOLEAN;
+  } break;
+
+  /* default */
+  default:
+    break;
+  }
+
+  if (*type == TYPE_UNKNOWN)
+    *type = otype;
+
+  if (*type != otype) {
+    /* type error */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "Unexpected type: expected `%s' got `%s'.",
+                              DataTypeToStr(*type), DataTypeToStr(otype));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
+
+  return err;
 }
 
 /* if `type' is TYPE_UNKNOWN it is set to the expression type
