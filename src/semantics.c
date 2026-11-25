@@ -303,8 +303,66 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root) {
 }
 
 static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
-  assert(a && root);
-  return AERR_OK;
+  assert(a && root && root->kind == NODE_ASSIGN);
+
+  AError_t err = AERR_OK;
+
+  VarSymbol_t *vs = GetActiveVSymbol(a, root->assign.name);
+  if (!vs) {
+    /* create the symbol if it doesn't exist */
+    vs = CreateVarSymbol();
+    if (!vs)
+      return AERR_MEM;
+
+    vs->blockID = a->blockID;
+    vs->dtype = root->varDef.declType;
+    vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
+    vs->pos = root->pos;
+
+    size_t idLen = strlen(root->varDef.name) + 1;
+    vs->id = malloc(idLen);
+    if (!vs->id)
+      return AERR_MEM;
+    memcpy(vs->id, root->varDef.name, idLen);
+  }
+
+  if (vs->vstate == VS_UNDEFINED) {
+    /* undefined variable error */
+    err = AERR_SEM;
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
+                 "Variable `%s' is assigned to but it's not defined.",
+                 root->assign.name);
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "here");
+    MsgSend(msg);
+  }
+
+  /* expr evaluation & type check */
+  DataType_t type = TYPE_UNKNOWN;
+  AError_t e = AnalyzeExpr(a, root->assign.value, &type);
+  err = err != AERR_OK ? err : e;
+
+  if (vs->type == TYPE_UNKNOWN)
+    vs->type = type;
+
+  if (vs->type != type) {
+    /* incorrect type error */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(
+        MSG_ERROR, ERROR_SEM_TYPE,
+        "Incompatible type at assignment: typeof `%s' (`%s') != `%s'",
+        GetIDStr(vs->id), DataTypeToStr(vs->type), DataTypeToStr(type));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "here");
+    MsgSend(msg);
+  }
+
+  /* keep the last type goin' */
+  a->lastType.type = vs->type;
+  a->lastType.blockID = a->blockID;
+
+  return err;
 }
 
 static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
