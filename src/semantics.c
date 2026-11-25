@@ -24,6 +24,15 @@ static inline const char *GetIDStr(const char *id) {
   return id ? id : "<unknown>";
 }
 
+static inline const char *CopyStr(const char *s) {
+  size_t len = strlen(s) + 1;
+  char *new = malloc(len);
+  if (!new)
+    return NULL;
+  memcpy((void *)new, s, len);
+  return new;
+}
+
 /*
  * Symbol definitions
  */
@@ -170,11 +179,11 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
   fs->isMain = fndef->fnDef.isMain;
   fs->pos = fndef->pos;
 
-  size_t idLen = strlen(fndef->fnDef.name);
-  fs->id = malloc(idLen);
-  if (!fs->id)
+  fs->id = CopyStr(fndef->fnDef.name);
+  if (!fs->id) {
+    DeleteFunSymbol(fs);
     return AERR_MEM;
-  memcpy((void *)fs->id, fndef->fnDef.name, idLen);
+  }
 
   /* Add parameters */
   AST_LIST_FOREACH(fndef->fnDef.params, param) {
@@ -296,11 +305,11 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
     vs->vstate = VS_UNDEFINED;
     vs->pos = root->pos;
 
-    size_t idLen = strlen(root->varDef.name) + 1;
-    vs->id = malloc(idLen);
-    if (!vs->id)
+    vs->id = CopyStr(root->varDef.name);
+    if (!vs->id) {
+      DeleteVarSymbol(vs);
       return AERR_MEM;
-    memcpy((void *)vs->id, root->varDef.name, idLen);
+    }
   }
 
   if (vs->vstate == VS_UNDEFINED) {
@@ -369,11 +378,11 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
     vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
     vs->pos = root->pos;
 
-    size_t idLen = strlen(root->varDef.name) + 1;
-    vs->id = malloc(idLen);
-    if (!vs->id)
+    vs->id = CopyStr(root->varDef.name);
+    if (!vs->id) {
+      DeleteVarSymbol(vs);
       return AERR_MEM;
-    memcpy((void *)vs->id, root->varDef.name, idLen);
+    }
   }
 
   /* treat as assignment */
