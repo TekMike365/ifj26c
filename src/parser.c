@@ -372,9 +372,8 @@ failure:
 // if LF, next DEDENT:   <stmntsC> = LF
 // if LF:                <stmntsC> = LF <stmnts>
 // if ';':               <stmntsC> = ; <stmnts>
-//
 // if <stmnt> was IF or WHILE:
-//                       <stmntsC> = <stmnts>
+// <stmntsC> = <stmnts>
 static bool ParseStatements(Parser_t *p, ASTList_t *list) {
   while (true) {
     /* If While and For statement blocks are indented */
@@ -652,7 +651,11 @@ failure:
   return NULL;
 }
 
-// <ifelse> = if <expr> then <block> [<else> <block>?]
+// <ifelse> = if <expr> then <block> <else?>
+// <else?> = <else>
+// <else?> = epsilon
+// <else> = <ifelse>
+// <else> = <block>
 static ASTNode_t *ParseIfElse(Parser_t *p) {
   ASTNode_t *node = NewNode(p, NODE_IF);
   if (node == NULL)
@@ -807,10 +810,8 @@ failure:
   return NULL;
 }
 
-// LF is mandatory
-// <loopBody> = if <cond> <loopBody>
-// <loopBody> = id <loop>
-// <loopBody> = DEDENT DO <block>
+// <loopBody> = LF if <cond> <loopBody>
+// <loopBody> = LF DEDENT DO <block>
 static ASTNode_t *ParseLoopBody(Parser_t *p) {
   ASTNode_t *root = NewNode(p, NODE_BLOCK);
   if (root == NULL)
@@ -874,8 +875,8 @@ failure:
 }
 
 // <gen> = id <- <expr> <genEnd>
-// <genEnd> = to    <expr> [<cadence>]
-// <genEnd> = until <expr> [<cadence>]
+// <genEnd> = to    <expr> [<step>]
+// <genEnd> = until <expr> [<step>]
 static ASTNode_t *ParseGen(Parser_t *p) {
   ASTNode_t *node = NewNode(p, NODE_GEN);
   if (node == NULL)
