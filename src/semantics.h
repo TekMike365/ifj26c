@@ -92,4 +92,15 @@ AError_t A_EndBlock(Analyzer_t *a);
  */
 AError_t A_AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt);
 
+/* A_FinishAnlysis()
+ *   Opposed to other types of analysis, the Finns do it reasonably well. The
+ * function finishes the analysis and checks things such as all functions must
+ * be defined.
+ *
+ * RETURN VALUE:
+ *   AERR_OK   on success
+ *   AERR_SEM  if `stmnt' is semantically incorrect
+ */
+AError_t A_FinishAnlysis(Analyzer_t *a);
+
 #endif /* IFJ26C_SEMANTICS_H */
