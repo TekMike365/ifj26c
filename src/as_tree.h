@@ -77,6 +77,8 @@ typedef enum Operator_t {
   OP_ERR,
 } Operator_t;
 
+const char *OpToChar(Operator_t op);
+
 typedef struct ASTNode_t ASTNode_t;
 
 typedef struct ASTList_t { /* for NODES with variable count (i.e. params...) */
