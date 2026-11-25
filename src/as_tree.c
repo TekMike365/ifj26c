@@ -177,9 +177,14 @@ const char *DataTypeToStr(DataType_t type) {
     return "Unit";
   case TYPE_STRING:
     return "String";
-  default:
-    return "?";
+  case TYPE_NA:
+    return "<NA>";
+  case TYPE_ANY:
+    return "<ANY>";
+  case TYPE_UNKNOWN:
+    return "<?>";
   }
+  return "<unknown type>";
 }
 
 const char *OpToChar(Operator_t op) {

@@ -12,7 +12,7 @@
 
 #define AST_LIST_FOREACH(list, epAST)                                          \
   for (ASTNode_t *epAST = (list).items[0], **_epp_ = (list).items;             \
-       _epp_ != (list).items + (list).count; epAST = *(_epp_++))
+       ++_epp_ != (list).items + (list).count; epAST = *(_epp_))
 
 /* Node type, selects union members in node */
 typedef enum ASTKind_t {
