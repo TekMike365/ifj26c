@@ -435,8 +435,31 @@ static AError_t AnalyzeWhile(Analyzer_t *a, ASTNode_t *root) {
 
 static AError_t AnalyzeReturn(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root && root->kind == NODE_RETURN);
-  /* TODO: implement */
-  return AERR_OK;
+
+  DataType_t type = TYPE_UNKNOWN;
+  AError_t err = AnalyzeExpr(a, root->ret.value, &type);
+
+  if (a->thisFun->returnType == TYPE_UNKNOWN)
+    a->thisFun->returnType = type;
+
+  if (a->thisFun->returnType != type) {
+    /* incorrect type error */
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                 "Returning value of type `%s' from a function "
+                 "with the return type `%s'.",
+                 DataTypeToStr(type), DataTypeToStr(a->thisFun->returnType));
+    MsgAddContext(msg, SpanToCtxUnderline(a->thisFun->pos),
+                  "function `%s' has return type `%s'",
+                  GetIDStr(a->thisFun->id),
+                  DataTypeToStr(a->thisFun->returnType));
+    MsgAddContext(msg, SpanToCtxUnderline(root->ret.value->pos),
+                  "returned vlue is of type `%s'", DataTypeToStr(type));
+    MsgSend(msg);
+  }
+
+  return err;
 }
 
 AError_t A_AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
