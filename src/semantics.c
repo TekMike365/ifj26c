@@ -7,6 +7,7 @@
 #include "int_stack.h"
 #include "messenger.h"
 #include <assert.h>
+#include <string.h>
 
 #define A_PARAM_BLOCK 0
 
@@ -19,7 +20,9 @@ static inline MsgContext_t SpanToCtxUnderline(SourceSpan_t span) {
                        .hlEndCol = span.end, .poiCol = 0);
 }
 
-static inline const char *GetIDStr(const char *id){return id ? id : "<unknown>"}
+static inline const char *GetIDStr(const char *id) {
+  return id ? id : "<unknown>";
+}
 
 /*
  * Symbol definitions
@@ -59,7 +62,10 @@ static VarSymbol_t *CreateVarSymbol(void) {
 
 static void DeleteVarSymbol(void *data) {
   VarSymbol_t *s = data;
-  free(s->id);
+  if (!s)
+    return;
+
+  free((void *)s->id);
   free(s);
 }
 
@@ -93,7 +99,10 @@ static FunSymbol_t *CreateFunSymbol(void) {
 
 static void DeleteFunSymbol(void *data) {
   FunSymbol_t *s = data;
-  free(s->id);
+  if (!s)
+    return;
+
+  free((void *)s->id);
   SymbolTreeDestroy(&s->symbols);
   free(s);
 }
@@ -172,7 +181,7 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
   fs->id = malloc(idLen);
   if (!fs->id)
     return AERR_MEM;
-  memcpy(fs->id, fndef->fnDef.name, idLen);
+  memcpy((void *)fs->id, fndef->fnDef.name, idLen);
 
   /* Add parameters */
   AST_LIST_FOREACH(fndef->fnDef.params, param) {
@@ -294,6 +303,7 @@ static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root) {
   return AERR_OK;
 }
 
+/* sets last type */
 static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root) {
   /* TODO:
    * def foo() = 4
@@ -316,14 +326,14 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
 
     vs->blockID = a->blockID;
     vs->dtype = root->varDef.declType;
-    vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
+    vs->vstate = VS_UNDEFINED;
     vs->pos = root->pos;
 
     size_t idLen = strlen(root->varDef.name) + 1;
     vs->id = malloc(idLen);
     if (!vs->id)
       return AERR_MEM;
-    memcpy(vs->id, root->varDef.name, idLen);
+    memcpy((void *)vs->id, root->varDef.name, idLen);
   }
 
   if (vs->vstate == VS_UNDEFINED) {
@@ -339,27 +349,27 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
   }
 
   /* expr evaluation & type check */
-  DataType_t type = TYPE_UNKNOWN;
-  AError_t e = AnalyzeExpr(a, root->assign.value, &type);
+  AError_t e = AnalyzeExpr(a, root->assign.value);
   err = err != AERR_OK ? err : e;
 
-  if (vs->type == TYPE_UNKNOWN)
-    vs->type = type;
+  if (vs->dtype == TYPE_UNKNOWN)
+    vs->dtype = a->lastType.type;
 
-  if (vs->type != type) {
+  if (vs->dtype != a->lastType.type) {
     /* incorrect type error */
     err = AERR_SEM;
 
-    Message_t *msg = MsgStart(
-        MSG_ERROR, ERROR_SEM_TYPE,
-        "Incompatible type at assignment: typeof `%s' (`%s') != `%s'",
-        GetIDStr(vs->id), DataTypeToStr(vs->type), DataTypeToStr(type));
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                 "Incompatible type at assignment: typeof `%s' (`%s') != `%s'",
+                 GetIDStr(vs->id), DataTypeToStr(vs->dtype),
+                 DataTypeToStr(a->lastType.type));
     MsgAddContext(msg, SpanToCtxUnderline(root->pos), "here");
     MsgSend(msg);
   }
 
   /* keep the last type goin' */
-  a->lastType.type = vs->type;
+  a->lastType.type = vs->dtype;
   a->lastType.blockID = a->blockID;
 
   return err;
@@ -400,11 +410,11 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
     vs->id = malloc(idLen);
     if (!vs->id)
       return AERR_MEM;
-    memcpy(vs->id, root->varDef.name, idLen);
+    memcpy((void *)vs->id, root->varDef.name, idLen);
   }
 
   /* keep track of last type */
-  a->lastType.type = vs->type;
+  a->lastType.type = vs->dtype;
   a->lastType.blockID = a->blockID;
 
   /* treat as assignment */
@@ -448,6 +458,7 @@ AError_t A_AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
   case NODE_RETURN:
     return AnalyzeReturn(a, stmnt);
   default:
+    break;
   }
 
   return AERR_OK;
