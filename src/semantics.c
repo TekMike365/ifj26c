@@ -723,6 +723,16 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
     MsgAddContext(msg, SpanToCtxUnderline(root->pos), "assigned here");
     MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first appeared here");
     MsgSend(msg);
+  } else if (vs->vstate == VS_CONST) {
+    /* assignment to a constant error */
+    err = AERR_SEM;
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_IMMUTABLE,
+                 "Assignment to a immutable variable `%s'.", root->assign.name);
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "assigned here");
+    MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first appeared here");
+    MsgSend(msg);
   }
 
   /* expr evaluation & type check */
@@ -755,7 +765,7 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
 
   VarSymbol_t *vs = GetActiveVSymbol(a, root->varDef.name);
 
-  if (vs && vs->blockID == a->blockID && vs->vstate == VS_MUTABLE) {
+  if (vs && vs->blockID == a->blockID && vs->vstate != VS_UNDEFINED) {
     /* redefinition error */
     err = AERR_SEM;
 
@@ -769,14 +779,17 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
   }
 
   /* create if it doesn't exist*/
+  bool created = false;
   if (vs == NULL) {
+    created = true;
+
     vs = CreateVarSymbol();
     if (!vs)
       return AERR_MEM;
 
     vs->blockID = a->blockID;
     vs->dtype = root->varDef.declType;
-    vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
+    vs->vstate = VS_MUTABLE;
     vs->pos = root->pos;
 
     vs->id = CopyStr(root->varDef.name);
@@ -792,6 +805,10 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
   assign.assign.value = root->varDef.init;
 
   bool anotheroneoftheseerrors = AnalyzeAssign(a, &assign);
+
+  if (created)
+    vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
+
   return err != AERR_OK ? err : anotheroneoftheseerrors;
 }
 
