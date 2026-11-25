@@ -290,6 +290,29 @@ static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root,
   return AERR_OK;
 }
 
+static void MsgAddLiteralCtx(Message_t *msg, ASTNode_t *lit) {
+  switch (lit->kind) {
+  case NODE_INT:
+    MsgAddContext(msg, SpanToCtxUnderline(lit->pos), "literal: `%d'",
+                  lit->intVal);
+    break;
+  case NODE_DOUBLE:
+    MsgAddContext(msg, SpanToCtxUnderline(lit->pos), "literal: `%lf'",
+                  lit->dblVal);
+    break;
+  case NODE_STRING:
+    MsgAddContext(msg, SpanToCtxUnderline(lit->pos), "literal: `%s'",
+                  lit->string);
+    break;
+  case NODE_UNIT:
+    MsgAddContext(msg, SpanToCtxUnderline(lit->pos), "literal: `()'");
+    break;
+  default:
+    MsgAddContext(msg, SpanToCtxUnderline(lit->pos), "literal: `<unknown>'");
+    break;
+  }
+}
+
 /* if `type' is TYPE_UNKNOWN it is set to the expression type
  * if `type' is not equal to the expression type => throw error and return
  *   the origitnal type
@@ -297,8 +320,43 @@ static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root,
 static AError_t AnalyzeLiteral(Analyzer_t *a, ASTNode_t *root,
                                DataType_t *type) {
   assert(a && root);
-  /* TODO: implement */
-  return AERR_OK;
+
+  AError_t err = AERR_OK;
+
+  /* get the literal's type */
+  DataType_t ltype;
+  switch (root->kind) {
+  case NODE_INT:
+    ltype = TYPE_INT;
+    break;
+  case NODE_DOUBLE:
+    ltype = TYPE_DOUBLE;
+    break;
+  case NODE_STRING:
+    ltype = TYPE_STRING;
+    break;
+  case NODE_UNIT:
+    ltype = TYPE_UNIT;
+    break;
+  default:
+    ltype = TYPE_UNKNOWN;
+  }
+
+  if (*type == TYPE_UNKNOWN)
+    *type = ltype;
+
+  if (*type != ltype) {
+    /* incompatible types */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "Unexpected type of literal `%s' != `%s'",
+                              DataTypeToStr(ltype), DataTypeToStr(*type));
+    MsgAddLiteralCtx(msg, root);
+    MsgSend(msg);
+  }
+
+  return err;
 }
 
 /* if `type' is TYPE_UNKNOWN it is set to the expression type
