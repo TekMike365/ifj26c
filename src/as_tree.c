@@ -206,7 +206,7 @@ static const char *OpToChar(Operator_t op) {
   case OP_NEG:
     return "!";
   case OP_AND:
-    return "'&&";
+    return "&&";
   case OP_OR:
     return "||";
   default:
