@@ -10,6 +10,25 @@
 #include <string.h>
 
 #define A_PARAM_BLOCK 0
+#define A_MAX_BUILTINS_PARAMS_COUNT 4
+
+/* Builtin function `declarations'
+ *   DO(name, returnType, paramCount, params...)
+ *   P(name, type) // param
+ *                 // if there are no params P("", TYPE_NA) is set
+ */
+#define A_FOR_BUILTINS(DO, P)                                                  \
+  DO("print", TYPE_UNIT, 1, P("value", TYPE_ANY))                              \
+  DO("readLine", TYPE_STRING, 0, P("", TYPE_NA))                               \
+  DO("readInt", TYPE_INT, 0, P("", TYPE_NA))                                   \
+  DO("readDouble", TYPE_DOUBLE, 0, P("", TYPE_NA))                             \
+  DO("toStr", TYPE_STRING, 1, P("value", TYPE_ANY))                            \
+  DO("toInt", TYPE_INT, 1, P("value", TYPE_DOUBLE))                            \
+  DO("strLength", TYPE_INT, 1, P("value", TYPE_STRING))                        \
+  DO("subStr", TYPE_STRING, 3, P("value", TYPE_STRING), P("start", TYPE_INT),  \
+     P("end", TYPE_INT))                                                       \
+  DO("ord", TYPE_INT, 2, P("value", TYPE_STRING), P("index", TYPE_INT))        \
+  DO("chr", TYPE_STRING, 1, P("code", TYPE_INT))
 
 /*
  * Helper functions
@@ -82,6 +101,7 @@ typedef struct {
   SymbolTree_t symbols;
   DataType_t returnType;
   bool isMain;
+  bool isDefined;
 
   /* Debug info */
   SourceSpan_t pos;
@@ -96,6 +116,7 @@ static FunSymbol_t *CreateFunSymbol(void) {
 
   s->id = NULL;
   s->pos = (SourceSpan_t){.line = 0, .start = 0, .end = 0};
+  s->isDefined = false;
   s->isMain = false;
   s->returnType = TYPE_UNKNOWN;
   if (!SymbolTreeInitWithDestructor(&s->symbols, DeleteVarSymbol)) {
@@ -128,6 +149,8 @@ struct analyzer {
   int blockID;
 };
 
+static AError_t PopulateBuiltins(Analyzer_t *a);
+
 Analyzer_t *CreateAnalyzer(void) {
   Analyzer_t *a;
   a = malloc(sizeof *a);
@@ -144,6 +167,12 @@ Analyzer_t *CreateAnalyzer(void) {
   a->blockStack = IntStackCreate();
   if (!a->blockStack) {
     free(a);
+    return NULL;
+  }
+
+  /* define the builtins */
+  if (AERR_MEM == PopulateBuiltins(a)) {
+    DeleteAnalyzer(a);
     return NULL;
   }
 
@@ -177,6 +206,7 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
 
   fs->returnType = fndef->fnDef.declType;
   fs->isMain = fndef->fnDef.isMain;
+  fs->isDefined = true;
   fs->pos = fndef->pos;
 
   fs->id = CopyStr(fndef->fnDef.name);
@@ -194,12 +224,20 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
     }
 
     vs->dtype = param->param.declType;
-    vs->blockID = a->blockID;
+    vs->blockID = A_PARAM_BLOCK;
+
+    vs->id = CopyStr(param->param.name);
+    if (!vs->id) {
+      DeleteVarSymbol(vs);
+      DeleteFunSymbol(fs);
+      return AERR_MEM;
+    }
 
     /* check if the parameter has a type (sanity check) */
     assert(vs->dtype != TYPE_UNKNOWN && vs->dtype != TYPE_NA);
 
-    if (!SymbolTreeInsertWithData(&fs->symbols, param->param.name, vs)) {
+    if (!SymbolTreeInsertWithData(&fs->symbols, vs->id, vs)) {
+      DeleteVarSymbol(vs);
       DeleteFunSymbol(fs);
       return AERR_MEM;
     }
@@ -221,7 +259,7 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
   }
 
   /* store the function symbol */
-  if (!SymbolTreeInsertWithData(&a->funs, fndef->fnDef.name, fs)) {
+  if (!SymbolTreeInsertWithData(&a->funs, fs->id, fs)) {
     DeleteFunSymbol(fs);
     return AERR_MEM;
   }
@@ -868,6 +906,90 @@ AError_t A_AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
 
   default:
     break;
+  }
+
+  return AERR_OK;
+}
+
+/* RETURN TYPES:
+ *   AERR_OK   on success
+ *   AERR_MEM  on memory error
+ */
+static AError_t PopulateBuiltins(Analyzer_t *a) {
+  /* Create the builtins `declarations' */
+  const struct {
+    const char *name;
+    DataType_t returnType;
+
+    /* parameters */
+    size_t paramCount;
+    struct {
+      const char *name;
+      DataType_t type;
+    } params[A_MAX_BUILTINS_PARAMS_COUNT];
+  }
+#define DO(n, t, p, ...)                                                       \
+  {.name = n, .returnType = t, .params = {__VA_ARGS__}, .paramCount = p},
+#define P(n, t) {.name = n, .type = t}
+  builtins[] = {A_FOR_BUILTINS(DO, P)};
+#undef P
+#undef DO
+
+#define DO(...) +1
+#define P(...)
+  const size_t builtinsLen = 0 + A_FOR_BUILTINS(DO, P);
+#undef P
+#undef DO
+
+  for (size_t i = 0; i < builtinsLen; i++) {
+    /* create the symbol*/
+    FunSymbol_t *fs = CreateFunSymbol();
+    if (!fs)
+      return AERR_MEM;
+
+    fs->returnType = builtins[i].returnType;
+    fs->isMain = false;
+    fs->isDefined = true;
+    fs->pos = (SourceSpan_t){0};
+
+    fs->id = CopyStr(builtins[i].name);
+    if (!fs->id) {
+      DeleteFunSymbol(fs);
+      return AERR_MEM;
+    }
+
+    /* add parameters */
+    for (size_t j = 0; j < builtins[i].paramCount; j++) {
+      /* create the param symbol */
+      VarSymbol_t *vs = CreateVarSymbol();
+      if (!vs) {
+        DeleteFunSymbol(fs);
+        return AERR_MEM;
+      }
+
+      vs->dtype = builtins[i].params[j].type;
+      vs->blockID = A_PARAM_BLOCK;
+
+      vs->id = CopyStr(builtins[i].params[j].name);
+      if (!vs->id) {
+        DeleteVarSymbol(vs);
+        DeleteFunSymbol(fs);
+        return AERR_MEM;
+      }
+
+      /* add the param symbol */
+      if (!SymbolTreeInsertWithData(&fs->symbols, vs->id, vs)) {
+        DeleteVarSymbol(vs);
+        DeleteFunSymbol(fs);
+        return AERR_MEM;
+      }
+    }
+
+    /* add the declaration */
+    if (!SymbolTreeInsertWithData(&a->funs, fs->id, fs)) {
+      DeleteFunSymbol(fs);
+      return AERR_MEM;
+    }
   }
 
   return AERR_OK;

@@ -52,6 +52,9 @@ typedef enum DataType_t {
   TYPE_UNIT,
   TYPE_BOOLEAN,
   TYPE_UNKNOWN,
+
+  /* for builtin functions */
+  TYPE_ANY,
 } DataType_t;
 
 const char *DataTypeToStr(DataType_t type);
