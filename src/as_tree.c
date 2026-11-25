@@ -149,6 +149,9 @@ void ASTFree(ASTNode_t *node) {
     ASTFree(node->ifexpr.thenExpr);
     ASTFree(node->ifexpr.elseExpr);
     break;
+  case NODE_COND:
+    ASTFree(node->binOp.left);
+    ASTFree(node->binOp.right);
   default:
     break;
   }
