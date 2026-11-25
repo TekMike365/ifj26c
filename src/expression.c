@@ -377,10 +377,9 @@ ASTNode_t *ParseExpression(Parser_t *p) {
   }
 
 syntaxError:
-  if (p->errorCode == ERROR_NOERR) {
+  if (p->errorCode == ERROR_NOERR)
     SyntaxError(p, "Invalid expression");
-    goto cleanup;
-  }
+  goto cleanup;
 
 stackError:
   ReportInternalError("Out of memory.");

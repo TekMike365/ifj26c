@@ -156,15 +156,17 @@ struct ASTNode_t {
 
     /* NODE_FOR */
     struct {
-      ASTNode_t *generator, *body;
+      ASTNode_t *gen, *body;
     } forLoop;
 
+    /* NODE_GEN */
     struct {
       bool IncludeMax;
       char *name;
       ASTNode_t *from, *to, *by;
     } gen;
 
+    /* NODE_IFEXPR */
     struct {
       ASTNode_t *cond, *thenExpr, *elseExpr;
     } ifexpr;

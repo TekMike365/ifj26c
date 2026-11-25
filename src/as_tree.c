@@ -19,6 +19,8 @@ ASTNode_t *ASTCreate(ASTKind_t kind, SourceSpan_t pos) {
   case NODE_WHILE:
   case NODE_IF:
   case NODE_RETURN:
+  case NODE_FOR:
+  case NODE_GEN:
     node->type = TYPE_NA;
     break;
   default:
@@ -132,7 +134,21 @@ void ASTFree(ASTNode_t *node) {
     free(node->name);
     ASTFreeList(&node->fncall.args);
     break;
-
+  case NODE_FOR:
+    ASTFree(node->forLoop.gen);
+    ASTFree(node->forLoop.body);
+    break;
+  case NODE_GEN:
+    ASTFree(node->gen.from);
+    ASTFree(node->gen.by);
+    ASTFree(node->gen.to);
+    free(node->gen.name);
+    break;
+  case NODE_IFEXPR:
+    ASTFree(node->ifexpr.cond);
+    ASTFree(node->ifexpr.thenExpr);
+    ASTFree(node->ifexpr.elseExpr);
+    break;
   default:
     break;
   }
@@ -181,9 +197,9 @@ static char *OpToChar(Operator_t op) {
   case OP_LTE:
     return "'<='";
   case OP_UPLUS:
-    return "'u+'";
+    return "'+'";
   case OP_UMINUS:
-    return "'u-'";
+    return "'-'";
   case OP_NEG:
     return "'!'";
   case OP_AND:
@@ -275,28 +291,34 @@ static void ASTDumpNode(const ASTNode_t *node, const char *prefix,
 
   case NODE_FOR:
     LOG_NODE("FOR \"%s\" (line %ld)",
-             node->forLoop.generator->gen.name
-                 ? node->forLoop.generator->gen.name
+             (node->forLoop.gen && node->forLoop.gen->gen.name)
+                 ? node->forLoop.gen->gen.name
                  : "<null>",
              node->pos.line);
-    ASTDumpNode(node->forLoop.generator, nextPrefix, true);
+    ASTDumpNode(node->forLoop.gen, nextPrefix, false);
     ASTDumpNode(node->forLoop.body, nextPrefix, true);
     break;
 
   case NODE_GEN:
-    ASTDumpNode(node->gen.from, prefix, false);
-    ASTDumpNode(node->gen.from, prefix, false);
-    ASTDumpNode(node->gen.to, prefix, false);
+    LOG_NODE("GEN (%s)", node->gen.IncludeMax ? "to" : "until");
+    ASTDumpNode(node->gen.from, nextPrefix, false);
+    ASTDumpNode(node->gen.to, nextPrefix, node->gen.by == NULL);
+    ASTDumpNode(node->gen.by, nextPrefix, true);
     break;
 
+  case NODE_IFEXPR:
+    LOG_NODE("IF (line %ld)", node->pos.line);
+    ASTDumpNode(node->ifexpr.cond, nextPrefix, false);
+    ASTDumpNode(node->ifexpr.thenExpr, nextPrefix, false);
+    ASTDumpNode(node->ifexpr.elseExpr, nextPrefix, true);
+    break;
   case NODE_RETURN:
     LOG_NODE("RETURN (line %ld)", node->pos.line);
     ASTDumpNode(node->ret.value, nextPrefix, true);
     break;
 
   case NODE_UNOP:
-    LOG_NODE("UNOP (op= %s) [type: %s]",
-             OpToChar(node->unOp.op),
+    LOG_NODE("UNOP (op= %s) [type: %s]", OpToChar(node->unOp.op),
              DataTypeToStr(node->type));
     ASTDumpNode(node->unOp.operand, nextPrefix, true);
     break;

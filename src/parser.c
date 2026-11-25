@@ -938,7 +938,7 @@ static ASTNode_t *ParseLoop(Parser_t *p) {
     if (!Consume(p, TOKEN_INDENT))
       goto failure;
 
-    if (!(node->forLoop.generator = ParseGen(p)))
+    if (!(node->forLoop.gen = ParseGen(p)))
       goto failure;
 
     if (!(node->forLoop.body = ParseLoopBody(p)))
@@ -947,7 +947,7 @@ static ASTNode_t *ParseLoop(Parser_t *p) {
     return node;
   }
   /* for <gen> */
-  if (!(node->forLoop.generator = ParseGen(p)))
+  if (!(node->forLoop.gen = ParseGen(p)))
     goto failure;
 
   if (!Consume(p, TOKEN_KW_DO))
