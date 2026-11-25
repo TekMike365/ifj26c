@@ -210,7 +210,7 @@ static const char *OpToChar(Operator_t op) {
   case OP_OR:
     return "||";
   default:
-    return "?";
+    return "<?>";
   }
 }
 
