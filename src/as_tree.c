@@ -182,7 +182,7 @@ const char *DataTypeToStr(DataType_t type) {
   }
 }
 
-const char *OpToChar(Operator_t op) {
+static const char *OpToChar(Operator_t op) {
   switch (op) {
   case OP_DIV:
     return "/";
