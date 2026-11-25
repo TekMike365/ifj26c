@@ -212,13 +212,13 @@ static inline int GetNextChar(Lexer_t *lexer) {
   return c;
 }
 
-/* Converts a string [+- ][0-9_]* into a decimal int
+/* Converts a string [+- ][0-9_]* into a decimal long long
  * !!! DESTRUCTIVE -- overwrites '_' (i.e. 1_2_34->1234)
  * nptr - pointer to the start of the number string
  * end - (may be NULL) pointer to the last read char
  * return - converted int
  */
-static int StrToInt(char *restrict nptr, char **restrict end) {
+static int StrToLL(char *restrict nptr, char **restrict end) {
   assert(nptr != NULL);
 
   size_t len = strlen(nptr);
@@ -230,7 +230,7 @@ static int StrToInt(char *restrict nptr, char **restrict end) {
   }
   *c = '\0';
 
-  return strtol(nptr, end, 10);
+  return strtoll(nptr, end, 10);
 }
 
 /* Converts a string of double into a decimal int
@@ -547,7 +547,7 @@ RESET:
 
   case STATE_INT:
     new.type = TOKEN_INT;
-    new.lexemeI = StrToInt(CharBufGetBuf(lexer->buf), NULL);
+    new.lexemeI = StrToLL(CharBufGetBuf(lexer->buf), NULL);
     break;
 
   case STATE_DOUBLE:
