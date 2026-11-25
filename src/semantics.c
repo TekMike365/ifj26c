@@ -453,16 +453,32 @@ AError_t A_AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
   switch (stmnt->kind) {
   case NODE_ASSIGN:
     return AnalyzeAssign(a, stmnt);
+
   case NODE_VARDEF:
     return AnalyzeVarDef(a, stmnt, true);
+
   case NODE_VALDEF:
     return AnalyzeVarDef(a, stmnt, false);
+
   case NODE_IF:
     return AnalyzeIf(a, stmnt);
+
   case NODE_WHILE:
     return AnalyzeWhile(a, stmnt);
+
   case NODE_RETURN:
     return AnalyzeReturn(a, stmnt);
+
+  case NODE_UNOP:
+  case NODE_BINOP:
+  case NODE_FNCALL:
+  case NODE_ID:
+  case NODE_INT:
+  case NODE_DOUBLE:
+  case NODE_STRING:
+  case NODE_UNIT:
+    return AnalyzeExpr(a, stmnt);
+
   default:
     break;
   }
