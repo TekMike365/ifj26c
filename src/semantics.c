@@ -188,6 +188,64 @@ void DeleteAnalyzer(Analyzer_t *a) {
   free(a);
 }
 
+static FunSymbol_t *GetFunSymbol(Analyzer_t *a, const char *id);
+static AError_t AddFunParam(FunSymbol_t *fs, const char *name, DataType_t type);
+
+static AError_t AddFun(Analyzer_t *a, const ASTNode_t *fndef) {
+  FunSymbol_t *fs = GetFunSymbol(a, fndef->fnDef.name);
+  if (!fs)
+    return AERR_MEM;
+
+  if (fs->isDefined == true) {
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_REDEF,
+                              "Function `%s' already exists.", fs->id);
+    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "First defined here.");
+    MsgSend(msg);
+
+    return AERR_SEM;
+  }
+
+  fs->returnType = fndef->fnDef.declType;
+  fs->isMain = fndef->fnDef.isMain;
+  fs->isDefined = true;
+  fs->pos = fndef->pos;
+
+  if (fs->isMain) {
+    AError_t err = AERR_OK;
+
+    if (fndef->fnDef.params.count > 0) {
+      err = AERR_SEM;
+
+      Message_t *msg = MsgStart(
+          MSG_ERROR, ERROR_SEM_ARGS,
+          "Main function must not have arguments `%zu' were specified.",
+          fndef->fnDef.params.count);
+      MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
+      MsgSend(msg);
+    }
+    if (fs->returnType != TYPE_UNIT) {
+      err = AERR_SEM;
+
+      Message_t *msg =
+          MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                   "Main function must have return type `%s' got `%s'.",
+                   DataTypeToStr(TYPE_UNIT), DataTypeToStr(fs->returnType));
+      MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
+      MsgSend(msg);
+    }
+
+    return err;
+  }
+
+  /* Add parameters */
+  AError_t err = AERR_OK;
+  AST_LIST_FOREACH(fndef->fnDef.params, param) {
+    err = AddFunParam(fs, param->param.name, param->param.declType);
+  }
+
+  return err;
+}
+
 AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
   assert(a && fndef && fndef->kind == NODE_FNDEF);
 
@@ -199,70 +257,13 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
     A_EndBlock(a);
   a->blockID = A_PARAM_BLOCK;
 
-  /* Creaate function symbol */
-  FunSymbol_t *fs = CreateFunSymbol();
+  /* Get function symbol */
+  FunSymbol_t *fs = GetFunSymbol(a, fndef->fnDef.name);
   if (!fs)
     return AERR_MEM;
 
-  fs->returnType = fndef->fnDef.declType;
-  fs->isMain = fndef->fnDef.isMain;
-  fs->isDefined = true;
-  fs->pos = fndef->pos;
-
-  fs->id = CopyStr(fndef->fnDef.name);
-  if (!fs->id) {
-    DeleteFunSymbol(fs);
-    return AERR_MEM;
-  }
-
-  /* Add parameters */
-  AST_LIST_FOREACH(fndef->fnDef.params, param) {
-    VarSymbol_t *vs = CreateVarSymbol();
-    if (!vs) {
-      DeleteFunSymbol(fs);
-      return AERR_MEM;
-    }
-
-    vs->dtype = param->param.declType;
-    vs->blockID = A_PARAM_BLOCK;
-
-    vs->id = CopyStr(param->param.name);
-    if (!vs->id) {
-      DeleteVarSymbol(vs);
-      DeleteFunSymbol(fs);
-      return AERR_MEM;
-    }
-
-    /* check if the parameter has a type (sanity check) */
-    assert(vs->dtype != TYPE_UNKNOWN && vs->dtype != TYPE_NA);
-
-    if (!SymbolTreeInsertWithData(&fs->symbols, vs->id, vs)) {
-      DeleteVarSymbol(vs);
-      DeleteFunSymbol(fs);
-      return AERR_MEM;
-    }
-  }
-
-  /* redefinition error */
-  const SymbolHeader_t *symbol = SymbolTreeSearch(&a->funs, fndef->fnDef.name);
-  if (symbol) {
+  if (!fs->isDefined)
     err = AERR_SEM;
-
-    Message_t *msg =
-        MsgStart(MSG_ERROR, ERROR_SEM_REDEF, "Function `%s' already exists.",
-                 fndef->fnDef.name);
-    MsgAddContext(msg, SpanToCtxUnderline(((FunSymbol_t *)symbol->data)->pos),
-                  "First defined here.");
-    MsgSend(msg);
-
-    /* add anyways */
-  }
-
-  /* store the function symbol */
-  if (!SymbolTreeInsertWithData(&a->funs, fs->id, fs)) {
-    DeleteFunSymbol(fs);
-    return AERR_MEM;
-  }
 
   a->thisFun = fs;
   return err;
@@ -291,7 +292,8 @@ AError_t A_EndBlock(Analyzer_t *a) {
 static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type);
 static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
                                DataType_t *type);
-static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root, DataType_t *type);
+static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
+                               DataType_t *type);
 static AError_t AnalyzeLiteral(Analyzer_t *a, ASTNode_t *root,
                                DataType_t *type);
 static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type);
@@ -317,6 +319,33 @@ static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
   }
 
   return vs;
+}
+
+/* returns NULL if not found (or error) */
+static FunSymbol_t *GetFunSymbol(Analyzer_t *a, const char *id) {
+  assert(a && id);
+
+  SymbolHeader_t *sh = SymbolTreeSearchMutable(&a->funs, id);
+  if (sh)
+    return (FunSymbol_t *)sh->data;
+
+  /* create the symbol */
+  FunSymbol_t *fs = CreateFunSymbol();
+  if (!fs)
+    return NULL;
+
+  fs->returnType = TYPE_UNKNOWN;
+  fs->isMain = false;
+  fs->isDefined = false;
+  fs->pos = (SourceSpan_t){0};
+
+  fs->id = CopyStr(id);
+  if (!fs->id) {
+    DeleteFunSymbol(fs);
+    return NULL;
+  }
+
+  return fs;
 }
 
 static void ReportBinOpValueError(const char *op, DataType_t ltype,
@@ -535,10 +564,81 @@ static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
  * if `type' is not equal to the expression type => throw error and return
  *   the origitnal type
  */
-static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root,
-                              DataType_t *type) {
+static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
+                               DataType_t *type) {
   assert(a && root && root->kind == NODE_FNCALL);
-  /* TODO: implement */
+
+  FunSymbol_t *fs = GetFunSymbol(a, root->name);
+  if (!fs)
+    return AERR_MEM;
+
+  if (!fs->isDefined)
+    return AERR_SEM;
+
+  AError_t err = AERR_OK;
+
+  /* check arguments */
+  const SymbolHeader_t *sh;
+  ASTNode_t **expr = root->fncall.args.items;
+  const size_t exprCnt = root->fncall.args.count;
+  size_t i;
+  for (i = 0; (sh = SymbolTreeAt(&fs->symbols, i)) && i < exprCnt; i++) {
+    VarSymbol_t *vs = (VarSymbol_t *)sh->data;
+
+    DataType_t type = TYPE_UNKNOWN;
+    AError_t e = AnalyzeExpr(a, expr[i], &type);
+    err = err != AERR_OK ? err : e;
+
+    if (vs->dtype != type) {
+      /* type error */
+      Message_t *msg = MsgStart(
+          MSG_ERROR, ERROR_SEM_ARGS,
+          "Unexpected type for argument `%s' (type `%s') of function `%s' "
+          "and expression (type `%s').",
+          vs->id, vs->dtype, fs->id, type);
+      MsgAddContext(msg, SpanToCtxUnderline(expr[i]->pos), "here");
+      MsgAddContext(msg, SpanToCtxUnderline(fs->pos),
+                    "function `%s' defined here", fs->id);
+      MsgSend(msg);
+    }
+  }
+
+  if (i != exprCnt) {
+    /* too many arguments */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_ARGS,
+                              "Too many arguments for function `%s'.", fs->id);
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "called here");
+    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
+    MsgSend(msg);
+  }
+
+  if (sh) {
+    /* not enough arguments */
+    err = AERR_SEM;
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_ARGS,
+                 "Not enough arguments for function `%s'.", fs->id);
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "called here");
+    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
+    MsgSend(msg);
+  }
+
+  if (*type != fs->returnType) {
+    /* incompatible return type */
+    err = AERR_SEM;
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                 "Incompatible return type: returned `%s' expected `%s'.",
+                 DataTypeToStr(fs->returnType), DataTypeToStr(*type));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
+    MsgSend(msg);
+  }
+
   return AERR_OK;
 }
 
@@ -626,7 +726,7 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   case NODE_BINOP:
     return AnalyzeBinOp(a, root, type);
   case NODE_FNCALL:
-    return AnalyzeFnCall(a, root, type);
+    return AnalyzeFunCall(a, root, type);
   case NODE_INT:
   case NODE_DOUBLE:
   case NODE_STRING:
@@ -976,30 +1076,14 @@ static AError_t PopulateBuiltins(Analyzer_t *a) {
     }
 
     /* add parameters */
+    AError_t err = AERR_OK;
     for (size_t j = 0; j < builtins[i].paramCount; j++) {
-      /* create the param symbol */
-      VarSymbol_t *vs = CreateVarSymbol();
-      if (!vs) {
-        DeleteFunSymbol(fs);
-        return AERR_MEM;
-      }
-
-      vs->dtype = builtins[i].params[j].type;
-      vs->blockID = A_PARAM_BLOCK;
-
-      vs->id = CopyStr(builtins[i].params[j].name);
-      if (!vs->id) {
-        DeleteVarSymbol(vs);
-        DeleteFunSymbol(fs);
-        return AERR_MEM;
-      }
-
-      /* add the param symbol */
-      if (!SymbolTreeInsertWithData(&fs->symbols, vs->id, vs)) {
-        DeleteVarSymbol(vs);
-        DeleteFunSymbol(fs);
-        return AERR_MEM;
-      }
+      err = AddFunParam(fs, builtins[i].params[j].name,
+                        builtins[i].params[j].type);
+    }
+    if (err == AERR_MEM) {
+      DeleteFunSymbol(fs);
+      return AERR_MEM;
     }
 
     /* add the declaration */
@@ -1007,6 +1091,32 @@ static AError_t PopulateBuiltins(Analyzer_t *a) {
       DeleteFunSymbol(fs);
       return AERR_MEM;
     }
+  }
+
+  return AERR_OK;
+}
+
+static AError_t AddFunParam(FunSymbol_t *fs, const char *name,
+                            DataType_t type) {
+  VarSymbol_t *vs = CreateVarSymbol();
+  if (!vs)
+    return AERR_MEM;
+
+  vs->dtype = type;
+  vs->blockID = A_PARAM_BLOCK;
+
+  vs->id = CopyStr(name);
+  if (!vs->id) {
+    DeleteFunSymbol(fs);
+    return AERR_MEM;
+  }
+
+  /* check if the parameter has a type (sanity check) */
+  assert(vs->dtype != TYPE_UNKNOWN && vs->dtype != TYPE_NA);
+
+  if (!SymbolTreeInsertWithData(&fs->symbols, vs->id, vs)) {
+    DeleteVarSymbol(vs);
+    return AERR_MEM;
   }
 
   return AERR_OK;
