@@ -177,40 +177,40 @@ static const char *DataTypeToStr(DataType_t type) {
   }
 }
 
-static char *OpToChar(Operator_t op) {
+static const char *OpToChar(Operator_t op) {
   switch (op) {
   case OP_DIV:
-    return "'/'";
+    return "/";
   case OP_MUL:
-    return "'*'";
+    return "*";
   case OP_PLUS:
-    return "'+'";
+    return "+";
   case OP_MINUS:
-    return "'-'";
+    return "-";
   case OP_EQ:
-    return "'=='";
+    return "==";
   case OP_NEQ:
-    return "'!='";
+    return "!=";
   case OP_LT:
-    return "'<'";
+    return "<";
   case OP_GT:
-    return "'>'";
+    return ">";
   case OP_GTE:
-    return "'>='";
+    return ">=";
   case OP_LTE:
-    return "'<='";
+    return "<=";
   case OP_UPLUS:
-    return "'+'";
+    return "+";
   case OP_UMINUS:
-    return "'-'";
+    return "-";
   case OP_NEG:
-    return "'!'";
+    return "!";
   case OP_AND:
-    return "'&&'";
+    return "&&";
   case OP_OR:
-    return "'||'";
+    return "||";
   default:
-    return "'?'";
+    return "<?>";
   }
 }
 
