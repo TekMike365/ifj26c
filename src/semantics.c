@@ -320,7 +320,8 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
         MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
                  "Variable `%s' is assigned to but it's not defined.",
                  root->assign.name);
-    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "assigned here");
+    MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first appeared here");
     MsgSend(msg);
   }
 
