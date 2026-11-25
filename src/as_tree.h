@@ -45,13 +45,13 @@ typedef enum ASTKind_t {
 
 /* Data types */
 typedef enum DataType_t {
-  TYPE_NA = 0, /* Non applicable */
+  TYPE_UNKNOWN = 0,
+  TYPE_NA, /* Non applicable */
   TYPE_STRING,
   TYPE_DOUBLE,
   TYPE_INT,
   TYPE_UNIT,
   TYPE_BOOLEAN,
-  TYPE_UNKNOWN,
 
   /* for builtin functions */
   TYPE_ANY,
