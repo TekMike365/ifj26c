@@ -411,8 +411,26 @@ static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root) {
 
 static AError_t AnalyzeWhile(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root && root->kind == NODE_WHILE);
-  /* TODO: implement */
-  return AERR_OK;
+
+  /* The while body is handled elswhere by calling `A_'-ops */
+
+  DataType_t type = TYPE_UNKNOWN;
+  AError_t err = AnalyzeExpr(a, root->whileDo.cond, &type);
+
+  if (type != TYPE_BOOLEAN) {
+    /* incorrect type error */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "While statement requires `%s' got `%s'.",
+                              DataTypeToStr(TYPE_BOOLEAN), DataTypeToStr(type));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "at while statement");
+    MsgAddContext(msg, SpanToCtxUnderline(root->whileDo.cond->pos),
+                  "condition is of type `%s'", DataTypeToStr(type));
+    MsgSend(msg);
+  }
+
+  return err;
 }
 
 static AError_t AnalyzeReturn(Analyzer_t *a, ASTNode_t *root) {
