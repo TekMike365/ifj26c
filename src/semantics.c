@@ -19,6 +19,8 @@ static inline MsgContext_t SpanToCtxUnderline(SourceSpan_t span) {
                        .hlEndCol = span.end, .poiCol = 0);
 }
 
+static inline const char *GetIDStr(const char *id){return id ? id : "<unknown>"}
+
 /*
  * Symbol definitions
  */
@@ -239,12 +241,11 @@ AError_t A_EndBlock(Analyzer_t *a) {
   if (a->thisFun->returnType != rtype) {
     /* error: incompatible types */
 
-    Message_t *msg =
-        MsgStart(MSG_ERROR, ERROR_SEM_REDEF,
-                 "Incompatible return type type `%s' != `%s' at "
-                 "the end of function `%s'.",
-                 DataTypeToStr(a->thisFun->returnType), DataTypeToStr(rtype),
-                 a->thisFun->id ? a->thisFun->id : "<unknown>");
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "Incompatible return type `%s' != `%s' at "
+                              "the end of function `%s'.",
+                              DataTypeToStr(a->thisFun->returnType),
+                              DataTypeToStr(rtype), GetIDStr(a->thisFun->id));
     MsgAddContext(msg, SpanToCtxUnderline(a->thisFun->pos), "here");
     MsgSend(msg);
 
