@@ -295,11 +295,13 @@ static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
 
 static AError_t AnalyzeOp(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root);
+  /* TODO: implement */
   return AERR_OK;
 }
 
 static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root);
+  /* TODO: implement */
   return AERR_OK;
 }
 
@@ -309,6 +311,7 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root) {
    * def foo() = 4
    */
   assert(a && root);
+  /* TODO: implement */
   return AERR_OK;
 }
 
@@ -427,17 +430,20 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
 }
 
 static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root) {
-  assert(a && root);
+  assert(a && root && root->kind == NODE_IF);
+  /* TODO: implement */
   return AERR_OK;
 }
 
 static AError_t AnalyzeWhile(Analyzer_t *a, ASTNode_t *root) {
-  assert(a && root);
+  assert(a && root && root->kind == NODE_WHILE);
+  /* TODO: implement */
   return AERR_OK;
 }
 
 static AError_t AnalyzeReturn(Analyzer_t *a, ASTNode_t *root) {
-  assert(a && root);
+  assert(a && root && root->kind == NODE_RETURN);
+  /* TODO: implement */
   return AERR_OK;
 }
 
