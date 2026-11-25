@@ -105,7 +105,11 @@ static void DeleteFunSymbol(void *data) {
 struct analyzer {
   SymbolTree_t funs;
   FunSymbol_t *thisFun;
-  VarSymbol_t *lastVar;
+
+  struct {
+    DataType_t type;
+    int blockID;
+  } lastType;
 
   IntStack_t *blockStack;
   int blockID;
@@ -118,7 +122,8 @@ Analyzer_t *CreateAnalyzer(void) {
     return NULL;
 
   a->thisFun = NULL;
-  a->lastVar = NULL;
+  a->lastType.type = TYPE_UNKNOWN;
+  a->lastType.blockID = 0;
   if (!SymbolTreeInitWithDestructor(&a->funs, DeleteFunSymbol)) {
     free(a);
     return NULL;
@@ -231,8 +236,8 @@ AError_t A_EndBlock(Analyzer_t *a) {
 
   /* statement variable return thing */
   DataType_t rtype = TYPE_UNIT;
-  if (a->lastVar.blockID == A_PARAM_BLOCK + 1)
-    rtype = a->type;
+  if (a->lastType.blockID == A_PARAM_BLOCK + 1)
+    rtype = a->lastType.type;
 
   /* assign type if it isn't */
   if (a->thisFun->returnType == TYPE_UNKNOWN)
@@ -340,7 +345,9 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
     memcpy(vs->id, root->varDef.name, idLen);
   }
 
-  a->lastVar = vs;
+  /* keep track of last type */
+  a->lastType.type = vs->type;
+  a->lastType.blockID = a->blockID;
 
   /* treat as assignment */
   ASTNode_t assign = *root;
