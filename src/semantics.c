@@ -34,6 +34,12 @@
  * Helper functions
  */
 
+static inline AError_t SetAError(AError_t old, AError_t new) {
+  if (old == AERR_MEM)
+    return AERR_MEM;
+  return old != AERR_OK ? old : new;
+}
+
 static inline MsgContext_t SpanToCtxUnderline(SourceSpan_t span) {
   return MSG_CONTEXT_T(.lineNum = span.line, .hlStartCol = span.start,
                        .hlEndCol = span.end, .poiCol = 0);
@@ -141,17 +147,18 @@ static void DeleteFunSymbol(void *data) {
  * Analyzer definitions
  */
 
-struct analyzer {
+typedef struct {
   SymbolTree_t funs;
   FunSymbol_t *thisFun;
 
   IntStack_t *blockStack;
   int blockID;
-};
+} Analyzer_t;
 
 static AError_t PopulateBuiltins(Analyzer_t *a);
+static void DeleteAnalyzer(Analyzer_t *a);
 
-Analyzer_t *CreateAnalyzer(void) {
+static Analyzer_t *CreateAnalyzer(void) {
   Analyzer_t *a;
   a = malloc(sizeof *a);
   if (!a)
@@ -179,7 +186,7 @@ Analyzer_t *CreateAnalyzer(void) {
   return a;
 }
 
-void DeleteAnalyzer(Analyzer_t *a) {
+static void DeleteAnalyzer(Analyzer_t *a) {
   if (!a)
     return;
 
@@ -214,7 +221,7 @@ static AError_t AddFun(Analyzer_t *a, const ASTNode_t *fndef) {
     AError_t err = AERR_OK;
 
     if (fndef->fnDef.params.count > 0) {
-      err = AERR_SEM;
+      err = SetAError(err, AERR_SEM);
 
       Message_t *msg = MsgStart(
           MSG_ERROR, ERROR_SEM_ARGS,
@@ -224,7 +231,7 @@ static AError_t AddFun(Analyzer_t *a, const ASTNode_t *fndef) {
       MsgSend(msg);
     }
     if (fs->returnType != TYPE_UNIT) {
-      err = AERR_SEM;
+      err = SetAError(err, AERR_SEM);
 
       Message_t *msg =
           MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
@@ -240,13 +247,30 @@ static AError_t AddFun(Analyzer_t *a, const ASTNode_t *fndef) {
   /* Add parameters */
   AError_t err = AERR_OK;
   AST_LIST_FOREACH(fndef->fnDef.params, param) {
-    err = AddFunParam(fs, param->param.name, param->param.declType);
+    err = SetAError(err,
+                    AddFunParam(fs, param->param.name, param->param.declType));
   }
 
   return err;
 }
 
-AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
+static AError_t BeginBlock(Analyzer_t *a) {
+  assert(a);
+
+  return IntStackPush(a->blockStack, a->blockID++) ? AERR_OK : AERR_MEM;
+}
+
+static AError_t EndBlock(Analyzer_t *a) {
+  assert(a);
+
+  IntStackPop(a->blockStack);
+  if (IntStackIsEmpty(a->blockStack))
+    a->thisFun = NULL;
+
+  return AERR_OK;
+}
+
+static AError_t StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
   assert(a && fndef && fndef->kind == NODE_FNDEF);
 
   a->thisFun = NULL;
@@ -254,7 +278,7 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
 
   /* dedent all */
   while (!IntStackIsEmpty(a->blockStack))
-    A_EndBlock(a);
+    EndBlock(a);
   a->blockID = A_PARAM_BLOCK;
 
   /* Get function symbol */
@@ -263,26 +287,10 @@ AError_t A_StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
     return AERR_MEM;
 
   if (!fs->isDefined)
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
   a->thisFun = fs;
   return err;
-}
-
-AError_t A_BeginBlock(Analyzer_t *a) {
-  assert(a);
-
-  return IntStackPush(a->blockStack, a->blockID++) ? AERR_OK : AERR_MEM;
-}
-
-AError_t A_EndBlock(Analyzer_t *a) {
-  assert(a);
-
-  IntStackPop(a->blockStack);
-  if (IntStackIsEmpty(a->blockStack))
-    a->thisFun = NULL;
-
-  return AERR_OK;
 }
 
 /*
@@ -399,12 +407,8 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   /* get subexpression types */
   DataType_t ltype = TYPE_UNKNOWN;
   DataType_t rtype = TYPE_UNKNOWN;
-  err = AnalyzeExpr(a, root->binOp.left, &ltype);
-  AError_t e = AnalyzeExpr(a, root->binOp.right, &rtype);
-  err = err != AERR_OK ? err : e;
-
-  if (err == AERR_MEM)
-    return err;
+  err = SetAError(err, AnalyzeExpr(a, root->binOp.left, &ltype));
+  err = SetAError(err, AnalyzeExpr(a, root->binOp.right, &rtype));
 
   SourceSpan_t lpos = root->binOp.left->pos;
   SourceSpan_t rpos = root->binOp.right->pos;
@@ -417,7 +421,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
         (rtype != TYPE_INT && rtype != TYPE_DOUBLE)) {
       /* type error */
-      err = AERR_SEM;
+      err = SetAError(err, AERR_SEM);
       ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
                             lpos, rpos);
       break;
@@ -433,7 +437,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
         (rtype != TYPE_INT && rtype != TYPE_DOUBLE) ||
         (ltype != TYPE_STRING || rtype != TYPE_STRING)) {
       /* type error */
-      err = AERR_SEM;
+      err = SetAError(err, AERR_SEM);
       ReportBinOpValueError("+", ltype, rtype, root->pos, lpos, rpos);
       break;
     }
@@ -454,7 +458,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
         (rtype != TYPE_INT && rtype != TYPE_DOUBLE) ||
         (ltype != TYPE_STRING || rtype != TYPE_STRING)) {
       /* type error */
-      err = AERR_SEM;
+      err = SetAError(err, AERR_SEM);
       ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
                             lpos, rpos);
       break;
@@ -472,7 +476,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
         (rtype != TYPE_INT && rtype != TYPE_DOUBLE) || (ltype != rtype)) {
       /* type error */
-      err = AERR_SEM;
+      err = SetAError(err, AERR_SEM);
       ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
                             lpos, rpos);
       break;
@@ -495,7 +499,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
   if (*type != otype) {
     /* type error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
                               "Unexpected type: expected `%s' got `%s'.",
@@ -522,11 +526,11 @@ static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
   switch (root->unOp.op) {
   case OP_UMINUS:
   case OP_UPLUS: {
-    err = AnalyzeExpr(a, root->unOp.operand, &otype);
+    err = SetAError(err, AnalyzeExpr(a, root->unOp.operand, &otype));
 
     if (otype != TYPE_INT && otype != TYPE_DOUBLE) {
       /* type error */
-      err = AERR_SEM;
+      err = SetAError(err, AERR_SEM);
 
       Message_t *msg =
           MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
@@ -548,7 +552,7 @@ static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
 
   if (*type != otype) {
     /* type error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
                               "Unexpected type: expected `%s' got `%s'.",
@@ -586,8 +590,7 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
     VarSymbol_t *vs = (VarSymbol_t *)sh->data;
 
     DataType_t type = TYPE_UNKNOWN;
-    AError_t e = AnalyzeExpr(a, expr[i], &type);
-    err = err != AERR_OK ? err : e;
+    err = SetAError(err, AnalyzeExpr(a, expr[i], &type));
 
     if (vs->dtype != type) {
       /* type error */
@@ -605,7 +608,7 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
 
   if (i != exprCnt) {
     /* too many arguments */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_ARGS,
                               "Too many arguments for function `%s'.", fs->id);
@@ -616,7 +619,7 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
 
   if (sh) {
     /* not enough arguments */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg =
         MsgStart(MSG_ERROR, ERROR_SEM_ARGS,
@@ -628,7 +631,7 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
 
   if (*type != fs->returnType) {
     /* incompatible return type */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg =
         MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
@@ -699,7 +702,7 @@ static AError_t AnalyzeLiteral(Analyzer_t *a, ASTNode_t *root,
 
   if (*type != ltype) {
     /* incompatible types */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
                               "Unexpected type of literal `%s' != `%s'",
@@ -761,7 +764,7 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
   if (vs->vstate == VS_UNDEFINED) {
     /* undefined variable error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
                               "Variable `%s' is used but not defined.", vs->id);
@@ -775,7 +778,7 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
   if (*type != vs->dtype) {
     /* type error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(
         MSG_ERROR, ERROR_SEM_TYPE,
@@ -814,7 +817,7 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
 
   if (vs->vstate == VS_UNDEFINED) {
     /* undefined variable error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg =
         MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
@@ -825,7 +828,7 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
     MsgSend(msg);
   } else if (vs->vstate == VS_CONST) {
     /* assignment to a constant error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg =
         MsgStart(MSG_ERROR, ERROR_SEM_IMMUTABLE,
@@ -837,15 +840,14 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
 
   /* expr evaluation & type check */
   DataType_t type = TYPE_UNKNOWN;
-  AError_t e = AnalyzeExpr(a, root->assign.value, &type);
-  err = err != AERR_OK ? err : e;
+  err = SetAError(err, AnalyzeExpr(a, root->assign.value, &type));
 
   if (vs->dtype == TYPE_UNKNOWN)
     vs->dtype = type;
 
   if (vs->dtype != type) {
     /* incorrect type error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(
         MSG_ERROR, ERROR_SEM_TYPE,
@@ -867,7 +869,7 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
 
   if (vs && vs->blockID == a->blockID && vs->vstate != VS_UNDEFINED) {
     /* redefinition error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg =
         MsgStart(MSG_ERROR, ERROR_SEM_REDEF, "Variable `%s' already exists.",
@@ -904,25 +906,23 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
   assign.kind = NODE_ASSIGN;
   assign.assign.value = root->varDef.init;
 
-  bool anotheroneoftheseerrors = AnalyzeAssign(a, &assign);
+  err = SetAError(err, AnalyzeAssign(a, &assign));
 
   if (created)
     vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
 
-  return err != AERR_OK ? err : anotheroneoftheseerrors;
+  return err;
 }
 
 static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root && root->kind == NODE_IF);
-
-  /* The if-else blocks are handled elswhere by calling `A_'-ops */
 
   DataType_t type = TYPE_UNKNOWN;
   AError_t err = AnalyzeExpr(a, root->ifElse.cond, &type);
 
   if (type != TYPE_BOOLEAN) {
     /* incorrect type error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
                               "If statement requires `%s' got `%s'.",
@@ -939,14 +939,12 @@ static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root) {
 static AError_t AnalyzeWhile(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root && root->kind == NODE_WHILE);
 
-  /* The while body is handled elswhere by calling `A_'-ops */
-
   DataType_t type = TYPE_UNKNOWN;
   AError_t err = AnalyzeExpr(a, root->whileDo.cond, &type);
 
   if (type != TYPE_BOOLEAN) {
     /* incorrect type error */
-    err = AERR_SEM;
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
                               "While statement requires `%s' got `%s'.",
@@ -989,7 +987,7 @@ static AError_t AnalyzeReturn(Analyzer_t *a, ASTNode_t *root) {
   return err;
 }
 
-AError_t A_AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
+static AError_t AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
   assert(a && stmnt);
 
   switch (stmnt->kind) {
@@ -1078,8 +1076,8 @@ static AError_t PopulateBuiltins(Analyzer_t *a) {
     /* add parameters */
     AError_t err = AERR_OK;
     for (size_t j = 0; j < builtins[i].paramCount; j++) {
-      err = AddFunParam(fs, builtins[i].params[j].name,
-                        builtins[i].params[j].type);
+      err = SetAError(err, AddFunParam(fs, builtins[i].params[j].name,
+                                       builtins[i].params[j].type));
     }
     if (err == AERR_MEM) {
       DeleteFunSymbol(fs);
@@ -1118,6 +1116,94 @@ static AError_t AddFunParam(FunSymbol_t *fs, const char *name,
     DeleteVarSymbol(vs);
     return AERR_MEM;
   }
+
+  return AERR_OK;
+}
+
+static AError_t AnalyzeSubAST(Analyzer_t *a, ASTNode_t *root) {
+  assert(a && root);
+
+  AError_t err = AERR_OK;
+
+  switch (root->kind) {
+  case NODE_FNDEF: {
+    err = SetAError(err, StartFunction(a, root));
+    err = SetAError(err, AnalyzeSubAST(a, root->fnDef.body));
+  } break;
+  case NODE_BLOCK: {
+    err = SetAError(err, BeginBlock(a));
+    AST_LIST_FOREACH(root->block, stmnt) {
+      err = SetAError(err, AnalyzeStatement(a, stmnt));
+    }
+    err = SetAError(err, EndBlock(a));
+  } break;
+  default:
+    err = AERR_SEM;
+  }
+
+  return err;
+}
+
+static AError_t CheckMainDefs(Analyzer_t *a) {
+  AError_t err = AERR_OK;
+
+  bool seenMain = false;
+  FunSymbol_t *main = NULL;
+
+  const SymbolHeader_t *sh;
+  for (size_t i = 0; (sh = SymbolTreeAt(&a->funs, i)); i++) {
+    FunSymbol_t *fs = (FunSymbol_t *)sh->data;
+
+    if (!seenMain && fs->isMain) {
+      seenMain = true;
+      main = fs;
+      continue;
+    }
+
+    /* multiple main function definitions */
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_REDEF,
+                              "Multiple definitions of `@main'.");
+    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "redefined here (`%s')",
+                  fs->id);
+    MsgAddContext(msg, SpanToCtxUnderline(main->pos),
+                  "first defined here (`%s')", main->id);
+    MsgSend(msg);
+  }
+
+  if (!seenMain) {
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
+                 "How am I supposed to run without a main function? Where am I "
+                 "to start? !! Missing `@main' function. !!");
+    MsgSend(msg);
+  }
+
+  return err;
+}
+
+AError_t AnalyzeAST(ASTNode_t *root) {
+  assert(root && root->kind == NODE_PROGRAM);
+
+  Analyzer_t *a = CreateAnalyzer();
+  if (!a)
+    return AERR_MEM;
+
+  /* add all the definitions */
+  AError_t err = AERR_OK;
+  AST_LIST_FOREACH(root->program, def) { err = SetAError(err, AddFun(a, def)); }
+
+  /* recurse */
+  AST_LIST_FOREACH(root->program, def) {
+    err = SetAError(err, AnalyzeSubAST(a, def));
+  }
+
+  err = SetAError(err, CheckMainDefs(a));
+
+  DeleteAnalyzer(a);
 
   return AERR_OK;
 }
