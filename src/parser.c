@@ -133,6 +133,8 @@ failure:
   return NULL;
 }
 
+// Wraps node in return node
+// returns NULL and sets err, if unsuccessful
 static ASTNode_t *WrapInReturn(Parser_t *p, ASTNode_t *node) {
   if (node == NULL)
     return NULL;
