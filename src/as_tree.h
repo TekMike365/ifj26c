@@ -23,6 +23,7 @@ typedef enum ASTKind_t {
   NODE_RETURN,
   NODE_FOR,
   NODE_GEN,
+  NODE_IFEXPR,
   /* expressions */
   NODE_UNOP,
   NODE_BINOP,
@@ -120,7 +121,7 @@ struct ASTNode_t {
       ASTNode_t *value;
     } assign;
 
-    /* NODE_STATEMENT, elseBlock NULL if absent */
+    /* NODE_IF, elseBlock NULL if absent */
     struct {
       ASTNode_t *cond, *thenBlock, *elseBlock;
     } ifElse;
@@ -163,6 +164,10 @@ struct ASTNode_t {
       char *name;
       ASTNode_t *from, *to, *by;
     } gen;
+
+    struct {
+      ASTNode_t *cond, *thenExpr, *elseExpr;
+    } ifexpr;
   };
 };
 

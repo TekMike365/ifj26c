@@ -14,6 +14,7 @@ static bool Consume(Parser_t *p, TokenType_t expected);
 static bool ConsumeId(Parser_t *p, const char *name);
 static bool ParserInit(Parser_t *p);
 static ASTNode_t *BlockReturnExpr(Parser_t *p);
+static ASTNode_t *WrapInReturn(Parser_t *p, ASTNode_t *node);
 
 /* recursive parser functions */
 static ASTNode_t *ParseRoot(Parser_t *p);
@@ -37,6 +38,7 @@ static ASTNode_t *ParseLoop(Parser_t *p);
 static ASTNode_t *ParseFor(Parser_t *p);
 static ASTNode_t *ParseLoopBody(Parser_t *p);
 static ASTNode_t *ParseIfExpr(Parser_t *p);
+static ASTNode_t *ParseIfOrExpr(Parser_t *p);
 
 /* Parses an IFJ26 source program from stdin and constructs its Abstract syntax
  * tree. Combines top-down recursive descent for program structure and
@@ -117,14 +119,11 @@ static ASTNode_t *BlockReturnExpr(Parser_t *p) {
   if (node == NULL)
     return NULL;
 
-  ASTNode_t *ret = NewNode(p, NODE_RETURN);
+  ASTNode_t *ret = WrapInReturn(p, ParseIfOrExpr(p));
   if (ret == NULL)
     goto failure;
 
   if (!AppendNode(p, &node->block, ret))
-    goto failure;
-
-  if (!(ret->ret.value = ParseExpression(p)))
     goto failure;
 
   return node;
@@ -132,6 +131,18 @@ static ASTNode_t *BlockReturnExpr(Parser_t *p) {
 failure:
   ASTFree(node);
   return NULL;
+}
+
+static ASTNode_t *WrapInReturn(Parser_t *p, ASTNode_t *node) {
+  if (node == NULL)
+    return NULL;
+
+  ASTNode_t *ret = NewNode(p, NODE_RETURN);
+  if (ret == NULL) {
+    return NULL;
+  }
+  ret->ret.value = node;
+  return ret;
 }
 
 /* Error handling wrapper funtion */
@@ -275,6 +286,14 @@ static bool ParseType(Parser_t *p, DataType_t *out) {
   return true;
 }
 
+static bool SkipNewLines(Parser_t *p) {
+  while (p->current.type == TOKEN_NEWLINE)
+    if (!Advance(p))
+      return false;
+
+  return true;
+}
+
 // <main> = @ main LF*
 // different from docs - but same, essentialy deletes all newlines after @ main
 static bool ParseMain(Parser_t *p) {
@@ -285,11 +304,7 @@ static bool ParseMain(Parser_t *p) {
     SyntaxError(p, "Expected \"main\"");
     return false;
   }
-  while (p->current.type == TOKEN_NEWLINE)
-    if (!Consume(p, TOKEN_NEWLINE))
-      return false;
-
-  return true;
+  return SkipNewLines(p);
 }
 
 // if LF:   <prog> = LF <prog>
@@ -300,9 +315,8 @@ static bool ParseProg(Parser_t *p, ASTList_t *list) {
   while (true) {
     bool isMain = false;
 
-    while (p->current.type == TOKEN_NEWLINE)
-      if (!Consume(p, TOKEN_NEWLINE))
-        return false;
+    if (!SkipNewLines(p))
+      return false;
 
     if (p->current.type == TOKEN_EOF)
       return true;
@@ -410,7 +424,7 @@ static ASTNode_t *ParseReturn(Parser_t *p) {
 
   if (p->current.type != TOKEN_NEWLINE && p->current.type != TOKEN_SEMICOLON &&
       p->current.type != TOKEN_EOF)
-    if (!(node->ret.value = ParseExpression(p)))
+    if (!(node->ret.value = ParseIfOrExpr(p)))
       goto failure;
 
   return node;
@@ -486,10 +500,7 @@ static ASTNode_t *ParseVarDef(Parser_t *p) {
   if (!Consume(p, TOKEN_EQ))
     goto failure;
 
-  if (p->current.type == TOKEN_KW_IF)
-    node->varDef.init = ParseIfExpr(p);
-  else
-    node->varDef.init = ParseExpression(p);
+  node->varDef.init = ParseIfOrExpr(p);
 
   if (node->varDef.init != NULL)
     return node;
@@ -511,12 +522,7 @@ static ASTNode_t *ParseAssign(Parser_t *p) {
   if (!Consume(p, TOKEN_EQ))
     goto failure;
 
-  if (p->current.type == TOKEN_KW_IF)
-    node->assign.value = ParseIfExpr(p);
-  else
-    node->assign.value = ParseExpression(p);
-
-  if (node->assign.value == NULL)
+  if (!(node->assign.value = ParseIfOrExpr(p)))
     goto failure;
 
   return node;
@@ -565,14 +571,69 @@ failure:
   return NULL;
 }
 
+// can be returned as value
+static bool IsValueNode(ASTKind_t k) {
+  switch (k) {
+  case NODE_ID:
+  case NODE_INT:
+  case NODE_DOUBLE:
+  case NODE_STRING:
+  case NODE_UNIT:
+  case NODE_UNOP:
+  case NODE_BINOP:
+  case NODE_COND:
+  case NODE_FNCALL:
+  case NODE_IFEXPR:
+    return true;
+  default:
+    return false;
+  }
+}
+
 // if LF: <fnbody> = <block>
 // else: <fnbody> = block(<expr>) LF
 // This means that fnbody is block with one expression
 static ASTNode_t *ParseFnBody(Parser_t *p) {
-  if (p->current.type == TOKEN_NEWLINE)
-    return ParseBlock(p);
+  ASTNode_t *node = NULL;
+  if (p->current.type == TOKEN_NEWLINE) {
+    node = ParseBlock(p);
 
-  ASTNode_t *node = BlockReturnExpr(p);
+    if (node == NULL)
+      return NULL;
+
+    if (node->block.count <= 0) {
+      ReportInternalError("Empty function body");
+      p->errorCode = ERROR_INTERNAL;
+      goto failure;
+    }
+
+    ASTNode_t *last = node->block.items[node->block.count - 1];
+
+    if (last->kind != NODE_RETURN) {
+      /* Create return node with last statement as its value */
+      if (IsValueNode(last->kind)) {
+        ASTNode_t *ret = WrapInReturn(p, last);
+        if (ret == NULL)
+          goto failure;
+
+        node->block.items[node->block.count - 1] = ret;
+      }
+      /* Create return node with return value unit */
+      else {
+        ASTNode_t *ret = WrapInReturn(p, NewNode(p, NODE_UNIT));
+        if (ret == NULL)
+          goto failure;
+
+        if (!AppendNode(p, &node->block, ret))
+          goto failure;
+        ret->ret.value->type = TYPE_UNIT;
+      }
+    }
+    return node;
+  }
+
+  /* one-line function body */
+  node = BlockReturnExpr(p);
   if (node == NULL)
     return NULL;
 
@@ -582,7 +643,6 @@ static ASTNode_t *ParseFnBody(Parser_t *p) {
   if (!Consume(p, TOKEN_NEWLINE)) {
     goto failure;
   }
-
   return node;
 
 failure:
@@ -608,7 +668,7 @@ static ASTNode_t *ParseIfElse(Parser_t *p) {
   if (!(node->ifElse.thenBlock = ParseBlock(p)))
     goto failure;
 
-  while (p->current.type == TOKEN_KW_ELSE) {
+  if (p->current.type == TOKEN_KW_ELSE) {
     if (!Consume(p, TOKEN_KW_ELSE))
       goto failure;
 
@@ -705,41 +765,38 @@ static bool ParseParamsC(Parser_t *p, ASTList_t *list) {
   return true;
 }
 
-// <IfExpr> = if <cond> then <expr> else <end>
-// <end> = <expr>
-// <end> = <IfExpr>
+// <ifOrExpr> = <expr>
+// <ifOrExpr> = <IfExpr>
+static ASTNode_t *ParseIfOrExpr(Parser_t *p) {
+  if (p->current.type == TOKEN_KW_IF)
+    return ParseIfExpr(p);
+  else
+    return ParseExpression(p);
+}
+
+// <IfExpr> = if <cond> then <ifOrExpr> else <ifOrExpr>
 static ASTNode_t *ParseIfExpr(Parser_t *p) {
-  ASTNode_t *node = NewNode(p, NODE_IF);
+  ASTNode_t *node = NewNode(p, NODE_IFEXPR);
   if (node == NULL)
     return NULL;
 
   if (!Consume(p, TOKEN_KW_IF))
     goto failure;
 
-  if (!(node->ifElse.cond = ParseExpression(p)))
+  if (!(node->ifexpr.cond = ParseExpression(p)))
     goto failure;
 
   if (!Consume(p, TOKEN_KW_THEN))
     goto failure;
 
-  /* create node block for the thenBlock */
-  if (!(node->ifElse.thenBlock = BlockReturnExpr(p)))
+  if (!(node->ifexpr.thenExpr = ParseIfOrExpr(p)))
     goto failure;
 
   if (!Consume(p, TOKEN_KW_ELSE))
     goto failure;
 
-  if (p->current.type == TOKEN_KW_IF) {
-    if (!(node->ifElse.elseBlock = NewNode(p, NODE_BLOCK)))
-      goto failure;
-
-    if (!AppendNode(p, &node->ifElse.elseBlock->block, ParseIfExpr(p)))
-      goto failure;
-
-  } else {
-    if (!(node->ifElse.elseBlock = BlockReturnExpr(p)))
-      goto failure;
-  }
+  if (!(node->ifexpr.elseExpr = ParseIfOrExpr(p)))
+    goto failure;
 
   return node;
 
@@ -747,7 +804,7 @@ failure:
   ASTFree(node);
   return NULL;
 }
-// TODO: var = if a then x else y ->> if a then var = x else var = y
+
 // LF is mandatory
 // <loopBody> = if <cond> <loopBody>
 // <loopBody> = id <loop>
@@ -786,11 +843,6 @@ static ASTNode_t *ParseLoopBody(Parser_t *p) {
       nestedPtr = &node->ifElse.thenBlock;
       break;
     }
-    case TOKEN_IDENTIFIER:
-      if (!AppendNode(p, &nested->block, ParseLoop(p)))
-        goto failure;
-
-      return root;
 
     case TOKEN_DEDENT: {
       if (!Consume(p, TOKEN_DEDENT))
