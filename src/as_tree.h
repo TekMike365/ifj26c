@@ -102,7 +102,7 @@ struct ASTNode_t {
     double dblVal;     /* NODE_DOUBLE      */
     ASTList_t program; /* NODE_PROGRAM     */
     ASTList_t block;   /* NODE_BLOCK       */
-    ASTList_t value;   /* NODE_CONV_DOUBLE */
+    ASTNode_t *value;  /* NODE_CONV_DOUBLE */
 
     /* NODE_FNDEF, declType may be unknown */
     struct {
