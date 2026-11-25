@@ -246,6 +246,18 @@ AError_t A_EndBlock(Analyzer_t *a) {
   return AERR_OK;
 }
 
+/*
+ * Expression analysis
+ */
+
+static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type);
+static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
+                               DataType_t *type);
+static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root, DataType_t *type);
+static AError_t AnalyzeLiteral(Analyzer_t *a, ASTNode_t *root,
+                               DataType_t *type);
+static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type);
+
 /* returns NULL if not found (or error) */
 static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
   assert(a && id);
@@ -273,8 +285,8 @@ static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
  * if `type' is not equal to the expression type => throw error and return
  *   the origitnal type
  */
-static AError_t AnalyzeOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
-  assert(a && root);
+static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
+  assert(a && root && root->kind == NODE_BINOP);
   /* TODO: implement */
   return AERR_OK;
 }
@@ -283,9 +295,62 @@ static AError_t AnalyzeOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
  * if `type' is not equal to the expression type => throw error and return
  *   the origitnal type
  */
+static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
+                               DataType_t *type) {
+  assert(a && root && root->kind == NODE_UNOP);
+
+  AError_t err = AERR_OK;
+
+  DataType_t otype = TYPE_UNKNOWN;
+
+  switch (root->unOp.op) {
+  case OP_UMINUS:
+  case OP_UPLUS: {
+    err = AnalyzeExpr(a, root->unOp.operand, &otype);
+
+    if (otype != TYPE_INT && otype != TYPE_DOUBLE) {
+      /* type error */
+      err = AERR_SEM;
+
+      Message_t *msg =
+          MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                   "Type error: expected `%s' or `%s' != got `%s'",
+                   DataTypeToStr(TYPE_INT), DataTypeToStr(TYPE_DOUBLE),
+                   DataTypeToStr(otype));
+      MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+      MsgAddContext(msg, SpanToCtxUnderline(root->unOp.operand->pos),
+                    "typeof expression is `%s'", DataTypeToStr(otype));
+      MsgSend(msg);
+    }
+  } break;
+  default:
+    break;
+  }
+
+  if (*type == TYPE_UNKNOWN)
+    *type = otype;
+
+  if (*type != otype) {
+    /* type error */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "Unexpected type: expected `%s' got `%s'.",
+                              DataTypeToStr(*type), DataTypeToStr(otype));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
+
+  return err;
+}
+
+/* if `type' is TYPE_UNKNOWN it is set to the expression type
+ * if `type' is not equal to the expression type => throw error and return
+ *   the origitnal type
+ */
 static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root,
                               DataType_t *type) {
-  assert(a && root);
+  assert(a && root && root->kind == NODE_FNCALL);
   /* TODO: implement */
   return AERR_OK;
 }
@@ -370,8 +435,9 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
   switch (root->kind) {
   case NODE_UNOP:
+    return AnalyzeUnaryOp(a, root, type);
   case NODE_BINOP:
-    return AnalyzeOp(a, root, type);
+    return AnalyzeBinOp(a, root, type);
   case NODE_FNCALL:
     return AnalyzeFnCall(a, root, type);
   case NODE_INT:
