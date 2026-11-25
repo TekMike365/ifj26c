@@ -431,8 +431,25 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
 
 static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root && root->kind == NODE_IF);
-  /* TODO: implement */
-  return AERR_OK;
+
+  /* The if-else blocks are handled elswhere by calling `A_'-ops */
+
+  AError_t err = AnalyzeExpr(a, root->ifElse.cond);
+
+  if (a->lastType.type != TYPE_BOOLEAN) {
+    /* incorrect type error */
+    err = AERR_SEM;
+
+    Message_t *msg = MsgStart(
+        MSG_ERROR, ERROR_SEM_TYPE, "If statement requires `%s' got `%s'.",
+        DataTypeToStr(TYPE_BOOLEAN), DataTypeToStr(a->lastType.type));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "at if statement");
+    MsgAddContext(msg, SpanToCtxUnderline(root->ifElse.cond->pos),
+                  "condition is of type `%s'", DataTypeToStr(a->lastType.type));
+    MsgSend(msg);
+  }
+
+  return err;
 }
 
 static AError_t AnalyzeWhile(Analyzer_t *a, ASTNode_t *root) {
