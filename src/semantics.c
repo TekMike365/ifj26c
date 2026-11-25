@@ -115,11 +115,6 @@ struct analyzer {
   SymbolTree_t funs;
   FunSymbol_t *thisFun;
 
-  struct {
-    DataType_t type;
-    int blockID;
-  } lastType;
-
   IntStack_t *blockStack;
   int blockID;
 };
@@ -131,8 +126,6 @@ Analyzer_t *CreateAnalyzer(void) {
     return NULL;
 
   a->thisFun = NULL;
-  a->lastType.type = TYPE_UNKNOWN;
-  a->lastType.blockID = 0;
   if (!SymbolTreeInitWithDestructor(&a->funs, DeleteFunSymbol)) {
     free(a);
     return NULL;
@@ -237,37 +230,11 @@ AError_t A_BeginBlock(Analyzer_t *a) {
 AError_t A_EndBlock(Analyzer_t *a) {
   assert(a);
 
-  AError_t err = AERR_OK;
-
   IntStackPop(a->blockStack);
-  if (!IntStackIsEmpty(a->blockStack))
-    return AERR_OK;
+  if (IntStackIsEmpty(a->blockStack))
+    a->thisFun = NULL;
 
-  /* statement variable return thing */
-  DataType_t rtype = TYPE_UNIT;
-  if (a->lastType.blockID == A_PARAM_BLOCK + 1)
-    rtype = a->lastType.type;
-
-  /* assign type if it isn't */
-  if (a->thisFun->returnType == TYPE_UNKNOWN)
-    a->thisFun->returnType = rtype;
-
-  if (a->thisFun->returnType != rtype) {
-    /* error: incompatible types */
-
-    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
-                              "Incompatible return type `%s' != `%s' at "
-                              "the end of function `%s'.",
-                              DataTypeToStr(a->thisFun->returnType),
-                              DataTypeToStr(rtype), GetIDStr(a->thisFun->id));
-    MsgAddContext(msg, SpanToCtxUnderline(a->thisFun->pos), "here");
-    MsgSend(msg);
-
-    err = AERR_SEM;
-  }
-
-  a->thisFun = NULL;
-  return err;
+  return AERR_OK;
 }
 
 /* returns NULL if not found (or error) */
@@ -305,11 +272,8 @@ static AError_t AnalyzeFnCall(Analyzer_t *a, ASTNode_t *root) {
   return AERR_OK;
 }
 
-/* sets last type */
-static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root) {
-  /* TODO:
-   * def foo() = 4
-   */
+/* type to whatever type the statetment is */
+static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   assert(a && root);
   /* TODO: implement */
   return AERR_OK;
@@ -352,28 +316,24 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
   }
 
   /* expr evaluation & type check */
-  AError_t e = AnalyzeExpr(a, root->assign.value);
+  DataType_t type = TYPE_UNKNOWN;
+  AError_t e = AnalyzeExpr(a, root->assign.value, &type);
   err = err != AERR_OK ? err : e;
 
   if (vs->dtype == TYPE_UNKNOWN)
-    vs->dtype = a->lastType.type;
+    vs->dtype = type;
 
-  if (vs->dtype != a->lastType.type) {
+  if (vs->dtype != type) {
     /* incorrect type error */
     err = AERR_SEM;
 
-    Message_t *msg =
-        MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
-                 "Incompatible type at assignment: typeof `%s' (`%s') != `%s'",
-                 GetIDStr(vs->id), DataTypeToStr(vs->dtype),
-                 DataTypeToStr(a->lastType.type));
+    Message_t *msg = MsgStart(
+        MSG_ERROR, ERROR_SEM_TYPE,
+        "Incompatible type at assignment: typeof `%s' (`%s') != `%s'",
+        GetIDStr(vs->id), DataTypeToStr(vs->dtype), DataTypeToStr(type));
     MsgAddContext(msg, SpanToCtxUnderline(root->pos), "here");
     MsgSend(msg);
   }
-
-  /* keep the last type goin' */
-  a->lastType.type = vs->dtype;
-  a->lastType.blockID = a->blockID;
 
   return err;
 }
@@ -416,10 +376,6 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
     memcpy((void *)vs->id, root->varDef.name, idLen);
   }
 
-  /* keep track of last type */
-  a->lastType.type = vs->dtype;
-  a->lastType.blockID = a->blockID;
-
   /* treat as assignment */
   ASTNode_t assign = *root;
   assign.kind = NODE_ASSIGN;
@@ -434,18 +390,19 @@ static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root) {
 
   /* The if-else blocks are handled elswhere by calling `A_'-ops */
 
-  AError_t err = AnalyzeExpr(a, root->ifElse.cond);
+  DataType_t type = TYPE_UNKNOWN;
+  AError_t err = AnalyzeExpr(a, root->ifElse.cond, &type);
 
-  if (a->lastType.type != TYPE_BOOLEAN) {
+  if (type != TYPE_BOOLEAN) {
     /* incorrect type error */
     err = AERR_SEM;
 
-    Message_t *msg = MsgStart(
-        MSG_ERROR, ERROR_SEM_TYPE, "If statement requires `%s' got `%s'.",
-        DataTypeToStr(TYPE_BOOLEAN), DataTypeToStr(a->lastType.type));
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "If statement requires `%s' got `%s'.",
+                              DataTypeToStr(TYPE_BOOLEAN), DataTypeToStr(type));
     MsgAddContext(msg, SpanToCtxUnderline(root->pos), "at if statement");
     MsgAddContext(msg, SpanToCtxUnderline(root->ifElse.cond->pos),
-                  "condition is of type `%s'", DataTypeToStr(a->lastType.type));
+                  "condition is of type `%s'", DataTypeToStr(type));
     MsgSend(msg);
   }
 
@@ -494,7 +451,7 @@ AError_t A_AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
   case NODE_DOUBLE:
   case NODE_STRING:
   case NODE_UNIT:
-    return AnalyzeExpr(a, stmnt);
+    return AnalyzeExpr(a, stmnt, NULL);
 
   default:
     break;
