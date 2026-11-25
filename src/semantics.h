@@ -70,12 +70,20 @@ AError_t A_EndBlock(Analyzer_t *a);
  *
  *   If an unsupported `stmnt' kind is passed in, it does nothing. Accepted
  * `stmnt' node kinds are:
- *    NODE_ASSIGN
+ *    NODE_ASSIGN  -- basic statements
  *    NODE_VARDEF
  *    NODE_VALDEF
  *    NODE_IF
  *    NODE_WHILE
  *    NODE_RETURN
+ *    NODE_UNOP    -- expressions
+ *    NODE_BINOP
+ *    NODE_FNCALL
+ *    NODE_ID
+ *    NODE_INT
+ *    NODE_DOUBLE
+ *    NODE_STRING
+ *    NODE_UNIT
  *
  * RETURN VALUE:
  *   AERR_OK   on success
