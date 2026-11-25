@@ -122,6 +122,10 @@ void ASTFree(ASTNode_t *node) {
     ASTFree(node->ret.value);
     break;
 
+  case NODE_CONV_DOUBLE:
+    ASTFree(node->value);
+    break;
+
   case NODE_UNOP:
     ASTFree(node->unOp.operand);
     break;

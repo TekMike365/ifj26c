@@ -34,6 +34,7 @@ typedef enum ASTKind_t {
   NODE_BINOP,
   NODE_COND,
   NODE_FNCALL,
+  NODE_CONV_DOUBLE,
   /* lists */
   NODE_ID,
   NODE_INT,
@@ -93,12 +94,13 @@ struct ASTNode_t {
   SourceSpan_t pos; /* Position in source code for error handling */
 
   union {
-    char *name;        /* NODE_ID       */
-    char *string;      /* NODE_STRING   */
-    int intVal;        /* NODE_INT      */
-    double dblVal;     /* NODE_DOUBLE   */
-    ASTList_t program; /* NODE_PROGRAM  */
-    ASTList_t block;   /* NODE_BLOCK    */
+    char *name;        /* NODE_ID          */
+    char *string;      /* NODE_STRING      */
+    int intVal;        /* NODE_INT         */
+    double dblVal;     /* NODE_DOUBLE      */
+    ASTList_t program; /* NODE_PROGRAM     */
+    ASTList_t block;   /* NODE_BLOCK       */
+    ASTList_t value;   /* NODE_CONV_DOUBLE */
 
     /* NODE_FNDEF, declType may be unknown */
     struct {
