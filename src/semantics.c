@@ -36,6 +36,9 @@
  */
 
 static inline AError_t SetAError(AError_t old, AError_t new) {
+  if (new != AERR_OK)
+    DLOG_TRACE("<analyzer> Analyzer error is getting set");
+
   if (old == AERR_MEM)
     return AERR_MEM;
   return old != AERR_OK ? old : new;
@@ -752,7 +755,7 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
     MsgSend(msg);
   }
 
-  return AERR_OK;
+  return err;
 }
 
 static void MsgAddLiteralCtx(Message_t *msg, ASTNode_t *lit) {
@@ -1172,6 +1175,7 @@ static AError_t AnalyzeReturn(Analyzer_t *a, ASTNode_t *root) {
 
   if (a->thisFun->returnType != type) {
     /* incorrect type error */
+    err = SetAError(err, AERR_SEM);
 
     Message_t *msg =
         MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
@@ -1436,5 +1440,5 @@ AError_t AnalyzeAST(ASTNode_t *root) {
 
   DeleteAnalyzer(a);
 
-  return AERR_OK;
+  return err;
 }
