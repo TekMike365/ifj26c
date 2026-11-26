@@ -1322,15 +1322,24 @@ static AError_t AnalyzeSubAST(Analyzer_t *a, ASTNode_t *root) {
     err = SetAError(err, StartFunction(a, root));
     err = SetAError(err, AnalyzeSubAST(a, root->fnDef.body));
   } break;
+  case NODE_IF: {
+    err = SetAError(err, AnalyzeStatement(a, root));
+    err = SetAError(err, AnalyzeSubAST(a, root->ifElse.thenBlock));
+    err = SetAError(err, AnalyzeSubAST(a, root->ifElse.elseBlock));
+  } break;
+  case NODE_WHILE: {
+    err = SetAError(err, AnalyzeStatement(a, root));
+    err = SetAError(err, AnalyzeSubAST(a, root->whileDo.body));
+  } break;
   case NODE_BLOCK: {
     err = SetAError(err, BeginBlock(a));
     AST_LIST_FOREACH(root->block, stmnt) {
-      err = SetAError(err, AnalyzeStatement(a, stmnt));
+      err = SetAError(err, AnalyzeSubAST(a, stmnt));
     }
     err = SetAError(err, EndBlock(a));
   } break;
   default:
-    err = AERR_SEM;
+    err = SetAError(err, AnalyzeStatement(a, root));
   }
 
   return err;
