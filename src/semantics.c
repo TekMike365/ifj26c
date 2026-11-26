@@ -29,7 +29,9 @@
   DO("subStr", TYPE_STRING, 3, P("value", TYPE_STRING), P("start", TYPE_INT),  \
      P("end", TYPE_INT))                                                       \
   DO("ord", TYPE_INT, 2, P("value", TYPE_STRING), P("index", TYPE_INT))        \
-  DO("chr", TYPE_STRING, 1, P("code", TYPE_INT))
+  DO("chr", TYPE_STRING, 1, P("code", TYPE_INT))                               \
+  /* ext: BOOLTHEN */                                                          \
+  DO("readBoolean", TYPE_BOOLEAN, 0, P("", TYPE_NA))
 
 /*
  * Helper functions
@@ -555,6 +557,20 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     otype = TYPE_BOOLEAN;
   } break;
 
+  /* ext: BOOLTHEN */
+  case OP_AND:
+  case OP_OR: {
+    if (ltype != TYPE_BOOLEAN || rtype != TYPE_BOOLEAN) {
+      /* type error */
+      err = SetAError(err, AERR_SEM);
+      ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
+                            lpos, rpos);
+      break;
+    }
+
+    otype = TYPE_BOOLEAN;
+  } break;
+
   /* default */
   default:
     break;
@@ -570,9 +586,10 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     /* type error */
     err = SetAError(err, AERR_SEM);
 
-    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
-                              "Unknown type: left `%s', right `%s'.",
-                              DataTypeToStr(ltype), DataTypeToStr(rtype));
+    Message_t *msg = MsgStart(
+        MSG_ERROR, ERROR_SEM_TYPE,
+        "Unknown types resulted from operation `%s': left `%s', right `%s'.",
+        OpToChar(root->binOp.op), DataTypeToStr(ltype), DataTypeToStr(rtype));
     MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
     MsgSend(msg);
   }
@@ -599,30 +616,45 @@ static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
                                DataType_t *type) {
   assert(a && root && root->kind == NODE_UNOP);
 
-  AError_t err = AERR_OK;
-
   DataType_t otype = TYPE_UNKNOWN;
+  AError_t err = AnalyzeExpr(a, root->unOp.operand, &otype);
 
   switch (root->unOp.op) {
   case OP_UMINUS:
   case OP_UPLUS: {
-    err = SetAError(err, AnalyzeExpr(a, root->unOp.operand, &otype));
+    if (otype == TYPE_INT || otype == TYPE_DOUBLE)
+      break;
 
-    if (otype != TYPE_INT && otype != TYPE_DOUBLE) {
-      /* type error */
-      err = SetAError(err, AERR_SEM);
+    /* type error */
+    err = SetAError(err, AERR_SEM);
 
-      Message_t *msg =
-          MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
-                   "Type error: expected `%s' or `%s' != got `%s'",
-                   DataTypeToStr(TYPE_INT), DataTypeToStr(TYPE_DOUBLE),
-                   DataTypeToStr(otype));
-      MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
-      MsgAddContext(msg, SpanToCtxUnderline(root->unOp.operand->pos),
-                    "typeof expression is `%s'", DataTypeToStr(otype));
-      MsgSend(msg);
-    }
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "Type error: expected `%s' or `%s' != got `%s'",
+                              DataTypeToStr(TYPE_INT),
+                              DataTypeToStr(TYPE_DOUBLE), DataTypeToStr(otype));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->unOp.operand->pos),
+                  "typeof expression is `%s'", DataTypeToStr(otype));
+    MsgSend(msg);
   } break;
+
+  /* ext: BOOLTHEN */
+  case OP_NEG: {
+    if (otype == TYPE_BOOLEAN)
+      break;
+
+    /* type error */
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg = MsgStart(
+        MSG_ERROR, ERROR_SEM_TYPE, "Type error: expected `%s' != got `%s'",
+        DataTypeToStr(TYPE_BOOLEAN), DataTypeToStr(otype));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->unOp.operand->pos),
+                  "typeof expression is `%s'", DataTypeToStr(otype));
+    MsgSend(msg);
+  } break;
+
   default:
     break;
   }
@@ -1344,6 +1376,13 @@ static AError_t AddFunParam(FunSymbol_t *fs, const char *name, DataType_t type,
 static AError_t AnalyzeSubAST(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root);
 
+  if (!root) {
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_INTERNAL, "Empty AST node encountered.");
+    MsgSend(msg);
+    return AERR_SEM;
+  }
+
   AError_t err = AERR_OK;
 
   switch (root->kind) {
@@ -1354,7 +1393,8 @@ static AError_t AnalyzeSubAST(Analyzer_t *a, ASTNode_t *root) {
   case NODE_IF: {
     err = SetAError(err, AnalyzeStatement(a, root));
     err = SetAError(err, AnalyzeSubAST(a, root->ifElse.thenBlock));
-    err = SetAError(err, AnalyzeSubAST(a, root->ifElse.elseBlock));
+    if (root->ifElse.elseBlock)
+      err = SetAError(err, AnalyzeSubAST(a, root->ifElse.elseBlock));
   } break;
   case NODE_WHILE: {
     err = SetAError(err, AnalyzeStatement(a, root));
