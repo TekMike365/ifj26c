@@ -324,6 +324,11 @@ static void TransitionTableInit(void) {
         continue;
       }
 
+      if (idx == STATE_ESCAPE) {
+        m_transitionTable[idx][idy] = STATE_ERROR;
+        continue;
+      }
+
       // STATE_STRING and STATE_QUOTE
       // all CHARS constitute the string except CHAR_QUOTE
       // CHAR_QUOTE handled in transitions macro
