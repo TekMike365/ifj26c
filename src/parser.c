@@ -39,6 +39,7 @@ static ASTNode_t *ParseFor(Parser_t *p);
 static ASTNode_t *ParseLoopBody(Parser_t *p);
 static ASTNode_t *ParseIfExpr(Parser_t *p);
 static ASTNode_t *ParseIfOrExpr(Parser_t *p);
+static ASTNode_t *ParseBody(Parser_t *p);
 
 /* Parses an IFJ26 source program from stdin and constructs its Abstract syntax
  * tree. Combines top-down recursive descent for program structure and
@@ -74,7 +75,7 @@ ASTNode_t *Parse(ErrorCode_t *errOut) {
   if (node != NULL)
     return node;
 
-  *errOut = (p.errorCode == ERROR_NOERR) ? ERROR_SEM_UNDEF : p.errorCode;
+  *errOut = (p.errorCode == ERROR_NOERR) ? ERROR_SYNTAX : p.errorCode;
   return NULL;
 }
 
@@ -143,6 +144,7 @@ static ASTNode_t *WrapInReturn(Parser_t *p, ASTNode_t *node) {
   if (ret == NULL) {
     return NULL;
   }
+  ret->pos = node->pos;
   ret->ret.value = node;
   return ret;
 }
@@ -496,6 +498,10 @@ static ASTNode_t *ParseVarDef(Parser_t *p) {
   if (p->current.type == TOKEN_COLON) {
     if (!ParseType(p, &node->varDef.declType))
       goto failure;
+    node->type = node->varDef.declType;
+  } else {
+    node->varDef.declType = TYPE_UNKNOWN;
+    node->type = TYPE_UNKNOWN;
   }
 
   if (!Consume(p, TOKEN_EQ))
@@ -555,9 +561,14 @@ static ASTNode_t *ParseFnDef(Parser_t *p) {
   if (!Consume(p, TOKEN_RPAR))
     goto failure;
 
-  if (p->current.type == TOKEN_COLON)
+  if (p->current.type == TOKEN_COLON) {
     if (!(ParseType(p, &node->fnDef.declType)))
       goto failure;
+    node->type = node->fnDef.declType;
+  } else {
+    node->fnDef.declType = TYPE_UNKNOWN;
+    node->type = TYPE_UNKNOWN;
+  }
 
   if (!Consume(p, TOKEN_EQ))
     goto failure;
@@ -670,7 +681,7 @@ static ASTNode_t *ParseIfElse(Parser_t *p) {
   if (!Consume(p, TOKEN_KW_THEN))
     goto failure;
 
-  if (!(node->ifElse.thenBlock = ParseBlock(p)))
+  if (!(node->ifElse.thenBlock = ParseBody(p)))
     goto failure;
 
   if (p->current.type == TOKEN_KW_ELSE) {
@@ -687,7 +698,7 @@ static ASTNode_t *ParseIfElse(Parser_t *p) {
         goto failure;
 
     } else {
-      if (!(node->ifElse.elseBlock = ParseBlock(p)))
+      if (!(node->ifElse.elseBlock = ParseBody(p)))
         goto failure;
     }
   }
@@ -695,6 +706,60 @@ static ASTNode_t *ParseIfElse(Parser_t *p) {
 
 failure:
   ASTFree(node);
+  return NULL;
+}
+
+//     bo1: <body> :: <assign>
+//     bo2: <body> :: <ifelse>
+//     bo3: <body> :: return <if_or_expr?>
+//     bo4: <body> :: <block>
+//     bo5: <body> :: <for>
+//     bo6: <body> :: <while>
+//     bo7: <body> :: <expr>
+static ASTNode_t *ParseBody(Parser_t *p) {
+  if (p->current.type == TOKEN_NEWLINE)
+    return ParseBlock(p);
+
+  ASTNode_t *block = NewNode(p, NODE_BLOCK);
+  if (block == NULL)
+    return NULL;
+
+  ASTNode_t *node = NULL;
+  switch (p->current.type) {
+  case TOKEN_KW_IF:
+    node = ParseIfElse(p);
+    break;
+  case TOKEN_KW_WHILE:
+    node = ParseWhile(p);
+    break;
+  case TOKEN_KW_FOR:
+    node = ParseFor(p);
+    break;
+  case TOKEN_KW_RETURN:
+    node = ParseReturn(p);
+    break;
+  case TOKEN_IDENTIFIER:
+    if (p->next.type == TOKEN_EQ)
+      node = ParseAssign(p);
+    else
+      node = ParseExpression(p);
+    break;
+
+  default:
+    SyntaxError(p, "Invalid function body");
+    goto failure;
+  }
+
+  if (node == NULL)
+    goto failure;
+
+  if (!(AppendNode(p, &block->block, node)))
+    goto failure;
+
+  return block;
+
+failure:
+  ASTFree(block);
   return NULL;
 }
 
@@ -713,7 +778,7 @@ static ASTNode_t *ParseWhile(Parser_t *p) {
   if (!Consume(p, TOKEN_KW_DO))
     goto failure;
 
-  if (!(node->whileDo.body = ParseBlock(p)))
+  if (!(node->whileDo.body = ParseBody(p)))
     goto failure;
 
   return node;
@@ -734,6 +799,8 @@ static ASTNode_t *ParseParam(Parser_t *p) {
 
   if (!(ParseType(p, &node->param.declType)))
     goto failure;
+
+  node->type = node->param.declType;
 
   return node;
 
@@ -854,7 +921,7 @@ static ASTNode_t *ParseLoopBody(Parser_t *p) {
       if (!Consume(p, TOKEN_KW_DO))
         goto failure;
 
-      ASTNode_t *node = ParseBlock(p);
+      ASTNode_t *node = ParseBody(p);
       if (node == NULL)
         goto failure;
 
@@ -956,7 +1023,7 @@ static ASTNode_t *ParseLoop(Parser_t *p) {
   if (!Consume(p, TOKEN_KW_DO))
     goto failure;
 
-  if (!(node->forLoop.body = ParseBlock(p)))
+  if (!(node->forLoop.body = ParseBody(p)))
     goto failure;
 
   return node;
