@@ -934,6 +934,82 @@ static AError_t AnalyzeID(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   return err;
 }
 
+static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root);
+
+/* if `type' is TYPE_UNKNOWN it is set to the expression type
+ * if `type' is not equal to the expression type => throw error and return
+ *   the origitnal type
+ */
+static AError_t AnalyzeIfExpr(Analyzer_t *a, ASTNode_t *root,
+                              DataType_t *type) {
+
+  AError_t err = AnalyzeIf(a, root);
+
+  DataType_t thentype = TYPE_UNKNOWN;
+  DataType_t elsetype = TYPE_UNKNOWN;
+  err = SetAError(err, AnalyzeExpr(a, root->ifElse.thenBlock, &thentype));
+
+  if (!root->ifElse.elseBlock) {
+    /* must have else block */
+    err = SetAError(err, AERR_SEM);
+
+    return err;
+  }
+
+  err = SetAError(err, AnalyzeExpr(a, root->ifElse.elseBlock, &elsetype));
+
+  /* unknown type errors */
+  if (thentype == TYPE_UNKNOWN) {
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE, "Unknown then block type");
+    MsgAddContext(msg, SpanToCtxUnderline(root->ifElse.thenBlock->pos),
+                  "used here");
+    MsgSend(msg);
+  }
+  if (elsetype == TYPE_UNKNOWN) {
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE, "Unknown else block type");
+    MsgAddContext(msg, SpanToCtxUnderline(root->ifElse.elseBlock->pos),
+                  "used here");
+    MsgSend(msg);
+  }
+
+  if (thentype != elsetype) {
+    /* type error */
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "All branches of if expressions must be of the "
+                              "same type (`%s' != `%s')",
+                              DataTypeToStr(thentype), DataTypeToStr(elsetype));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->ifElse.thenBlock->pos),
+                  "then block is of type `%s'", DataTypeToStr(thentype));
+    MsgAddContext(msg, SpanToCtxUnderline(root->ifElse.elseBlock->pos),
+                  "else block is of type `%s'", DataTypeToStr(elsetype));
+    MsgSend(msg);
+  }
+
+  /* set the type */
+  *type = thentype;
+
+  if (*type == TYPE_UNKNOWN) {
+    /* type error */
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE, "Unknown `if expression' type");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
+
+  return err;
+}
+
 /* if `type' is TYPE_UNKNOWN it is set to the expression type
  * if `type' is not equal to the expression type => throw error and return
  *   the origitnal type
@@ -963,6 +1039,9 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     break;
   case NODE_ID:
     err = SetAError(err, AnalyzeID(a, root, &dt));
+    break;
+  case NODE_IFEXPR:
+    err = SetAError(err, AnalyzeIfExpr(a, root, &dt));
     break;
   default: {
     Message_t *msg = MsgStart(MSG_INFO, ERROR_SEM_TYPE, "Unknown expression");
@@ -1139,7 +1218,7 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
 }
 
 static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root) {
-  assert(a && root && root->kind == NODE_IF);
+  assert(a && root && (root->kind == NODE_IF || root->kind == NODE_IFEXPR));
 
   DataType_t type = TYPE_UNKNOWN;
   AError_t err = AnalyzeExpr(a, root->ifElse.cond, &type);
