@@ -14,6 +14,7 @@ typedef struct Parser_t {
   SourceSpan_t lastValidPos;
   Token_t current;
   Token_t next;
+  Token_t last;
   Preprocessor_t *pp;
   ErrorCode_t errorCode;
 } Parser_t;
