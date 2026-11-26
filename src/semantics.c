@@ -298,8 +298,11 @@ static AError_t EndBlock(Analyzer_t *a) {
   DLOG_INFO("<analyzer> end block `%d'", IntStackTop(a->blockStack));
 
   IntStackPop(a->blockStack);
-  if (IntStackIsEmpty(a->blockStack))
+  if (IntStackIsEmpty(a->blockStack)) {
     a->thisFun = NULL;
+  } else {
+    a->blockID = IntStackTop(a->blockStack);
+  }
 
   return AERR_OK;
 }
@@ -366,7 +369,7 @@ static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
 
     long d = IntStackDepth(a->blockStack, s->blockID);
 
-    if (vsDepth < 0 || (d < vsDepth && d >= 0)) {
+    if (d >= 0 && (vsDepth < 0 || d < vsDepth)) {
       vsDepth = d;
       vs = s;
     }
@@ -472,7 +475,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   SourceSpan_t rpos = root->binOp.right->pos;
 
   bool isLMath = ltype == TYPE_INT || ltype == TYPE_DOUBLE;
-  bool isRMath = ltype == TYPE_INT || ltype == TYPE_DOUBLE;
+  bool isRMath = rtype == TYPE_INT || rtype == TYPE_DOUBLE;
 
   switch (root->binOp.op) {
   /* maths */
@@ -713,6 +716,7 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
 
     if (vs->dtype != type && vs->dtype != TYPE_ANY) {
       /* type error */
+      err = SetAError(err, AERR_SEM);
       Message_t *msg = MsgStart(
           MSG_ERROR, ERROR_SEM_ARGS,
           "Unexpected type for argument `%s' (type `%s') of function `%s' "
@@ -1319,12 +1323,24 @@ static AError_t AnalyzeFor(Analyzer_t *a, ASTNode_t *root) {
     MsgSend(msg);
   }
 
-  /* Check Types */
-  DataType_t type = TYPE_INT;
-  err = SetAError(err, AnalyzeExpr(a, gen->gen.from, &type));
-  err = SetAError(err, AnalyzeExpr(a, gen->gen.to, &type));
-  if (gen->gen.by)
-    err = SetAError(err, AnalyzeExpr(a, gen->gen.by, &type));
+  /* Generator bounds and steps must all be integers. */
+  ASTNode_t *bounds[] = {gen->gen.from, gen->gen.to, gen->gen.by};
+  for (size_t i = 0; i < sizeof(bounds) / sizeof(bounds[0]); i++) {
+    if (bounds[i] == NULL)
+      continue;
+
+    DataType_t type = TYPE_UNKNOWN;
+    err = SetAError(err, AnalyzeExpr(a, bounds[i], &type));
+    if (type != TYPE_INT) {
+      err = SetAError(err, AERR_SEM);
+      Message_t *msg =
+          MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                   "Generator bounds and step must have type `Int', not `%s'.",
+                   DataTypeToStr(type));
+      MsgAddContext(msg, SpanToCtxUnderline(bounds[i]->pos), "used here");
+      MsgSend(msg);
+    }
+  }
 
   return err;
 }
