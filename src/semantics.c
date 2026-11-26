@@ -557,6 +557,9 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     break;
   }
 
+  /* set type  */
+  root->type = otype;
+
   if (*type == TYPE_UNKNOWN)
     *type = otype;
 
@@ -620,6 +623,9 @@ static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
   default:
     break;
   }
+
+  /* set type  */
+  root->type = otype;
 
   if (*type == TYPE_UNKNOWN)
     *type = otype;
@@ -717,6 +723,9 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
     MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
     MsgSend(msg);
   }
+
+  /* set type */
+  root->type = fs->returnType;
 
   if (*type == TYPE_UNKNOWN)
     *type = fs->returnType;
@@ -859,6 +868,9 @@ static AError_t AnalyzeID(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     DLogVarSymbol(DLOG_LVL_INFO, vs, "Created variable symbol");
   }
 
+  /* set the type */
+  root->type = vs->dtype;
+
   AError_t err = AERR_OK;
 
   if (vs->vstate == VS_UNDEFINED) {
@@ -944,6 +956,9 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     MsgSend(msg);
   }
 
+  /* set type  */
+  root->type = dt;
+
   if (type)
     *type = dt;
 
@@ -1009,6 +1024,9 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
   /* expr evaluation & type check */
   DataType_t type = TYPE_UNKNOWN;
   err = SetAError(err, AnalyzeExpr(a, root->assign.value, &type));
+
+  /* set type  */
+  root->type = type;
 
   if (vs->dtype == TYPE_UNKNOWN)
     vs->dtype = type;
@@ -1086,6 +1104,10 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
 
   err = SetAError(err, AnalyzeAssign(a, &assign));
 
+  /* set type  */
+  root->type = vs->dtype;
+  root->varDef.declType = vs->dtype;
+
   if (created)
     vs->vstate = isMutable ? VS_MUTABLE : VS_CONST;
 
@@ -1141,6 +1163,9 @@ static AError_t AnalyzeReturn(Analyzer_t *a, ASTNode_t *root) {
 
   DataType_t type = TYPE_UNKNOWN;
   AError_t err = AnalyzeExpr(a, root->ret.value, &type);
+
+  /* set type  */
+  root->type = type;
 
   if (a->thisFun->returnType == TYPE_UNKNOWN)
     a->thisFun->returnType = type;

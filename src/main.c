@@ -17,8 +17,6 @@ int main(void) {
     return err;
   }
 
-  ASTDump(ASTree);
-
   AError_t aerr = AnalyzeAST(ASTree);
   if (aerr == AERR_MEM) {
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_INTERNAL,
@@ -27,6 +25,8 @@ int main(void) {
     ASTFree(ASTree);
     return ERROR_INTERNAL;
   }
+
+  ASTDump(ASTree);
 
   ASTFree(ASTree);
 
