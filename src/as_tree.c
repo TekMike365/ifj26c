@@ -219,6 +219,8 @@ const char *OpToChar(Operator_t op) {
     return "&&";
   case OP_OR:
     return "||";
+  case OP_ERR:
+    return "<E>";
   default:
     return "<?>";
   }
