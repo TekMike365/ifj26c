@@ -263,27 +263,16 @@ static AError_t AddFun(Analyzer_t *a, const ASTNode_t *fndef) {
 
   AError_t err = AERR_OK;
 
-  if (fs->isMain) {
-    if (fndef->fnDef.params.count > 0) {
-      err = SetAError(err, AERR_SEM);
+  /* return type is checked elswere */
+  if (fs->isMain && fndef->fnDef.params.count > 0) {
+    err = SetAError(err, AERR_SEM);
 
-      Message_t *msg = MsgStart(
-          MSG_ERROR, ERROR_SEM_ARGS,
-          "Main function must not have arguments `%zu' were specified.",
-          fndef->fnDef.params.count);
-      MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
-      MsgSend(msg);
-    }
-    if (fs->returnType != TYPE_UNIT) {
-      err = SetAError(err, AERR_SEM);
-
-      Message_t *msg =
-          MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
-                   "Main function must have return type `%s' got `%s'.",
-                   DataTypeToStr(TYPE_UNIT), DataTypeToStr(fs->returnType));
-      MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
-      MsgSend(msg);
-    }
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_ARGS,
+                 "Main function must not have arguments `%zu' were specified.",
+                 fndef->fnDef.params.count);
+    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
+    MsgSend(msg);
   }
 
   /* Add parameters */
@@ -1427,9 +1416,23 @@ static AError_t CheckMainDefs(Analyzer_t *a) {
     if (!fs->isMain)
       continue;
 
+    /* check the return type */
+    if (fs->isMain && fs->returnType != TYPE_UNIT) {
+      err = SetAError(err, AERR_SEM);
+
+      Message_t *msg =
+          MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                   "Main function must have return type `%s' got `%s'.",
+                   DataTypeToStr(TYPE_UNIT), DataTypeToStr(fs->returnType));
+      MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
+      MsgSend(msg);
+    }
+
+    /* check the redefinition */
     if (!seenMain && fs->isMain) {
       seenMain = true;
       main = fs;
+
       continue;
     }
 
