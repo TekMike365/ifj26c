@@ -2,7 +2,7 @@
  * Author[s]: Ondrej Dedič <xdedico00>
  */
 #include "error.h"
-#include "parser_internal.h"
+#include "parser.h"
 #include "psa_stack.h"
 #include "psa_table.h"
 

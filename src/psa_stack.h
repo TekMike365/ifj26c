@@ -8,7 +8,7 @@
 #include "psa_table.h"
 
 
-// conatins symbol used for PT
+// contains symbol used for PT
 // if terminal or nonterminal, the node points to AS tree, else NULL
 typedef struct PStackItem_t {
   ASTNode_t *node;

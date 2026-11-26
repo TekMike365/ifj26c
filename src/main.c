@@ -1,7 +1,7 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Michael Sklenka <xsklenm00>
  */
-#include "parser_internal.h"
+#include "parser.h"
 #include "semantics.h"
 #include <stdio.h>
 

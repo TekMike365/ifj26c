@@ -104,6 +104,12 @@ Operator_t OpFromSym(PTSymbol_t sym) {
     return OP_DIV;
   case PT_MUL:
     return OP_MUL;
+  case PT_AND:
+    return OP_AND;
+  case PT_OR:
+    return OP_OR;
+  case PT_NEG:
+    return OP_NEG;
   default:
     return OP_ERR;
   }
