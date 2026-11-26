@@ -894,6 +894,7 @@ static bool EmitForLoop(Codegen_t *codegen, const ASTNode_t *node) {
   size_t negativeLabel = codegen->nextLabel++;
   size_t bodyLabel = codegen->nextLabel++;
   size_t endLabel = codegen->nextLabel++;
+  size_t nonZeroStepLabel = codegen->nextLabel++;
 
   bool success = EmitExpression(codegen, generator->gen.from) &&
       Emit(codegen, "POPS LF@v%zu\n", value->id) &&
@@ -917,11 +918,13 @@ static bool EmitForLoop(Codegen_t *codegen, const ASTNode_t *node) {
   success = success &&
             Emit(codegen,
                  "LABEL $L%zu\n"
-                 "JUMPIFEQ $L%zu LF@v%zu int@0\n"
+                 "JUMPIFNEQ $L%zu LF@v%zu int@0\n"
+                 "EXIT int@10\n"
+                 "LABEL $L%zu\n"
                  "LT GF@_tmp0 LF@v%zu int@0\n"
                  "JUMPIFEQ $L%zu GF@_tmp0 bool@true\n",
-                 startLabel, endLabel, loop->stepId, loop->stepId,
-                 negativeLabel);
+                 startLabel, nonZeroStepLabel, loop->stepId,
+                 nonZeroStepLabel, loop->stepId, negativeLabel);
 
   if (success) {
     if (generator->gen.IncludeMax) {
