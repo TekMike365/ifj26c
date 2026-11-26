@@ -9,11 +9,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct LoopInfo {
+  const ASTNode_t *loop;
+  size_t endId;
+  size_t stepId;
+} LoopInfo_t;
+
 typedef struct FunctionInfo {
   const ASTNode_t *node;
   size_t id;
   size_t localCount;
   struct LocalInfo *locals;
+  LoopInfo_t *loops;
+  size_t loopCount;
 } FunctionInfo_t;
 
 typedef struct LocalInfo {
@@ -66,7 +74,10 @@ static bool IsExpression(const ASTNode_t *node) {
   switch (node->kind) {
   case NODE_UNOP:
   case NODE_BINOP:
+  case NODE_COND:
   case NODE_FNCALL:
+  case NODE_IFEXPR:
+  case NODE_CONV_DOUBLE:
   case NODE_ID:
   case NODE_INT:
   case NODE_DOUBLE:
@@ -153,6 +164,8 @@ static DataType_t ExpressionType(const Codegen_t *codegen,
     return TYPE_STRING;
   case NODE_UNIT:
     return TYPE_UNIT;
+  case NODE_CONV_DOUBLE:
+    return TYPE_DOUBLE;
   case NODE_ID: {
     const Binding_t *binding = FindBinding(codegen, node->name);
     return binding == NULL ? TYPE_UNKNOWN : binding->type;
@@ -184,14 +197,22 @@ static DataType_t ExpressionType(const Codegen_t *codegen,
     if (strcmp(node->fncall.name, "readDouble") == 0) {
       return TYPE_DOUBLE;
     }
+    if (strcmp(node->fncall.name, "readBoolean") == 0) {
+      return TYPE_BOOLEAN;
+    }
     return TYPE_UNKNOWN;
   }
   case NODE_UNOP:
+    if (node->unOp.op == OP_NEG) {
+      return TYPE_BOOLEAN;
+    }
     return ExpressionType(codegen, node->unOp.operand);
   case NODE_BINOP:
+  case NODE_COND:
     if (node->binOp.op == OP_EQ || node->binOp.op == OP_NEQ ||
         node->binOp.op == OP_LTE || node->binOp.op == OP_LT ||
-        node->binOp.op == OP_GTE || node->binOp.op == OP_GT) {
+        node->binOp.op == OP_GTE || node->binOp.op == OP_GT ||
+        node->binOp.op == OP_AND || node->binOp.op == OP_OR) {
       return TYPE_BOOLEAN;
     }
     if (node->binOp.op == OP_PLUS &&
@@ -204,6 +225,18 @@ static DataType_t ExpressionType(const Codegen_t *codegen,
       return TYPE_DOUBLE;
     }
     return TYPE_INT;
+  case NODE_IFEXPR: {
+    DataType_t thenType = ExpressionType(codegen, node->ifexpr.thenExpr);
+    DataType_t elseType = ExpressionType(codegen, node->ifexpr.elseExpr);
+    if (thenType == elseType) {
+      return thenType;
+    }
+    if ((thenType == TYPE_INT && elseType == TYPE_DOUBLE) ||
+        (thenType == TYPE_DOUBLE && elseType == TYPE_INT)) {
+      return TYPE_DOUBLE;
+    }
+    return TYPE_UNKNOWN;
+  }
   default:
     return TYPE_UNKNOWN;
   }
@@ -244,6 +277,32 @@ static const LocalInfo_t *FindLocal(const FunctionInfo_t *function,
   for (size_t i = 0; i < function->localCount; i++) {
     if (function->locals[i].declaration == decl) {
       return &function->locals[i];
+    }
+  }
+  return NULL;
+}
+
+static bool AppendLoopInfo(FunctionInfo_t *function, const ASTNode_t *loop,
+                           size_t endId, size_t stepId) {
+  if (function->loopCount >= SIZE_MAX / sizeof *function->loops) {
+    return false;
+  }
+  LoopInfo_t *loops =
+      realloc(function->loops, (function->loopCount + 1) * sizeof *loops);
+  if (loops == NULL) {
+    return false;
+  }
+  function->loops = loops;
+  function->loops[function->loopCount++] =
+      (LoopInfo_t){.loop = loop, .endId = endId, .stepId = stepId};
+  return true;
+}
+
+static const LoopInfo_t *FindLoopInfo(const FunctionInfo_t *function,
+                                      const ASTNode_t *loop) {
+  for (size_t i = 0; i < function->loopCount; i++) {
+    if (function->loops[i].loop == loop) {
+      return &function->loops[i];
     }
   }
   return NULL;
@@ -309,6 +368,39 @@ static bool CollectBlock(Codegen_t *codegen, FunctionInfo_t *function,
         return false;
       }
       break;
+    case NODE_FOR: {
+      const ASTNode_t *generator = statement->forLoop.gen;
+      if (generator == NULL || generator->kind != NODE_GEN ||
+          generator->gen.name == NULL || generator->gen.from == NULL ||
+          generator->gen.to == NULL || statement->forLoop.body == NULL ||
+          !CollectExpression(codegen, generator->gen.from) ||
+          !CollectExpression(codegen, generator->gen.to) ||
+          (generator->gen.by != NULL &&
+           !CollectExpression(codegen, generator->gen.by)) ||
+          ExpressionType(codegen, generator->gen.from) != TYPE_INT ||
+          ExpressionType(codegen, generator->gen.to) != TYPE_INT ||
+          (generator->gen.by != NULL &&
+           ExpressionType(codegen, generator->gen.by) != TYPE_INT) ||
+          codegen->nextLocalId > SIZE_MAX - 3) {
+        codegen->bindingCount = scopeStart;
+        return false;
+      }
+
+      size_t valueId = codegen->nextLocalId++;
+      size_t endId = codegen->nextLocalId++;
+      size_t stepId = codegen->nextLocalId++;
+      if (!AppendLocal(function, generator, valueId, TYPE_INT) ||
+          !AppendLocal(function, statement, endId, TYPE_INT) ||
+          !AppendLocal(function, statement->forLoop.body, stepId, TYPE_INT) ||
+          !AppendLoopInfo(function, statement, endId, stepId) ||
+          !AddBinding(codegen, generator->gen.name, TYPE_INT, valueId, false) ||
+          !CollectBlock(codegen, function, statement->forLoop.body)) {
+        codegen->bindingCount = scopeStart;
+        return false;
+      }
+      codegen->bindingCount = scopeStart;
+      break;
+    }
     case NODE_RETURN:
       if (statement->ret.value != NULL &&
           !CollectExpression(codegen, statement->ret.value)) {
@@ -348,11 +440,18 @@ static bool CollectExpression(Codegen_t *codegen, const ASTNode_t *node) {
   case NODE_STRING:
   case NODE_UNIT:
     return node->kind != NODE_STRING || node->string != NULL;
+  case NODE_CONV_DOUBLE:
+    return CollectExpression(codegen, node->value);
   case NODE_UNOP:
     return CollectExpression(codegen, node->unOp.operand);
   case NODE_BINOP:
+  case NODE_COND:
     return CollectExpression(codegen, node->binOp.left) &&
            CollectExpression(codegen, node->binOp.right);
+  case NODE_IFEXPR:
+    return CollectExpression(codegen, node->ifexpr.cond) &&
+           CollectExpression(codegen, node->ifexpr.thenExpr) &&
+           CollectExpression(codegen, node->ifexpr.elseExpr);
   case NODE_FNCALL:
     if (node->fncall.name == NULL ||
         (node->fncall.args.count != 0 && node->fncall.args.items == NULL)) {
@@ -417,15 +516,22 @@ static bool EmitBuiltinCall(Codegen_t *codegen, const ASTNode_t *node,
 
   if (args->count == 0 && (strcmp(name, "readLine") == 0 ||
                            strcmp(name, "readInt") == 0 ||
-                           strcmp(name, "readDouble") == 0)) {
+                           strcmp(name, "readDouble") == 0 ||
+                           strcmp(name, "readBoolean") == 0)) {
     const char *targetType = strcmp(name, "readLine") == 0
                                  ? "string"
-                                 : (strcmp(name, "readInt") == 0 ? "int"
-                                                                 : "float");
+                                 : (strcmp(name, "readInt") == 0
+                                        ? "int"
+                                        : (strcmp(name, "readDouble") == 0
+                                               ? "float"
+                                               : "bool"));
     *resultType = strcmp(name, "readLine") == 0
                       ? TYPE_STRING
-                      : (strcmp(name, "readInt") == 0 ? TYPE_INT
-                                                      : TYPE_DOUBLE);
+                      : (strcmp(name, "readInt") == 0
+                             ? TYPE_INT
+                             : (strcmp(name, "readDouble") == 0
+                                    ? TYPE_DOUBLE
+                                    : TYPE_BOOLEAN));
     return Emit(codegen, "READ GF@_tmp0 %s\nPUSHS GF@_tmp0\n", targetType);
   }
 
@@ -513,8 +619,8 @@ static bool EmitBuiltinCall(Codegen_t *codegen, const ASTNode_t *node,
                 "STRLEN GF@_tmp2 GF@_tmp0\n"
                 "LT GF@_tmp3 GF@_tmp1 int@0\n"
                 "JUMPIFEQ $L%zu GF@_tmp3 bool@true\n"
-                "GTE GF@_tmp3 GF@_tmp1 GF@_tmp2\n"
-                "JUMPIFEQ $L%zu GF@_tmp3 bool@true\n"
+                "LT GF@_tmp3 GF@_tmp1 GF@_tmp2\n"
+                "JUMPIFEQ $L%zu GF@_tmp3 bool@false\n"
                 "STRI2INT GF@_tmp3 GF@_tmp0 GF@_tmp1\n"
                 "PUSHS GF@_tmp3\nJUMP $L%zu\n"
                 "LABEL $L%zu\nPUSHS int@-1\n"
@@ -542,7 +648,7 @@ static bool EmitBuiltinCall(Codegen_t *codegen, const ASTNode_t *node,
                 "JUMPIFEQ $L%zu GF@_tmp4 bool@true\n"
                 "GT GF@_tmp4 GF@_tmp1 GF@_tmp2\n"
                 "JUMPIFEQ $L%zu GF@_tmp4 bool@true\n"
-                "GTE GF@_tmp4 GF@_tmp1 GF@_tmp3\n"
+                "GT GF@_tmp4 GF@_tmp1 GF@_tmp3\n"
                 "JUMPIFEQ $L%zu GF@_tmp4 bool@true\n"
                 "GT GF@_tmp4 GF@_tmp2 GF@_tmp3\n"
                 "JUMPIFEQ $L%zu GF@_tmp4 bool@true\n"
@@ -637,6 +743,10 @@ static bool EmitExpression(Codegen_t *codegen, const ASTNode_t *node) {
            Emit(codegen, "\n");
   case NODE_UNIT:
     return Emit(codegen, "PUSHS nil@nil\n");
+  case NODE_CONV_DOUBLE:
+    return ExpressionType(codegen, node->value) == TYPE_INT &&
+           EmitExpression(codegen, node->value) &&
+           Emit(codegen, "INT2FLOATS\n");
   case NODE_FNCALL: {
     DataType_t resultType = TYPE_UNKNOWN;
     return EmitCall(codegen, node, &resultType);
@@ -646,6 +756,10 @@ static bool EmitExpression(Codegen_t *codegen, const ASTNode_t *node) {
     if (node->unOp.op == OP_UPLUS) {
       return EmitExpression(codegen, node->unOp.operand);
     }
+    if (node->unOp.op == OP_NEG) {
+      return EmitExpression(codegen, node->unOp.operand) &&
+             Emit(codegen, "NOTS\n");
+    }
     if (node->unOp.op != OP_UMINUS ||
         !EmitExpression(codegen, node->unOp.operand)) {
       return false;
@@ -653,12 +767,28 @@ static bool EmitExpression(Codegen_t *codegen, const ASTNode_t *node) {
     return Emit(codegen, "POPS GF@_tmp0\nPUSHS %s@0\nPUSHS GF@_tmp0\nSUBS\n",
                 operandType == TYPE_DOUBLE ? "float" : "int");
   }
-  case NODE_BINOP: {
+  case NODE_BINOP:
+  case NODE_COND: {
     const ASTNode_t *left = node->binOp.left;
     const ASTNode_t *right = node->binOp.right;
     Operator_t op = node->binOp.op;
     DataType_t leftType = ExpressionType(codegen, left);
     DataType_t rightType = ExpressionType(codegen, right);
+
+    if (op == OP_AND || op == OP_OR) {
+      size_t shortcutLabel = codegen->nextLabel++;
+      size_t endLabel = codegen->nextLabel++;
+      const char *shortcutValue = op == OP_AND ? "false" : "true";
+      return EmitExpression(codegen, left) &&
+             Emit(codegen,
+                  "POPS GF@_tmp0\nJUMPIFEQ $L%zu GF@_tmp0 bool@%s\n",
+                  shortcutLabel, shortcutValue) &&
+             EmitExpression(codegen, right) &&
+             Emit(codegen,
+                  "JUMP $L%zu\nLABEL $L%zu\nPUSHS bool@%s\nLABEL $L%zu\n",
+                  endLabel, shortcutLabel, shortcutValue, endLabel);
+    }
+
     DataType_t commonType =
         leftType == TYPE_DOUBLE || rightType == TYPE_DOUBLE ? TYPE_DOUBLE
                                                              : leftType;
@@ -705,6 +835,28 @@ static bool EmitExpression(Codegen_t *codegen, const ASTNode_t *node) {
       return false;
     }
   }
+  case NODE_IFEXPR: {
+    DataType_t resultType = ExpressionType(codegen, node);
+    if (resultType == TYPE_UNKNOWN) {
+      return false;
+    }
+    size_t elseLabel = codegen->nextLabel++;
+    size_t endLabel = codegen->nextLabel++;
+    return EmitExpression(codegen, node->ifexpr.cond) &&
+           Emit(codegen,
+                "POPS GF@_tmp0\nJUMPIFEQ $L%zu GF@_tmp0 bool@false\n",
+                elseLabel) &&
+           EmitExpression(codegen, node->ifexpr.thenExpr) &&
+           ConvertStackValue(codegen,
+                             ExpressionType(codegen, node->ifexpr.thenExpr),
+                             resultType) &&
+           Emit(codegen, "JUMP $L%zu\nLABEL $L%zu\n", endLabel, elseLabel) &&
+           EmitExpression(codegen, node->ifexpr.elseExpr) &&
+           ConvertStackValue(codegen,
+                             ExpressionType(codegen, node->ifexpr.elseExpr),
+                             resultType) &&
+           Emit(codegen, "LABEL $L%zu\n", endLabel);
+  }
   default:
     return false;
   }
@@ -725,6 +877,94 @@ static bool EmitBlock(Codegen_t *codegen, const ASTNode_t *block) {
   }
   codegen->bindingCount = scopeStart;
   return true;
+}
+
+static bool EmitForLoop(Codegen_t *codegen, const ASTNode_t *node) {
+  const ASTNode_t *generator = node->forLoop.gen;
+  const LocalInfo_t *value =
+      FindLocal(codegen->currentFunction, generator);
+  const LoopInfo_t *loop = FindLoopInfo(codegen->currentFunction, node);
+  if (generator == NULL || generator->kind != NODE_GEN || value == NULL ||
+      loop == NULL || node->forLoop.body == NULL) {
+    return false;
+  }
+
+  size_t bindingStart = codegen->bindingCount;
+  size_t startLabel = codegen->nextLabel++;
+  size_t negativeLabel = codegen->nextLabel++;
+  size_t bodyLabel = codegen->nextLabel++;
+  size_t endLabel = codegen->nextLabel++;
+
+  bool success = EmitExpression(codegen, generator->gen.from) &&
+      Emit(codegen, "POPS LF@v%zu\n", value->id) &&
+      EmitExpression(codegen, generator->gen.to) &&
+      Emit(codegen, "POPS LF@v%zu\n", loop->endId);
+
+  if (success) {
+    if (generator->gen.by == NULL) {
+      success = Emit(codegen, "MOVE LF@v%zu int@1\n", loop->stepId);
+    } else {
+      success = EmitExpression(codegen, generator->gen.by) &&
+                Emit(codegen, "POPS LF@v%zu\n", loop->stepId);
+    }
+  }
+
+  if (success) {
+    success =
+        AddBinding(codegen, generator->gen.name, TYPE_INT, value->id, false);
+  }
+
+  success = success &&
+            Emit(codegen,
+                 "LABEL $L%zu\n"
+                 "JUMPIFEQ $L%zu LF@v%zu int@0\n"
+                 "LT GF@_tmp0 LF@v%zu int@0\n"
+                 "JUMPIFEQ $L%zu GF@_tmp0 bool@true\n",
+                 startLabel, endLabel, loop->stepId, loop->stepId,
+                 negativeLabel);
+
+  if (success) {
+    if (generator->gen.IncludeMax) {
+      success = Emit(codegen,
+                     "GT GF@_tmp0 LF@v%zu LF@v%zu\n"
+                     "JUMPIFEQ $L%zu GF@_tmp0 bool@true\n",
+                     value->id, loop->endId, endLabel);
+    } else {
+      success = Emit(codegen,
+                     "LT GF@_tmp0 LF@v%zu LF@v%zu\n"
+                     "JUMPIFEQ $L%zu GF@_tmp0 bool@false\n",
+                     value->id, loop->endId, endLabel);
+    }
+  }
+
+  success =
+      success && Emit(codegen, "JUMP $L%zu\nLABEL $L%zu\n", bodyLabel,
+                      negativeLabel);
+
+  if (success) {
+    if (generator->gen.IncludeMax) {
+      success = Emit(codegen,
+                     "LT GF@_tmp0 LF@v%zu LF@v%zu\n"
+                     "JUMPIFEQ $L%zu GF@_tmp0 bool@true\n",
+                     value->id, loop->endId, endLabel);
+    } else {
+      success = Emit(codegen,
+                     "GT GF@_tmp0 LF@v%zu LF@v%zu\n"
+                     "JUMPIFEQ $L%zu GF@_tmp0 bool@false\n",
+                     value->id, loop->endId, endLabel);
+    }
+  }
+
+  success =
+      success && Emit(codegen, "LABEL $L%zu\n", bodyLabel) &&
+      EmitBlock(codegen, node->forLoop.body) &&
+      Emit(codegen,
+           "ADD LF@v%zu LF@v%zu LF@v%zu\n"
+           "JUMP $L%zu\n"
+           "LABEL $L%zu\n",
+           value->id, value->id, loop->stepId, startLabel, endLabel);
+  codegen->bindingCount = bindingStart;
+  return success;
 }
 
 /* Emit code for declarations, assignments, control flow, returns, or calls. */
@@ -782,6 +1022,8 @@ static bool EmitStatement(Codegen_t *codegen, const ASTNode_t *node) {
            EmitBlock(codegen, node->whileDo.body) &&
            Emit(codegen, "JUMP $L%zu\nLABEL $L%zu\n", startLabel, endLabel);
   }
+  case NODE_FOR:
+    return EmitForLoop(codegen, node);
   case NODE_RETURN:
     if (node->ret.value != NULL) {
       if (!EmitExpression(codegen, node->ret.value) ||
@@ -949,6 +1191,7 @@ bool IFJCode26Generate(const ASTNode_t *program, FILE *output) {
 
   for (size_t i = 0; i < codegen.functionCount; i++) {
     free(codegen.functions[i].locals);
+    free(codegen.functions[i].loops);
   }
   free(codegen.functions);
   free(codegen.bindings);
