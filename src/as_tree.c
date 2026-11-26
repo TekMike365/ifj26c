@@ -163,8 +163,6 @@ void ASTFree(ASTNode_t *node) {
   free(node); /* free current node as well */
 }
 
-#ifdef DEBUG
-
 const char *DataTypeToStr(DataType_t type) {
   switch (type) {
   case TYPE_INT:
@@ -225,6 +223,8 @@ const char *OpToChar(Operator_t op) {
     return "<?>";
   }
 }
+
+#ifdef DEBUG
 
 static void ASTDumpNode(const ASTNode_t *node, const char *prefix, bool isLast);
 
