@@ -1,5 +1,6 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Ondrej Dedič <xdedico00>
+ *            Michael Sklenka <xsklenm00>
  */
 #include "as_tree.h"
 #include "logger.h"
@@ -160,7 +161,7 @@ void ASTFree(ASTNode_t *node) {
 
 #ifdef DEBUG
 
-static const char *DataTypeToStr(DataType_t type) {
+const char *DataTypeToStr(DataType_t type) {
   switch (type) {
   case TYPE_INT:
     return "Int";

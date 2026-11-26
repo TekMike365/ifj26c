@@ -1,5 +1,6 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Dominik Makuka <xmakukd00>
+ *            Michael Sklenka <xsklenm00>
  */
 
 // ###################################################
@@ -40,6 +41,10 @@ _Bool IntStackIsEmpty(IntStack_t *stack);
 // does the stack contain the value val?
 // enables to verify a value is stored without popping
 _Bool IntStackContains(IntStack_t *stack, int val);
+
+// find the top most occurance of val and returns it's depth.
+// if it can't find any returns -1
+long IntStackDepth(IntStack_t *stack, int val);
 
 // destroy IntStack
 void IntStackTerminate(IntStack_t *stack);
