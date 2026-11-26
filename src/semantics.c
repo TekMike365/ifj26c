@@ -939,6 +939,8 @@ static AError_t AnalyzeIf(Analyzer_t *a, ASTNode_t *root);
 /* if `type' is TYPE_UNKNOWN it is set to the expression type
  * if `type' is not equal to the expression type => throw error and return
  *   the origitnal type
+ *
+ * ext: CONTROL
  */
 static AError_t AnalyzeIfExpr(Analyzer_t *a, ASTNode_t *root,
                               DataType_t *type) {
@@ -1040,7 +1042,7 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   case NODE_ID:
     err = SetAError(err, AnalyzeID(a, root, &dt));
     break;
-  case NODE_IFEXPR:
+  case NODE_IFEXPR: /* ext: CONTROL */
     err = SetAError(err, AnalyzeIfExpr(a, root, &dt));
     break;
   default: {
@@ -1260,6 +1262,73 @@ static AError_t AnalyzeWhile(Analyzer_t *a, ASTNode_t *root) {
   return err;
 }
 
+/* ext: CONTROL */
+static AError_t AnalyzeFor(Analyzer_t *a, ASTNode_t *root) {
+  assert(a && root && root->kind == NODE_FOR);
+
+  /* analyze gen */
+  AError_t err = AERR_OK;
+  ASTNode_t *gen = root->forLoop.gen;
+
+  VarSymbol_t *vs = GetActiveVSymbol(a, gen->gen.name);
+  if (vs && vs->blockID == a->blockID + 1 && vs->vstate != VS_UNDEFINED) {
+    /* redefinition error */
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_REDEF,
+                              "Variable `%s' already exists.", gen->gen.name);
+    MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first defined here");
+    MsgAddContext(msg, SpanToCtxUnderline(gen->pos), "redefined here");
+    MsgSend(msg);
+  } else {
+    /* create the name symbol */
+    vs = CreateVarSymbol();
+    if (!vs)
+      return AERR_MEM;
+
+    vs->blockID = a->blockID + 1; /* valid only inside it's block */
+    vs->dtype = TYPE_INT;
+    vs->vstate = VS_MUTABLE;
+    vs->pos = gen->pos;
+
+    vs->id = CopyStr(gen->gen.name);
+    if (!vs->id) {
+      DLOG_ERROR("<analyzer> id copy malloc error");
+      DeleteVarSymbol(vs);
+      return AERR_MEM;
+    }
+
+    if (!SymbolTreeInsertWithData(&a->thisFun->symbols, vs->id, vs)) {
+      DLogVarSymbol(DLOG_LVL_ERROR, vs, "Failed to save variable symbol");
+      DeleteVarSymbol(vs);
+      return AERR_MEM;
+    }
+
+    DLogVarSymbol(DLOG_LVL_INFO, vs, "Created variable symbol");
+  }
+
+  /* Check step */
+  if (gen->gen.by && gen->gen.by->kind == NODE_INT &&
+      gen->gen.by->intVal == 0) {
+    /* step cannot be 0 */
+    err = SetAError(err, AERR_SEM);
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_OTHER, "Generator cannot have step `0'.");
+    MsgAddContext(msg, SpanToCtxUnderline(gen->gen.by->pos),
+                  "Step is `0' here.");
+    MsgSend(msg);
+  }
+
+  /* Check Types */
+  DataType_t type = TYPE_INT;
+  err = SetAError(err, AnalyzeExpr(a, gen->gen.from, &type));
+  err = SetAError(err, AnalyzeExpr(a, gen->gen.to, &type));
+  if (gen->gen.by)
+    err = SetAError(err, AnalyzeExpr(a, gen->gen.by, &type));
+
+  return err;
+}
+
 static AError_t AnalyzeReturn(Analyzer_t *a, ASTNode_t *root) {
   assert(a && root && root->kind == NODE_RETURN);
 
@@ -1311,6 +1380,9 @@ static AError_t AnalyzeStatement(Analyzer_t *a, ASTNode_t *stmnt) {
 
   case NODE_WHILE:
     return AnalyzeWhile(a, stmnt);
+
+  case NODE_FOR:
+    return AnalyzeFor(a, stmnt);
 
   case NODE_RETURN:
     return AnalyzeReturn(a, stmnt);
@@ -1466,6 +1538,10 @@ static AError_t AnalyzeSubAST(Analyzer_t *a, ASTNode_t *root) {
   case NODE_WHILE: {
     err = SetAError(err, AnalyzeStatement(a, root));
     err = SetAError(err, AnalyzeSubAST(a, root->whileDo.body));
+  } break;
+  case NODE_FOR: { /* ext: CONTROL */
+    err = SetAError(err, AnalyzeStatement(a, root));
+    err = SetAError(err, AnalyzeSubAST(a, root->forLoop.body));
   } break;
   case NODE_BLOCK: {
     err = SetAError(err, BeginBlock(a));
