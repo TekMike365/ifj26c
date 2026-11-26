@@ -5,6 +5,7 @@
 
 #include "bin_tree.h"
 #include "int_stack.h"
+#include "logger.h"
 #include "messenger.h"
 #include <assert.h>
 #include <string.h>
@@ -91,6 +92,7 @@ static VarSymbol_t *CreateVarSymbol(void) {
   s->pos = (SourceSpan_t){.line = 0, .start = 0, .end = 0};
   s->id = NULL;
 
+  DLOG_TRACE("<varsym:%p> Variable symbol created.", s);
   return s;
 }
 
@@ -99,8 +101,22 @@ static void DeleteVarSymbol(void *data) {
   if (!s)
     return;
 
+  DLOG_TRACE("<varsym:%p> Variable symbol deleted.", s);
+
   free((void *)s->id);
   free(s);
+}
+
+static void DLogVarSymbol(DLogLevel_t lvl, VarSymbol_t *vs, const char *msg) {
+  assert(msg);
+  if (!vs)
+    DebugLog(lvl, "<analyzer> (VarSymbol_t){ NULL }");
+  else
+    DebugLog(lvl,
+             "<analyzer> %s: (VarSymbol_t){ .id = \"%s\", .blockID = %d, "
+             ".dtype = %s, .vstate = %d }",
+             msg, vs->id ? vs->id : "<NULL>", vs->blockID,
+             DataTypeToStr(vs->dtype), vs->vstate);
 }
 
 typedef struct {
@@ -126,17 +142,33 @@ static FunSymbol_t *CreateFunSymbol(void) {
   s->isMain = false;
   s->returnType = TYPE_UNKNOWN;
   if (!SymbolTreeInitWithDestructor(&s->symbols, DeleteVarSymbol)) {
+    DLOG_TRACE("<funsym:%p> Failed to create symbol table.", s);
     free(s);
     return NULL;
   }
 
+  DLOG_TRACE("<funsym:%p> Function symbol created.", s);
   return s;
+}
+
+static void DLogFunSymbol(DLogLevel_t lvl, FunSymbol_t *fs, const char *msg) {
+  assert(msg);
+  if (!fs)
+    DebugLog(lvl, "<analyzer> (FunSymbol_t){ NULL }");
+  else
+    DebugLog(lvl,
+             "<analyzer> %s: (FunSymbol_t){ .id = \"%s\", "
+             ".returnType = %s, .isMain = %s, .isDefined = %s }",
+             msg, fs->id ? fs->id : "<NULL>", DataTypeToStr(fs->returnType),
+             fs->isMain ? "true" : "false", fs->isDefined ? "true" : "false");
 }
 
 static void DeleteFunSymbol(void *data) {
   FunSymbol_t *s = data;
   if (!s)
     return;
+
+  DLOG_TRACE("<funsym:%p> Function symbol deleted.", s);
 
   free((void *)s->id);
   SymbolTreeDestroy(&s->symbols);
@@ -166,23 +198,27 @@ static Analyzer_t *CreateAnalyzer(void) {
 
   a->thisFun = NULL;
   if (!SymbolTreeInitWithDestructor(&a->funs, DeleteFunSymbol)) {
-    free(a);
+    DLOG_ERROR("<analyzer:%p> Failed to create function table.", a);
+    DeleteAnalyzer(a);
     return NULL;
   }
 
   a->blockID = 0;
   a->blockStack = IntStackCreate();
   if (!a->blockStack) {
-    free(a);
+    DLOG_TRACE("<analyzer:%p> Failed to create block stack.", a);
+    DeleteAnalyzer(a);
     return NULL;
   }
 
   /* define the builtins */
   if (AERR_MEM == PopulateBuiltins(a)) {
+    DLOG_TRACE("<analyzer:%p> Failed to populate builtins.", a);
     DeleteAnalyzer(a);
     return NULL;
   }
 
+  DLOG_TRACE("<analyzer:%p> Analyzer created.", a);
   return a;
 }
 
@@ -190,13 +226,16 @@ static void DeleteAnalyzer(Analyzer_t *a) {
   if (!a)
     return;
 
+  DLOG_TRACE("<analyzer:%p> Analyzer deleted.", a);
+
   SymbolTreeDestroy(&a->funs);
   IntStackTerminate(a->blockStack);
   free(a);
 }
 
 static FunSymbol_t *GetFunSymbol(Analyzer_t *a, const char *id);
-static AError_t AddFunParam(FunSymbol_t *fs, const char *name, DataType_t type);
+static AError_t AddFunParam(FunSymbol_t *fs, const char *name, DataType_t type,
+                            SourceSpan_t pos);
 
 static AError_t AddFun(Analyzer_t *a, const ASTNode_t *fndef) {
   FunSymbol_t *fs = GetFunSymbol(a, fndef->fnDef.name);
@@ -217,9 +256,9 @@ static AError_t AddFun(Analyzer_t *a, const ASTNode_t *fndef) {
   fs->isDefined = true;
   fs->pos = fndef->pos;
 
-  if (fs->isMain) {
-    AError_t err = AERR_OK;
+  AError_t err = AERR_OK;
 
+  if (fs->isMain) {
     if (fndef->fnDef.params.count > 0) {
       err = SetAError(err, AERR_SEM);
 
@@ -240,28 +279,29 @@ static AError_t AddFun(Analyzer_t *a, const ASTNode_t *fndef) {
       MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
       MsgSend(msg);
     }
-
-    return err;
   }
 
   /* Add parameters */
-  AError_t err = AERR_OK;
   AST_LIST_FOREACH(fndef->fnDef.params, param) {
-    err = SetAError(err,
-                    AddFunParam(fs, param->param.name, param->param.declType));
+    err = SetAError(err, AddFunParam(fs, param->param.name,
+                                     param->param.declType, param->pos));
   }
+
+  DLogFunSymbol(DLOG_LVL_INFO, fs, "Added function symbol");
 
   return err;
 }
 
 static AError_t BeginBlock(Analyzer_t *a) {
   assert(a);
-
-  return IntStackPush(a->blockStack, a->blockID++) ? AERR_OK : AERR_MEM;
+  DLOG_INFO("<analyzer> begin block `%d' -> `%d'", a->blockID, a->blockID + 1);
+  return IntStackPush(a->blockStack, ++a->blockID) ? AERR_OK : AERR_MEM;
 }
 
 static AError_t EndBlock(Analyzer_t *a) {
   assert(a);
+
+  DLOG_INFO("<analyzer> end block `%d'", IntStackTop(a->blockStack));
 
   IntStackPop(a->blockStack);
   if (IntStackIsEmpty(a->blockStack))
@@ -290,6 +330,8 @@ static AError_t StartFunction(Analyzer_t *a, const ASTNode_t *fndef) {
     err = SetAError(err, AERR_SEM);
 
   a->thisFun = fs;
+
+  DLogFunSymbol(DLOG_LVL_INFO, fs, "<analyzer> start function");
   return err;
 }
 
@@ -313,18 +355,30 @@ static VarSymbol_t *GetActiveVSymbol(Analyzer_t *a, const char *id) {
   long vsDepth = -1;
   VarSymbol_t *vs = NULL;
 
-  SymbolTreeIndexNode_t *symbol;
-  SymbolTreeFindAllIndices(&a->thisFun->symbols, id, &symbol);
+  SymbolTreeIndexNode_t *indexlist;
+  SymbolTreeFindAllIndices(&a->thisFun->symbols, id, &indexlist);
+
+  SymbolTreeIndexNode_t *symbol = indexlist;
   for (; symbol; symbol = symbol->next) {
     const SymbolHeader_t *sh =
         SymbolTreeAt(&a->thisFun->symbols, symbol->index);
-    long d = IntStackDepth(a->blockStack, ((VarSymbol_t *)sh->data)->blockID);
+    VarSymbol_t *s = (VarSymbol_t *)sh->data;
+
+    if (s->blockID == A_PARAM_BLOCK) {
+      vsDepth = A_PARAM_BLOCK;
+      vs = s;
+      break;
+    }
+
+    long d = IntStackDepth(a->blockStack, s->blockID);
 
     if (vsDepth < 0 || (d < vsDepth && d >= 0)) {
       vsDepth = d;
-      vs = (VarSymbol_t *)sh->data;
+      vs = s;
     }
   }
+
+  SymbolTreeIndexListDestroy(indexlist);
 
   return vs;
 }
@@ -349,9 +403,19 @@ static FunSymbol_t *GetFunSymbol(Analyzer_t *a, const char *id) {
 
   fs->id = CopyStr(id);
   if (!fs->id) {
+    DLOG_ERROR("<analyzer> id copy malloc error");
     DeleteFunSymbol(fs);
     return NULL;
   }
+
+  /* add function symbol */
+  if (!SymbolTreeInsertWithData(&a->funs, fs->id, fs)) {
+    DLogFunSymbol(DLOG_LVL_ERROR, fs, "Failed to save function");
+    DeleteFunSymbol(fs);
+    return NULL;
+  }
+
+  DLogFunSymbol(DLOG_LVL_INFO, fs, "Added function");
 
   return fs;
 }
@@ -365,9 +429,9 @@ static void ReportBinOpValueError(const char *op, DataType_t ltype,
                DataTypeToStr(ltype), DataTypeToStr(rtype));
   MsgAddContext(msg, SpanToCtxUnderline(opPos), "used here");
   MsgAddContext(msg, SpanToCtxUnderline(lpos), "typeof left expression: `%s'",
-                ltype);
+                DataTypeToStr(ltype));
   MsgAddContext(msg, SpanToCtxUnderline(rpos), "typeof right expression: `%s'",
-                rtype);
+                DataTypeToStr(rtype));
   MsgSend(msg);
 }
 
@@ -399,7 +463,7 @@ static AError_t CorrectMathTypes(ASTNode_t **left, ASTNode_t **right,
  *   the origitnal type
  */
 static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
-  assert(a && root && root->kind == NODE_BINOP);
+  assert(a && root && (root->kind == NODE_BINOP || root->kind == NODE_COND));
 
   AError_t err = AERR_OK;
   DataType_t otype = TYPE_UNKNOWN;
@@ -413,13 +477,15 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   SourceSpan_t lpos = root->binOp.left->pos;
   SourceSpan_t rpos = root->binOp.right->pos;
 
+  bool isLMath = ltype == TYPE_INT || ltype == TYPE_DOUBLE;
+  bool isRMath = ltype == TYPE_INT || ltype == TYPE_DOUBLE;
+
   switch (root->binOp.op) {
   /* maths */
   case OP_DIV:
   case OP_MUL:
   case OP_MINUS: {
-    if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
-        (rtype != TYPE_INT && rtype != TYPE_DOUBLE)) {
+    if (!isLMath || !isRMath) {
       /* type error */
       err = SetAError(err, AERR_SEM);
       ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
@@ -433,8 +499,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
   /* special */
   case OP_PLUS: {
-    if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
-        (rtype != TYPE_INT && rtype != TYPE_DOUBLE) ||
+    if ((!isLMath || !isRMath) &&
         (ltype != TYPE_STRING || rtype != TYPE_STRING)) {
       /* type error */
       err = SetAError(err, AERR_SEM);
@@ -454,8 +519,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   case OP_LT:
   case OP_GTE:
   case OP_GT: {
-    if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
-        (rtype != TYPE_INT && rtype != TYPE_DOUBLE) ||
+    if ((!isLMath || !isRMath) &&
         (ltype != TYPE_STRING || rtype != TYPE_STRING)) {
       /* type error */
       err = SetAError(err, AERR_SEM);
@@ -473,8 +537,7 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
   case OP_EQ:
   case OP_NEQ: {
-    if ((ltype != TYPE_INT && ltype != TYPE_DOUBLE) ||
-        (rtype != TYPE_INT && rtype != TYPE_DOUBLE) || (ltype != rtype)) {
+    if ((!isLMath || !isRMath) && (ltype != rtype)) {
       /* type error */
       err = SetAError(err, AERR_SEM);
       ReportBinOpValueError(OpToChar(root->binOp.op), ltype, rtype, root->pos,
@@ -496,6 +559,17 @@ static AError_t AnalyzeBinOp(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
   if (*type == TYPE_UNKNOWN)
     *type = otype;
+
+  if (*type == TYPE_UNKNOWN) {
+    /* type error */
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE,
+                              "Unknown type: left `%s', right `%s'.",
+                              DataTypeToStr(ltype), DataTypeToStr(rtype));
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
 
   if (*type != otype) {
     /* type error */
@@ -550,6 +624,15 @@ static AError_t AnalyzeUnaryOp(Analyzer_t *a, ASTNode_t *root,
   if (*type == TYPE_UNKNOWN)
     *type = otype;
 
+  if (*type == TYPE_UNKNOWN) {
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE, "Unknown unary operation type");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
+
   if (*type != otype) {
     /* type error */
     err = SetAError(err, AERR_SEM);
@@ -576,8 +659,14 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
   if (!fs)
     return AERR_MEM;
 
-  if (!fs->isDefined)
+  if (!fs->isDefined) {
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
+                              "Called function `%s' is undefined.", fs->id);
+    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "first appeared here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "called here");
+    MsgSend(msg);
     return AERR_SEM;
+  }
 
   AError_t err = AERR_OK;
 
@@ -592,13 +681,13 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
     DataType_t type = TYPE_UNKNOWN;
     err = SetAError(err, AnalyzeExpr(a, expr[i], &type));
 
-    if (vs->dtype != type) {
+    if (vs->dtype != type && vs->dtype != TYPE_ANY) {
       /* type error */
       Message_t *msg = MsgStart(
           MSG_ERROR, ERROR_SEM_ARGS,
           "Unexpected type for argument `%s' (type `%s') of function `%s' "
           "and expression (type `%s').",
-          vs->id, vs->dtype, fs->id, type);
+          vs->id, DataTypeToStr(vs->dtype), fs->id, DataTypeToStr(type));
       MsgAddContext(msg, SpanToCtxUnderline(expr[i]->pos), "here");
       MsgAddContext(msg, SpanToCtxUnderline(fs->pos),
                     "function `%s' defined here", fs->id);
@@ -617,7 +706,7 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
     MsgSend(msg);
   }
 
-  if (sh) {
+  if (sh && ((VarSymbol_t *)sh->data)->blockID == A_PARAM_BLOCK) {
     /* not enough arguments */
     err = SetAError(err, AERR_SEM);
 
@@ -626,6 +715,18 @@ static AError_t AnalyzeFunCall(Analyzer_t *a, ASTNode_t *root,
                  "Not enough arguments for function `%s'.", fs->id);
     MsgAddContext(msg, SpanToCtxUnderline(root->pos), "called here");
     MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "defined here");
+    MsgSend(msg);
+  }
+
+  if (*type == TYPE_UNKNOWN)
+    *type = fs->returnType;
+
+  if (*type == TYPE_UNKNOWN) {
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE, "Unknown function return type");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
     MsgSend(msg);
   }
 
@@ -700,6 +801,15 @@ static AError_t AnalyzeLiteral(Analyzer_t *a, ASTNode_t *root,
   if (*type == TYPE_UNKNOWN)
     *type = ltype;
 
+  if (*type == TYPE_UNKNOWN) {
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE, "Unknown literal type");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
+
   if (*type != ltype) {
     /* incompatible types */
     err = SetAError(err, AERR_SEM);
@@ -718,29 +828,7 @@ static AError_t AnalyzeLiteral(Analyzer_t *a, ASTNode_t *root,
  * if `type' is not equal to the expression type => throw error and return
  *   the origitnal type
  */
-static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
-  assert(a && root);
-
-  AError_t err = AERR_OK;
-
-  switch (root->kind) {
-  case NODE_UNOP:
-    return AnalyzeUnaryOp(a, root, type);
-  case NODE_BINOP:
-    return AnalyzeBinOp(a, root, type);
-  case NODE_FNCALL:
-    return AnalyzeFunCall(a, root, type);
-  case NODE_INT:
-  case NODE_DOUBLE:
-  case NODE_STRING:
-  case NODE_UNIT:
-    return AnalyzeLiteral(a, root, type);
-  case NODE_ID:
-    break; /* analyzed below */
-  default:
-    return err;
-  }
-
+static AError_t AnalyzeID(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
   /* Analyze ID */
 
   VarSymbol_t *vs = GetActiveVSymbol(a, root->name);
@@ -757,10 +845,21 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
     vs->id = CopyStr(root->varDef.name);
     if (!vs->id) {
+      DLOG_ERROR("<analyzer> id copy malloc error");
       DeleteVarSymbol(vs);
       return AERR_MEM;
     }
+
+    if (!SymbolTreeInsertWithData(&a->thisFun->symbols, vs->id, vs)) {
+      DLogVarSymbol(DLOG_LVL_ERROR, vs, "Failed to save variable symbol");
+      DeleteVarSymbol(vs);
+      return AERR_MEM;
+    }
+
+    DLogVarSymbol(DLOG_LVL_INFO, vs, "Created variable symbol");
   }
+
+  AError_t err = AERR_OK;
 
   if (vs->vstate == VS_UNDEFINED) {
     /* undefined variable error */
@@ -768,13 +867,21 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
                               "Variable `%s' is used but not defined.", vs->id);
-    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
     MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first appeared here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
     MsgSend(msg);
   }
 
   if (*type == TYPE_UNKNOWN)
     *type = vs->dtype;
+
+  if (*type == TYPE_UNKNOWN) {
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_TYPE, "Unknown ID type");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
 
   if (*type != vs->dtype) {
     /* type error */
@@ -787,6 +894,58 @@ static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
     MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
     MsgSend(msg);
   }
+
+  return err;
+}
+
+/* if `type' is TYPE_UNKNOWN it is set to the expression type
+ * if `type' is not equal to the expression type => throw error and return
+ *   the origitnal type
+ */
+static AError_t AnalyzeExpr(Analyzer_t *a, ASTNode_t *root, DataType_t *type) {
+  assert(a && root);
+
+  AError_t err = AERR_OK;
+  DataType_t dt = TYPE_UNKNOWN;
+
+  switch (root->kind) {
+  case NODE_UNOP:
+    err = SetAError(err, AnalyzeUnaryOp(a, root, &dt));
+    break;
+  case NODE_BINOP:
+  case NODE_COND:
+    err = SetAError(err, AnalyzeBinOp(a, root, &dt));
+    break;
+  case NODE_FNCALL:
+    err = SetAError(err, AnalyzeFunCall(a, root, &dt));
+    break;
+  case NODE_INT:
+  case NODE_DOUBLE:
+  case NODE_STRING:
+  case NODE_UNIT:
+    err = SetAError(err, AnalyzeLiteral(a, root, &dt));
+    break;
+  case NODE_ID:
+    err = SetAError(err, AnalyzeID(a, root, &dt));
+    break;
+  default: {
+    Message_t *msg = MsgStart(MSG_INFO, ERROR_SEM_TYPE, "Unknown expression");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "here");
+    MsgSend(msg);
+  } break;
+  }
+
+  if (dt == TYPE_UNKNOWN) {
+    err = SetAError(err, AERR_SEM);
+
+    Message_t *msg =
+        MsgStart(MSG_ERROR, ERROR_SEM_TYPE, "Unknown expression type");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "used here");
+    MsgSend(msg);
+  }
+
+  if (type)
+    *type = dt;
 
   return err;
 }
@@ -810,9 +969,18 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
 
     vs->id = CopyStr(root->varDef.name);
     if (!vs->id) {
+      DLOG_ERROR("<analyzer> id copy malloc error");
       DeleteVarSymbol(vs);
       return AERR_MEM;
     }
+
+    if (!SymbolTreeInsertWithData(&a->thisFun->symbols, vs->id, vs)) {
+      DLogVarSymbol(DLOG_LVL_ERROR, vs, "Failed to save variable symbol");
+      DeleteVarSymbol(vs);
+      return AERR_MEM;
+    }
+
+    DLogVarSymbol(DLOG_LVL_INFO, vs, "Created variable symbol");
   }
 
   if (vs->vstate == VS_UNDEFINED) {
@@ -823,8 +991,8 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
         MsgStart(MSG_ERROR, ERROR_SEM_UNDEF,
                  "Variable `%s' is assigned to but it's not defined.",
                  root->assign.name);
-    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "assigned here");
     MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first appeared here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "assigned here");
     MsgSend(msg);
   } else if (vs->vstate == VS_CONST) {
     /* assignment to a constant error */
@@ -833,8 +1001,8 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
     Message_t *msg =
         MsgStart(MSG_ERROR, ERROR_SEM_IMMUTABLE,
                  "Assignment to a immutable variable `%s'.", root->assign.name);
-    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "assigned here");
     MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first appeared here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "assigned here");
     MsgSend(msg);
   }
 
@@ -861,7 +1029,7 @@ static AError_t AnalyzeAssign(Analyzer_t *a, ASTNode_t *root) {
 }
 
 static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
-  assert(a && root && root->kind == NODE_VARDEF);
+  assert(a && root && (root->kind == NODE_VARDEF || root->kind == NODE_VALDEF));
 
   AError_t err = AERR_OK;
 
@@ -874,7 +1042,8 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
     Message_t *msg =
         MsgStart(MSG_ERROR, ERROR_SEM_REDEF, "Variable `%s' already exists.",
                  root->varDef.name);
-    MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "First defined here.");
+    MsgAddContext(msg, SpanToCtxUnderline(vs->pos), "first defined here");
+    MsgAddContext(msg, SpanToCtxUnderline(root->pos), "redefined here");
     MsgSend(msg);
 
     /* process like it is assignment */
@@ -896,9 +1065,18 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
 
     vs->id = CopyStr(root->varDef.name);
     if (!vs->id) {
+      DLOG_ERROR("<analyzer> id copy malloc error");
       DeleteVarSymbol(vs);
       return AERR_MEM;
     }
+
+    if (!SymbolTreeInsertWithData(&a->thisFun->symbols, vs->id, vs)) {
+      DLogVarSymbol(DLOG_LVL_ERROR, vs, "Failed to save variable symbol");
+      DeleteVarSymbol(vs);
+      return AERR_MEM;
+    }
+
+    DLogVarSymbol(DLOG_LVL_INFO, vs, "Created variable symbol");
   }
 
   /* treat as assignment */
@@ -980,7 +1158,7 @@ static AError_t AnalyzeReturn(Analyzer_t *a, ASTNode_t *root) {
                   GetIDStr(a->thisFun->id),
                   DataTypeToStr(a->thisFun->returnType));
     MsgAddContext(msg, SpanToCtxUnderline(root->ret.value->pos),
-                  "returned vlue is of type `%s'", DataTypeToStr(type));
+                  "returned value is of type `%s'", DataTypeToStr(type));
     MsgSend(msg);
   }
 
@@ -1056,6 +1234,8 @@ static AError_t PopulateBuiltins(Analyzer_t *a) {
 #undef P
 #undef DO
 
+  DLOG_INFO("<analyzer> Populating builtins.");
+
   for (size_t i = 0; i < builtinsLen; i++) {
     /* create the symbol*/
     FunSymbol_t *fs = CreateFunSymbol();
@@ -1069,6 +1249,7 @@ static AError_t PopulateBuiltins(Analyzer_t *a) {
 
     fs->id = CopyStr(builtins[i].name);
     if (!fs->id) {
+      DLOG_ERROR("<analyzer> id copy malloc error");
       DeleteFunSymbol(fs);
       return AERR_MEM;
     }
@@ -1077,35 +1258,43 @@ static AError_t PopulateBuiltins(Analyzer_t *a) {
     AError_t err = AERR_OK;
     for (size_t j = 0; j < builtins[i].paramCount; j++) {
       err = SetAError(err, AddFunParam(fs, builtins[i].params[j].name,
-                                       builtins[i].params[j].type));
+                                       builtins[i].params[j].type,
+                                       (SourceSpan_t){0}));
     }
     if (err == AERR_MEM) {
+      DLogFunSymbol(DLOG_LVL_ERROR, fs, "Failed to create builtins parameters");
       DeleteFunSymbol(fs);
       return AERR_MEM;
     }
 
     /* add the declaration */
     if (!SymbolTreeInsertWithData(&a->funs, fs->id, fs)) {
+      DLogFunSymbol(DLOG_LVL_ERROR, fs, "Failed to save builtins symbol");
       DeleteFunSymbol(fs);
       return AERR_MEM;
     }
+
+    DLogFunSymbol(DLOG_LVL_INFO, fs, "Created builtins function symbol");
   }
 
   return AERR_OK;
 }
 
-static AError_t AddFunParam(FunSymbol_t *fs, const char *name,
-                            DataType_t type) {
+static AError_t AddFunParam(FunSymbol_t *fs, const char *name, DataType_t type,
+                            SourceSpan_t pos) {
   VarSymbol_t *vs = CreateVarSymbol();
   if (!vs)
     return AERR_MEM;
 
   vs->dtype = type;
+  vs->vstate = VS_MUTABLE;
   vs->blockID = A_PARAM_BLOCK;
+  vs->pos = pos;
 
   vs->id = CopyStr(name);
   if (!vs->id) {
-    DeleteFunSymbol(fs);
+    DLOG_ERROR("<analyzer> id copy malloc error");
+    DeleteFunSymbol(vs);
     return AERR_MEM;
   }
 
@@ -1113,9 +1302,12 @@ static AError_t AddFunParam(FunSymbol_t *fs, const char *name,
   assert(vs->dtype != TYPE_UNKNOWN && vs->dtype != TYPE_NA);
 
   if (!SymbolTreeInsertWithData(&fs->symbols, vs->id, vs)) {
+    DLogVarSymbol(DLOG_LVL_INFO, vs, "Failed to create function parameter");
     DeleteVarSymbol(vs);
     return AERR_MEM;
   }
+
+  DLogVarSymbol(DLOG_LVL_INFO, vs, "Added parameter");
 
   return AERR_OK;
 }
@@ -1154,6 +1346,9 @@ static AError_t CheckMainDefs(Analyzer_t *a) {
   for (size_t i = 0; (sh = SymbolTreeAt(&a->funs, i)); i++) {
     FunSymbol_t *fs = (FunSymbol_t *)sh->data;
 
+    if (!fs->isMain)
+      continue;
+
     if (!seenMain && fs->isMain) {
       seenMain = true;
       main = fs;
@@ -1165,10 +1360,10 @@ static AError_t CheckMainDefs(Analyzer_t *a) {
 
     Message_t *msg = MsgStart(MSG_ERROR, ERROR_SEM_REDEF,
                               "Multiple definitions of `@main'.");
-    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "redefined here (`%s')",
-                  fs->id);
     MsgAddContext(msg, SpanToCtxUnderline(main->pos),
                   "first defined here (`%s')", main->id);
+    MsgAddContext(msg, SpanToCtxUnderline(fs->pos), "redefined here (`%s')",
+                  fs->id);
     MsgSend(msg);
   }
 
@@ -1189,8 +1384,10 @@ AError_t AnalyzeAST(ASTNode_t *root) {
   assert(root && root->kind == NODE_PROGRAM);
 
   Analyzer_t *a = CreateAnalyzer();
-  if (!a)
+  if (!a) {
+    DLOG_ERROR("<analyzer> failed to create analyzer");
     return AERR_MEM;
+  }
 
   /* add all the definitions */
   AError_t err = AERR_OK;

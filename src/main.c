@@ -2,6 +2,7 @@
  * Author[s]: Michael Sklenka <xsklenm00>
  */
 #include "parser_internal.h"
+#include "semantics.h"
 #include <stdio.h>
 
 int main(void) {
@@ -17,6 +18,15 @@ int main(void) {
   }
 
   ASTDump(ASTree);
+
+  AError_t aerr = AnalyzeAST(ASTree);
+  if (aerr == AERR_MEM) {
+    Message_t *msg = MsgStart(MSG_ERROR, ERROR_INTERNAL,
+                              "Critical error occured, shutting down...");
+    MsgSend(msg);
+    ASTFree(ASTree);
+    return ERROR_INTERNAL;
+  }
 
   ASTFree(ASTree);
 
