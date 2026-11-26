@@ -28,6 +28,14 @@ int main(void) {
 
   ASTDump(ASTree);
 
+  if (aerr != AERR_OK || err != ERROR_NOERR) {
+    Message_t *msg = MsgStart(MSG_INFO, ERROR_SEM_OTHER,
+                              "Errors were detected. Skiping generation.");
+    MsgSend(msg);
+    ASTFree(ASTree);
+    return 1;
+  }
+
   ASTFree(ASTree);
 
   MessengerTerminate();
