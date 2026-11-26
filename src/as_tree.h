@@ -11,8 +11,10 @@
 #include <stdlib.h>
 
 #define AST_LIST_FOREACH(list, epAST)                                          \
-  for (ASTNode_t *epAST = (list).items[0], **_epp_ = (list).items;             \
-       _epp_ != (list).items + (list).count; epAST = *(_epp_++))
+  for (ASTNode_t *epAST = NULL, **_epp_ = (list).items;                        \
+       (_epp_ != (list).items + (list).count ? (epAST = *_epp_, true)          \
+                                             : false);                         \
+       _epp_++)
 
 /* Node type, selects union members in node */
 typedef enum ASTKind_t {
@@ -34,6 +36,7 @@ typedef enum ASTKind_t {
   NODE_BINOP,
   NODE_COND,
   NODE_FNCALL,
+  NODE_CONV_DOUBLE,
   /* lists */
   NODE_ID,
   NODE_INT,
@@ -45,13 +48,16 @@ typedef enum ASTKind_t {
 
 /* Data types */
 typedef enum DataType_t {
-  TYPE_NA = 0, /* Non applicable */
+  TYPE_UNKNOWN = 0,
+  TYPE_NA, /* Non applicable */
   TYPE_STRING,
   TYPE_DOUBLE,
   TYPE_INT,
   TYPE_UNIT,
   TYPE_BOOLEAN,
-  TYPE_UNKNOWN,
+
+  /* for builtin functions */
+  TYPE_ANY,
 } DataType_t;
 
 const char *DataTypeToStr(DataType_t type);
@@ -77,6 +83,8 @@ typedef enum Operator_t {
   OP_ERR,
 } Operator_t;
 
+const char *OpToChar(Operator_t op);
+
 typedef struct ASTNode_t ASTNode_t;
 
 typedef struct ASTList_t { /* for NODES with variable count (i.e. params...) */
@@ -94,12 +102,13 @@ struct ASTNode_t {
   SourceSpan_t pos; /* Position in source code for error handling */
 
   union {
-    char *name;        /* NODE_ID       */
-    char *string;      /* NODE_STRING   */
-    int intVal;        /* NODE_INT      */
-    double dblVal;     /* NODE_DOUBLE   */
-    ASTList_t program; /* NODE_PROGRAM  */
-    ASTList_t block;   /* NODE_BLOCK    */
+    char *name;        /* NODE_ID          */
+    char *string;      /* NODE_STRING      */
+    int intVal;        /* NODE_INT         */
+    double dblVal;     /* NODE_DOUBLE      */
+    ASTList_t program; /* NODE_PROGRAM     */
+    ASTList_t block;   /* NODE_BLOCK       */
+    ASTNode_t *value;  /* NODE_CONV_DOUBLE */
 
     /* NODE_FNDEF, declType may be unknown */
     struct {

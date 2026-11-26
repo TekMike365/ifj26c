@@ -182,7 +182,7 @@ MsgErr_t TryPrintCtxLine(FILE *fp, MsgContext_t *ctx) {
   for (size_t i = 1; i <= ctx->hlEndCol || i <= ctx->poiCol; i++) {
     if (ctx->poiCol > 0 && i == ctx->poiCol)
       fputc('^', stderr);
-    else if (ctx->hlStartCol > 0 && i > ctx->hlStartCol && i <= ctx->hlEndCol)
+    else if (ctx->hlStartCol > 0 && i >= ctx->hlStartCol && i <= ctx->hlEndCol)
       fputc('~', stderr);
     else
       fputc(' ', stderr);
