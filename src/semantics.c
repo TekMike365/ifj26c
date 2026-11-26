@@ -1422,7 +1422,7 @@ static AError_t AddFunParam(FunSymbol_t *fs, const char *name, DataType_t type,
   vs->id = CopyStr(name);
   if (!vs->id) {
     DLOG_ERROR("<analyzer> id copy malloc error");
-    DeleteFunSymbol(vs);
+    DeleteVarSymbol(vs);
     return AERR_MEM;
   }
 
