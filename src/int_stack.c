@@ -106,10 +106,10 @@ _Bool IntStackContains(IntStack_t *stack, int val) {
 
 long IntStackDepth(IntStack_t *stack, int val) {
   if (!stack) {
-    return 0;
+    return -1;
   }
   if (!stack->data) {
-    return 0;
+    return -1;
   }
 
   for (size_t idx = stack->top; idx > 0; idx--) {

@@ -20,6 +20,8 @@ ASTNode_t *ASTCreate(ASTKind_t kind, SourceSpan_t pos) {
   case NODE_WHILE:
   case NODE_IF:
   case NODE_RETURN:
+  case NODE_FOR:
+  case NODE_GEN:
     node->type = TYPE_NA;
     break;
   default:
@@ -120,6 +122,10 @@ void ASTFree(ASTNode_t *node) {
     ASTFree(node->ret.value);
     break;
 
+  case NODE_CONV_DOUBLE:
+    ASTFree(node->value);
+    break;
+
   case NODE_UNOP:
     ASTFree(node->unOp.operand);
     break;
@@ -133,14 +139,29 @@ void ASTFree(ASTNode_t *node) {
     free(node->name);
     ASTFreeList(&node->fncall.args);
     break;
-
+  case NODE_FOR:
+    ASTFree(node->forLoop.gen);
+    ASTFree(node->forLoop.body);
+    break;
+  case NODE_GEN:
+    ASTFree(node->gen.from);
+    ASTFree(node->gen.by);
+    ASTFree(node->gen.to);
+    free(node->gen.name);
+    break;
+  case NODE_IFEXPR:
+    ASTFree(node->ifexpr.cond);
+    ASTFree(node->ifexpr.thenExpr);
+    ASTFree(node->ifexpr.elseExpr);
+    break;
+  case NODE_COND:
+    ASTFree(node->binOp.left);
+    ASTFree(node->binOp.right);
   default:
     break;
   }
   free(node); /* free current node as well */
 }
-
-#ifdef DEBUG
 
 const char *DataTypeToStr(DataType_t type) {
   switch (type) {
@@ -154,37 +175,56 @@ const char *DataTypeToStr(DataType_t type) {
     return "Unit";
   case TYPE_STRING:
     return "String";
+  case TYPE_NA:
+    return "<NA>";
+  case TYPE_ANY:
+    return "<ANY>";
+  case TYPE_UNKNOWN:
+    return "<?>";
+  }
+  return "<unknown type>";
+}
+
+const char *OpToChar(Operator_t op) {
+  switch (op) {
+  case OP_DIV:
+    return "/";
+  case OP_MUL:
+    return "*";
+  case OP_PLUS:
+    return "+";
+  case OP_MINUS:
+    return "-";
+  case OP_EQ:
+    return "==";
+  case OP_NEQ:
+    return "!=";
+  case OP_LT:
+    return "<";
+  case OP_GT:
+    return ">";
+  case OP_GTE:
+    return ">=";
+  case OP_LTE:
+    return "<=";
+  case OP_UPLUS:
+    return "+";
+  case OP_UMINUS:
+    return "-";
+  case OP_NEG:
+    return "!";
+  case OP_AND:
+    return "&&";
+  case OP_OR:
+    return "||";
+  case OP_ERR:
+    return "<E>";
   default:
-    return "?";
+    return "<?>";
   }
 }
 
-static char BinOpChar(Operator_t op) {
-  switch (op) {
-  case OP_DIV:
-    return '/';
-  case OP_MUL:
-    return '*';
-  case OP_PLUS:
-    return '+';
-  case OP_MINUS:
-    return '-';
-  case OP_EQ:
-    return '=';
-  case OP_NEQ:
-    return '!';
-  case OP_LT:
-    return '<';
-  case OP_GT:
-    return '>';
-  case OP_GTE:
-    return 'G';
-  case OP_LTE:
-    return 'L';
-  default:
-    return '?';
-  }
-}
+#ifdef DEBUG
 
 static void ASTDumpNode(const ASTNode_t *node, const char *prefix, bool isLast);
 
@@ -264,25 +304,52 @@ static void ASTDumpNode(const ASTNode_t *node, const char *prefix,
     ASTDumpNode(node->whileDo.body, nextPrefix, true);
     break;
 
+  case NODE_FOR:
+    LOG_NODE("FOR \"%s\" (line %ld)",
+             (node->forLoop.gen && node->forLoop.gen->gen.name)
+                 ? node->forLoop.gen->gen.name
+                 : "<null>",
+             node->pos.line);
+    ASTDumpNode(node->forLoop.gen, nextPrefix, false);
+    ASTDumpNode(node->forLoop.body, nextPrefix, true);
+    break;
+
+  case NODE_GEN:
+    LOG_NODE("GEN (%s)", node->gen.IncludeMax ? "to" : "until");
+    ASTDumpNode(node->gen.from, nextPrefix, false);
+    ASTDumpNode(node->gen.to, nextPrefix, node->gen.by == NULL);
+    ASTDumpNode(node->gen.by, nextPrefix, true);
+    break;
+
+  case NODE_IFEXPR:
+    LOG_NODE("IF (line %ld)", node->pos.line);
+    ASTDumpNode(node->ifexpr.cond, nextPrefix, false);
+    ASTDumpNode(node->ifexpr.thenExpr, nextPrefix, false);
+    ASTDumpNode(node->ifexpr.elseExpr, nextPrefix, true);
+    break;
   case NODE_RETURN:
     LOG_NODE("RETURN (line %ld)", node->pos.line);
     ASTDumpNode(node->ret.value, nextPrefix, true);
     break;
 
   case NODE_UNOP:
-    LOG_NODE("UNOP (op= %c) [type: %s]",
-             (node->unOp.op == OP_UMINUS) ? '-' : '+',
+    LOG_NODE("UNOP (op= %s) [type: %s]", OpToChar(node->unOp.op),
              DataTypeToStr(node->type));
     ASTDumpNode(node->unOp.operand, nextPrefix, true);
     break;
 
   case NODE_BINOP:
-    LOG_NODE("BINOP (op= %c) [type: %s]", BinOpChar(node->binOp.op),
+    LOG_NODE("BINOP (op= %s) [type: %s]", OpToChar(node->binOp.op),
              DataTypeToStr(node->type));
     ASTDumpNode(node->binOp.left, nextPrefix, false);
     ASTDumpNode(node->binOp.right, nextPrefix, true);
     break;
-
+  case NODE_COND:
+    LOG_NODE("COND (op= %s) [type: %s]", OpToChar(node->binOp.op),
+             DataTypeToStr(node->type));
+    ASTDumpNode(node->binOp.left, nextPrefix, false);
+    ASTDumpNode(node->binOp.right, nextPrefix, true);
+    break;
   case NODE_FNCALL:
     LOG_NODE("FNCALL \"%s\" [type: %s]",
              node->fncall.name ? node->fncall.name : "<null>",

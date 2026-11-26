@@ -11,8 +11,10 @@
 #include <stdlib.h>
 
 #define AST_LIST_FOREACH(list, epAST)                                          \
-  for (ASTNode_t *epAST = (list).items[0], **_epp_ = (list).items;             \
-       _epp_ != (list).items + (list).count; epAST = *(_epp_++))
+  for (ASTNode_t *epAST = NULL, **_epp_ = (list).items;                        \
+       (_epp_ != (list).items + (list).count ? (epAST = *_epp_, true)          \
+                                             : false);                         \
+       _epp_++)
 
 /* Node type, selects union members in node */
 typedef enum ASTKind_t {
@@ -26,27 +28,36 @@ typedef enum ASTKind_t {
   NODE_IF,
   NODE_WHILE,
   NODE_RETURN,
+  NODE_FOR,
+  NODE_GEN,
+  NODE_IFEXPR,
   /* expressions */
   NODE_UNOP,
   NODE_BINOP,
+  NODE_COND,
   NODE_FNCALL,
+  NODE_CONV_DOUBLE,
   /* lists */
   NODE_ID,
   NODE_INT,
   NODE_DOUBLE,
   NODE_STRING,
   NODE_UNIT,
+  NODE_BOOLEAN,
 } ASTKind_t;
 
 /* Data types */
 typedef enum DataType_t {
-  TYPE_NA = 0, /* Non applicable */
+  TYPE_UNKNOWN = 0,
+  TYPE_NA, /* Non applicable */
   TYPE_STRING,
   TYPE_DOUBLE,
   TYPE_INT,
   TYPE_UNIT,
   TYPE_BOOLEAN,
-  TYPE_UNKNOWN,
+
+  /* for builtin functions */
+  TYPE_ANY,
 } DataType_t;
 
 const char *DataTypeToStr(DataType_t type);
@@ -65,9 +76,14 @@ typedef enum Operator_t {
   OP_UMINUS,
   OP_DIV,
   OP_MUL,
+  OP_NEG,
+  OP_AND,
+  OP_OR,
 
   OP_ERR,
 } Operator_t;
+
+const char *OpToChar(Operator_t op);
 
 typedef struct ASTNode_t ASTNode_t;
 
@@ -86,12 +102,13 @@ struct ASTNode_t {
   SourceSpan_t pos; /* Position in source code for error handling */
 
   union {
-    char *name;        /* NODE_ID       */
-    char *string;      /* NODE_STRING   */
-    int intVal;        /* NODE_INT      */
-    double dblVal;     /* NODE_DOUBLE   */
-    ASTList_t program; /* NODE_PROGRAM  */
-    ASTList_t block;   /* NODE_BLOCK    */
+    char *name;        /* NODE_ID          */
+    char *string;      /* NODE_STRING      */
+    int intVal;        /* NODE_INT         */
+    double dblVal;     /* NODE_DOUBLE      */
+    ASTList_t program; /* NODE_PROGRAM     */
+    ASTList_t block;   /* NODE_BLOCK       */
+    ASTNode_t *value;  /* NODE_CONV_DOUBLE */
 
     /* NODE_FNDEF, declType may be unknown */
     struct {
@@ -121,7 +138,7 @@ struct ASTNode_t {
       ASTNode_t *value;
     } assign;
 
-    /* NODE_STATEMENT, elseBlock NULL if absent */
+    /* NODE_IF, elseBlock NULL if absent */
     struct {
       ASTNode_t *cond, *thenBlock, *elseBlock;
     } ifElse;
@@ -153,6 +170,23 @@ struct ASTNode_t {
       char *name;
       ASTList_t args;
     } fncall;
+
+    /* NODE_FOR */
+    struct {
+      ASTNode_t *gen, *body;
+    } forLoop;
+
+    /* NODE_GEN */
+    struct {
+      bool IncludeMax;
+      char *name;
+      ASTNode_t *from, *to, *by;
+    } gen;
+
+    /* NODE_IFEXPR */
+    struct {
+      ASTNode_t *cond, *thenExpr, *elseExpr;
+    } ifexpr;
   };
 };
 
