@@ -89,7 +89,7 @@ struct ASTNode_t {
   union {
     char *name;        /* NODE_ID       */
     char *string;      /* NODE_STRING   */
-    int intVal;        /* NODE_INT      */
+    long long intVal;        /* NODE_INT      */
     double dblVal;     /* NODE_DOUBLE   */
     ASTList_t program; /* NODE_PROGRAM  */
     ASTList_t block;   /* NODE_BLOCK    */
