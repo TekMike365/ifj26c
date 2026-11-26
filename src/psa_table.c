@@ -98,6 +98,10 @@ Operator_t OpFromSym(PTSymbol_t sym) {
     return OP_GTE;
   case PT_PLUS:
     return OP_PLUS;
+  case PT_UPLUS:
+    return OP_UPLUS;
+  case PT_UMINUS:
+    return OP_UMINUS;
   case PT_MINUS:
     return OP_MINUS;
   case PT_DIV:
