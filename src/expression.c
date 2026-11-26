@@ -6,7 +6,64 @@
 #include "psa_stack.h"
 #include "psa_table.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 #define MAX_RULE_LENGTH 4
+
+/* Decodes a quoted string token into its AST value.
+ * Single-line escapes are translated; triple-quoted contents are preserved.
+ * Returns a newly allocated string, or NULL if decoding or allocation fails.
+ */
+static char *DecodeStringLiteral(const char *literal) {
+  size_t length = strlen(literal);
+  size_t delimiterLength =
+      length >= 6 && literal[0] == '"' && literal[1] == '"' &&
+              literal[2] == '"'
+          ? 3
+          : 1;
+  if (length < delimiterLength * 2) {
+    return NULL;
+  }
+
+  size_t end = length - delimiterLength;
+  char *value = malloc(length - delimiterLength * 2 + 1);
+  if (value == NULL) {
+    return NULL;
+  }
+
+  size_t valueLength = 0;
+  for (size_t i = delimiterLength; i < end; i++) {
+    char character = literal[i];
+    if (delimiterLength == 1 && character == '\\') {
+      if (++i >= end) {
+        free(value);
+        return NULL;
+      }
+      switch (literal[i]) {
+      case 'n':
+        character = '\n';
+        break;
+      case 'r':
+        character = '\r';
+        break;
+      case 't':
+        character = '\t';
+        break;
+      case '"':
+      case '\\':
+        character = literal[i];
+        break;
+      default:
+        free(value);
+        return NULL;
+      }
+    }
+    value[valueLength++] = character;
+  }
+  value[valueLength] = '\0';
+  return value;
+}
 
 /* Returns AST node containing data from tokens: id, string, int, double, if
  * malloc failed returns NULL and sets error.
@@ -32,7 +89,13 @@ static ASTNode_t *CreateLeaf(Parser_t *p) {
       break;
     node->kind = NODE_STRING;
     node->type = TYPE_STRING;
-    node->string = StrDup(p->current.lexemeS);
+    node->string = DecodeStringLiteral(p->current.lexemeS);
+    if (node->string == NULL) {
+      ASTFree(node);
+      ReportInternalError("Unable to decode string literal.");
+      p->errorCode = ERROR_INTERNAL;
+      return NULL;
+    }
     return node;
 
   /* get int value from token, dont mind the zero */
