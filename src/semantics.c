@@ -1156,6 +1156,8 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
 
   VarSymbol_t *vs = GetActiveVSymbol(a, root->varDef.name);
 
+  /* create if it doesn't exist*/
+  bool created = false;
   if (vs && vs->blockID == a->blockID && vs->vstate != VS_UNDEFINED) {
     /* redefinition error */
     err = SetAError(err, AERR_SEM);
@@ -1168,11 +1170,8 @@ static AError_t AnalyzeVarDef(Analyzer_t *a, ASTNode_t *root, bool isMutable) {
     MsgSend(msg);
 
     /* process like it is assignment */
-  }
-
-  /* create if it doesn't exist*/
-  bool created = false;
-  if (vs == NULL) {
+  } else {
+    /* create the symbol */
     created = true;
 
     vs = CreateVarSymbol();
