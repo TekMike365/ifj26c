@@ -1,129 +1,127 @@
-/* Implementace překladače imperativního jazyka IFJ26.
+/* Implementace imperativního jazyka IFJ26.
  * Author[s]: Richard Blšták <xblstar00>
  */
 
 #ifndef BIN_TREE_H
 #define BIN_TREE_H
 
-#include <stdbool.h>
+#include "symtable.h"
+
 #include <stddef.h>
 
-/** Semantic symbol data, independent of the tree's balancing metadata. */
+/**
+ * Compatibility view of a symbol's identifier and associated user data.
+ *
+ * Pointers returned by the tree API are borrowed. Do not modify identifier:
+ * it is the search key. Adding entries may reallocate storage and invalidate
+ * previously returned pointers.
+ */
 typedef struct SymbolHeader {
-  /** Owned, null-terminated copy of the symbol's identifier. */
   char *identifier;
-  /** Optional user-owned payload; ownership transfers to the tree on insert. */
   void *data;
 } SymbolHeader_t;
 
-/** Opaque internal node type used by SymbolTree_t. */
-typedef struct SymbolTreeNode SymbolTreeNode_t;
-
-/** Function used to release a symbol's optional payload. */
-typedef void (*SymbolDataDestroyFn_t)(void *data);
-
 /**
- * Red-black search tree backed by a resizable array.
+ * Stack-allocatable handle for the legacy SymbolTree API.
  *
- * Tree links and root are indices into items rather than pointers, so growing
- * the array does not invalidate links. The node implementation is private;
- * callers can work with SymbolHeader_t values returned by the tree API.
+ * The implementation pointer is private to the module; initialize and destroy
+ * the handle only with the functions below.
  */
 typedef struct SymbolTree {
-  /** Opaque resizable storage for all live nodes. */
-  SymbolTreeNode_t *items;
-  /** Number of live nodes in items. */
-  size_t size;
-  /** Number of allocated slots in items. */
-  size_t capacity;
-  /** Index of the root node, or SIZE_MAX when the tree is empty. */
-  size_t root;
-  /** Optional destructor for payloads owned by the tree. */
-  SymbolDataDestroyFn_t destroyData;
+  SymbolTable_t *implementation;
 } SymbolTree_t;
 
-/** A linked-list node containing one symbol array index. */
+/**
+ * One result from SymbolTreeFindAllIndices.
+ *
+ * The index refers to the symbol's insertion-order slot and can be passed to
+ * SymbolTreeAt or SymbolTreeSetDataAt.
+ */
 typedef struct SymbolTreeIndexNode {
   size_t index;
   struct SymbolTreeIndexNode *next;
 } SymbolTreeIndexNode_t;
 
 /**
- * Initialize an empty tree.
+ * Initialize an empty tree without a payload destructor.
  *
- * @return true on success, or false if tree is NULL.
+ * The handle must be initialized before any other operation. Returns false if
+ * tree is NULL or allocation fails.
  */
 bool SymbolTreeInit(SymbolTree_t *tree);
 
 /**
- * Initialize an empty tree with a payload destructor.
+ * Initialize an empty tree with a destructor for stored payloads.
  *
- * Payloads passed to SymbolTreeInsertWithData are released by this callback
- * when replaced, removed, or when the tree is destroyed. If no destructor is
- * needed, use SymbolTreeInit.
+ * The destructor is called for non-NULL payloads when replaced or when the
+ * tree is destroyed. Returns false if tree is NULL or allocation fails.
  */
 bool SymbolTreeInitWithDestructor(SymbolTree_t *tree,
                                   SymbolDataDestroyFn_t destroyData);
 
-/** Free all identifiers, payloads, and storage owned by the tree. */
+/** Destroy the tree and its owned identifiers and payloads. */
 void SymbolTreeDestroy(SymbolTree_t *tree);
 
 /**
- * Insert a copy of identifier into the tree with no payload.
+ * Insert a copied identifier with a NULL payload.
  *
- * Duplicate identifiers are allowed.
- *
- * @return true if inserted, or false for invalid input or allocation failure.
+ * Duplicate identifiers are allowed. Returns false for invalid input or
+ * allocation failure.
  */
 bool SymbolTreeInsert(SymbolTree_t *tree, const char *identifier);
 
 /**
- * Insert an identifier and payload into the tree.
+ * Insert a copied identifier and payload.
  *
- * Duplicate identifiers are allowed. On success, the tree owns data and will
- * pass it to its configured destructor. On failure, ownership remains with
- * the caller.
- *
- * @return true if inserted, or false for invalid input or allocation failure.
+ * Duplicate identifiers are allowed. On success, the tree takes ownership of
+ * data; on failure, ownership remains with the caller.
  */
 bool SymbolTreeInsertWithData(SymbolTree_t *tree, const char *identifier,
                               void *data);
 
 /**
- * Replace the payload of the item at index.
+ * Replace the payload at an insertion-order index.
  *
- * The old payload is released with the configured destructor. On success, the
- * tree takes ownership of data; on failure, ownership remains with the caller.
+ * The old payload is released through the configured destructor. On success,
+ * the tree takes ownership of data; on failure, ownership remains with the
+ * caller.
  */
 bool SymbolTreeSetDataAt(SymbolTree_t *tree, size_t index, void *data);
 
 /**
- * Get a symbol by its array index.
+ * Return the symbol at an insertion-order index, or NULL if out of range.
  *
- * @return the symbol, or NULL if tree is NULL or index is out of bounds.
+ * The returned pointer is borrowed and may be invalidated by a later insert
+ * that reallocates the internal storage.
  */
 const SymbolHeader_t *SymbolTreeAt(const SymbolTree_t *tree, size_t index);
 
 /**
- * Find a symbol by identifier.
+ * Find one symbol with this identifier, or NULL if none exists.
  *
- * If multiple symbols have this identifier, one matching symbol is returned.
- * Use SymbolTreeAt to inspect every item.
- *
- * @return the symbol, or NULL if not found or an argument is NULL.
+ * With duplicate identifiers, which matching symbol is returned is
+ * unspecified. The result is borrowed and may be invalidated by a later
+ * insert that reallocates internal storage.
  */
 const SymbolHeader_t *SymbolTreeSearch(const SymbolTree_t *tree,
                                        const char *identifier);
 
 /**
- * Find the indexes of all symbols with the given identifier.
+ * Find one symbol with this identifier for payload mutation.
  *
- * The returned list is allocated by this function and prepended while
- * scanning, so indexes are in reverse array order. The caller must free it
- * with SymbolTreeIndexListDestroy. On failure, *indices is set to NULL.
+ * With duplicate identifiers, which matching symbol is returned is
+ * unspecified. Do not modify its identifier. Use SymbolTreeSetDataAt to
+ * replace its payload while ensuring the old payload's destructor is called.
+ */
+SymbolHeader_t *SymbolTreeSearchMutable(SymbolTree_t *tree,
+                                        const char *identifier);
+
+/**
+ * Find the indexes of all symbols with this identifier.
  *
- * @return true on success (including when there are no matches), or false for
- * invalid arguments or allocation failure.
+ * Returns true on success, including when there are no matches. The allocated
+ * list is in reverse insertion order and must be released with
+ * SymbolTreeIndexListDestroy. On failure, *indices is set to NULL.
  */
 bool SymbolTreeFindAllIndices(const SymbolTree_t *tree,
                               const char *identifier,
@@ -133,23 +131,10 @@ bool SymbolTreeFindAllIndices(const SymbolTree_t *tree,
 void SymbolTreeIndexListDestroy(SymbolTreeIndexNode_t *indices);
 
 /**
- * Find a symbol by identifier for mutation.
+ * Write a debug visualization through the debug logger.
  *
- * The identifier is a tree key and must not be changed. The payload may be
- * modified. Assigning a payload transfers ownership to the tree; use
- * SymbolTreeSetDataAt when replacing an existing payload so its destructor is
- * called.
- *
- * @return the symbol, or NULL if not found or an argument is NULL.
- */
-SymbolHeader_t *SymbolTreeSearchMutable(SymbolTree_t *tree,
-                                        const char *identifier);
-
-/**
- * Write a diagnostic visualization of the tree through the debug logger.
- *
- * In DEBUG builds, output is written to stderr. In release builds, this
- * function does nothing.
+ * In debug builds, output goes to stderr; in release builds, this does
+ * nothing.
  */
 void SymbolTreeDebugPrint(const SymbolTree_t *tree);
 

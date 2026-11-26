@@ -2,6 +2,7 @@
  * Author[s]: Richard Blšták <xblstar00>
  */
 
+#include "symtable.h"
 #include "bin_tree.h"
 #include "logger.h"
 #include <stdint.h>
@@ -13,55 +14,62 @@
 typedef enum BtColor { BT_BLACK, BT_RED } BtColor_t;
 typedef enum BtDirection { BT_LEFT, BT_RIGHT } BtDirection_t;
 
-struct SymbolTreeNode {
-  SymbolHeader_t header;
+typedef SymbolHeader_t SymbolEntry_t;
+
+typedef struct SymbolTableNode SymbolTableNode_t;
+
+struct SymbolTableNode {
+  SymbolEntry_t entry;
   BtColor_t color;
   size_t left;
   size_t right;
   size_t parent;
 };
 
+struct SymbolTable {
+  SymbolTableNode_t *items;
+  size_t size;
+  size_t capacity;
+  size_t root;
+  SymbolDataDestroyFn_t destroyData;
+};
+
 /* Absent children use an index that can never identify a live array element. */
-static void InsertFixup(SymbolTree_t *tree, size_t node);
-static void DeleteFixup(SymbolTree_t *tree, size_t node, size_t parent,
+static void InsertFixup(SymbolTable_t *tree, size_t node);
+static void DeleteFixup(SymbolTable_t *tree, size_t node, size_t parent,
                         int nodeIsLeft);
-static void DeleteAt(SymbolTree_t *tree, size_t node);
-static size_t MinimumNode(const SymbolTree_t *tree, size_t node);
-static BtColor_t ColorOf(const SymbolTree_t *tree, size_t node);
-static void SetColor(SymbolTree_t *tree, size_t node, BtColor_t color);
-static void DestroyData(const SymbolTree_t *tree, void *data);
-static void Rotate(SymbolTree_t *tree, size_t node,
+static void DeleteAt(SymbolTable_t *tree, size_t node);
+static size_t MinimumNode(const SymbolTable_t *tree, size_t node);
+static BtColor_t ColorOf(const SymbolTable_t *tree, size_t node);
+static void SetColor(SymbolTable_t *tree, size_t node, BtColor_t color);
+static void DestroyData(const SymbolTable_t *tree, void *data);
+static void Rotate(SymbolTable_t *tree, size_t node,
                    BtDirection_t direction);
-static void SymbolTreeDebugPrintNode(const SymbolTree_t *tree, size_t node,
+static void SymbolTableDebugPrintNode(const SymbolTable_t *tree, size_t node,
                                      const char *prefix, size_t prefixLength,
                                      bool isLast, bool isRoot);
 
-bool SymbolTreeInit(SymbolTree_t *tree) {
-  return SymbolTreeInitWithDestructor(tree, NULL);
-}
-
-bool SymbolTreeInitWithDestructor(SymbolTree_t *tree,
-                                  SymbolDataDestroyFn_t destroyData) {
+SymbolTable_t *SymbolTableCreate(SymbolDataDestroyFn_t destroyData) {
+  SymbolTable_t *tree = malloc(sizeof *tree);
   if (tree == NULL) {
-    return false;
+    return NULL;
   }
-
   tree->items = NULL;
   tree->size = 0;
   tree->capacity = 0;
   tree->root = NO_NODE;
   tree->destroyData = destroyData;
-  return true;
+  return tree;
 }
 
-void SymbolTreeDestroy(SymbolTree_t *tree) {
+void SymbolTableDestroy(SymbolTable_t *tree) {
   if (tree == NULL) {
     return;
   }
 
   for (size_t index = 0; index < tree->size; index++) {
-    DestroyData(tree, tree->items[index].header.data);
-    free(tree->items[index].header.identifier);
+    DestroyData(tree, tree->items[index].entry.data);
+    free(tree->items[index].entry.identifier);
   }
   free(tree->items);
   tree->items = NULL;
@@ -69,17 +77,17 @@ void SymbolTreeDestroy(SymbolTree_t *tree) {
   tree->capacity = 0;
   tree->root = NO_NODE;
   tree->destroyData = NULL;
+  free(tree);
 }
 
-static size_t FindNode(const SymbolTree_t *tree, const char *identifier) {
+static size_t FindNode(const SymbolTable_t *tree, const char *identifier) {
   if (tree == NULL || identifier == NULL) {
     return NO_NODE;
   }
 
   size_t node = tree->root;
   while (node != NO_NODE && node < tree->size) {
-    int comparison =
-        strcmp(identifier, tree->items[node].header.identifier);
+    int comparison = strcmp(identifier, tree->items[node].entry.identifier);
     if (comparison == 0) {
       return node;
     }
@@ -88,79 +96,79 @@ static size_t FindNode(const SymbolTree_t *tree, const char *identifier) {
   return NO_NODE;
 }
 
-const SymbolHeader_t *SymbolTreeSearch(const SymbolTree_t *tree,
-                                       const char *identifier) {
-  size_t node = FindNode(tree, identifier);
-  return node == NO_NODE ? NULL : &tree->items[node].header;
-}
-
-bool SymbolTreeFindAllIndices(const SymbolTree_t *tree,
-                              const char *identifier,
-                              SymbolTreeIndexNode_t **indices) {
-  if (indices == NULL) {
+bool SymbolTableGet(const SymbolTable_t *tree, const char *identifier,
+                    void **data) {
+  if (data == NULL) {
     return false;
   }
-  *indices = NULL;
+  *data = NULL;
+  size_t node = FindNode(tree, identifier);
+  if (node == NO_NODE) {
+    return false;
+  }
+  *data = tree->items[node].entry.data;
+  return true;
+}
+
+bool SymbolTableGetAll(const SymbolTable_t *tree, const char *identifier,
+                       SymbolTableValueNode_t **values) {
+  if (values == NULL) {
+    return false;
+  }
+  *values = NULL;
   if (tree == NULL || identifier == NULL) {
     return false;
   }
 
   for (size_t index = 0; index < tree->size; index++) {
-    if (strcmp(tree->items[index].header.identifier, identifier) != 0) {
+    if (strcmp(tree->items[index].entry.identifier, identifier) != 0) {
       continue;
     }
 
-    SymbolTreeIndexNode_t *match = malloc(sizeof *match);
+    SymbolTableValueNode_t *match = malloc(sizeof *match);
     if (match == NULL) {
-      SymbolTreeIndexListDestroy(*indices);
-      *indices = NULL;
+      SymbolTableValueListDestroy(*values);
+      *values = NULL;
       return false;
     }
-
-    match->index = index;
-    match->next = *indices;
-    *indices = match;
+    match->value = tree->items[index].entry.data;
+    match->next = *values;
+    *values = match;
   }
   return true;
 }
 
-void SymbolTreeIndexListDestroy(SymbolTreeIndexNode_t *indices) {
-  while (indices != NULL) {
-    SymbolTreeIndexNode_t *next = indices->next;
-    free(indices);
-    indices = next;
+void SymbolTableValueListDestroy(SymbolTableValueNode_t *values) {
+  while (values != NULL) {
+    SymbolTableValueNode_t *next = values->next;
+    free(values);
+    values = next;
   }
 }
 
-SymbolHeader_t *SymbolTreeSearchMutable(SymbolTree_t *tree,
-                                        const char *identifier) {
-  size_t node = FindNode(tree, identifier);
-  return node == NO_NODE ? NULL : &tree->items[node].header;
-}
-
-void SymbolTreeDebugPrint(const SymbolTree_t *tree) {
+void SymbolTableDebugPrint(const SymbolTable_t *tree) {
   if (tree == NULL || tree->root == NO_NODE) {
     DLOG_TRACE("(empty tree)");
     return;
   }
 
-  SymbolTreeDebugPrintNode(tree, tree->root, "", 0, true, true);
+  SymbolTableDebugPrintNode(tree, tree->root, "", 0, true, true);
 }
 
-static void SymbolTreeDebugPrintNode(const SymbolTree_t *tree, size_t node,
+static void SymbolTableDebugPrintNode(const SymbolTable_t *tree, size_t node,
                                      const char *prefix, size_t prefixLength,
                                      bool isLast, bool isRoot) {
   if (node >= tree->size) {
     return;
   }
 
-  const SymbolTreeNode_t *symbol = &tree->items[node];
+  const SymbolTableNode_t *symbol = &tree->items[node];
   if (isRoot) {
-    DLOG_TRACE("%s [%s]", symbol->header.identifier,
+    DLOG_TRACE("%s [%s]", symbol->entry.identifier,
                symbol->color == BT_RED ? "RED" : "BLACK");
   } else {
     DLOG_TRACE("%s%s%s [%s]", prefix, isLast ? "\\-- " : "|-- ",
-               symbol->header.identifier,
+               symbol->entry.identifier,
                symbol->color == BT_RED ? "RED" : "BLACK");
   }
 
@@ -178,30 +186,18 @@ static void SymbolTreeDebugPrintNode(const SymbolTree_t *tree, size_t node,
   }
 
   if (symbol->left != NO_NODE) {
-    SymbolTreeDebugPrintNode(tree, symbol->left, childPrefix,
+    SymbolTableDebugPrintNode(tree, symbol->left, childPrefix,
                              childPrefixLength, symbol->right == NO_NODE,
                              false);
   }
   if (symbol->right != NO_NODE) {
-    SymbolTreeDebugPrintNode(tree, symbol->right, childPrefix,
+    SymbolTableDebugPrintNode(tree, symbol->right, childPrefix,
                              childPrefixLength, true, false);
   }
 }
 
-const SymbolHeader_t *SymbolTreeAt(const SymbolTree_t *tree, size_t index) {
-  if (tree == NULL || index >= tree->size) {
-    return NULL;
-  }
-
-  return &tree->items[index].header;
-}
-
-bool SymbolTreeInsert(SymbolTree_t *tree, const char *identifier) {
-  return SymbolTreeInsertWithData(tree, identifier, NULL);
-}
-
-bool SymbolTreeInsertWithData(SymbolTree_t *tree, const char *identifier,
-                              void *data) {
+bool SymbolTableInsert(SymbolTable_t *tree, const char *identifier,
+                       void *data) {
   if (tree == NULL || identifier == NULL) {
     return false;
   }
@@ -232,7 +228,7 @@ bool SymbolTreeInsertWithData(SymbolTree_t *tree, const char *identifier,
   memcpy(identifierCopy, identifier, identifierLength + 1);
 
   if (newCapacity != tree->capacity) {
-    SymbolTreeNode_t *newItems =
+    SymbolTableNode_t *newItems =
         realloc(tree->items, newCapacity * sizeof *tree->items);
     if (newItems == NULL) {
       free(identifierCopy);
@@ -243,9 +239,9 @@ bool SymbolTreeInsertWithData(SymbolTree_t *tree, const char *identifier,
   }
 
   size_t node = tree->size;
-  SymbolTreeNode_t *symbol = &tree->items[node];
-  symbol->header.identifier = identifierCopy;
-  symbol->header.data = data;
+  SymbolTableNode_t *symbol = &tree->items[node];
+  symbol->entry.identifier = identifierCopy;
+  symbol->entry.data = data;
   symbol->color = BT_RED;
   symbol->left = NO_NODE;
   symbol->right = NO_NODE;
@@ -257,7 +253,7 @@ bool SymbolTreeInsertWithData(SymbolTree_t *tree, const char *identifier,
     size_t parent = tree->root;
     for (;;) {
       int comparison =
-          strcmp(identifier, tree->items[parent].header.identifier);
+          strcmp(identifier, tree->items[parent].entry.identifier);
       if (comparison < 0) {
         if (tree->items[parent].left == NO_NODE) {
           tree->items[parent].left = node;
@@ -281,19 +277,21 @@ bool SymbolTreeInsertWithData(SymbolTree_t *tree, const char *identifier,
   return true;
 }
 
-bool SymbolTreeSetDataAt(SymbolTree_t *tree, size_t index, void *data) {
-  if (tree == NULL || index >= tree->size) {
+bool SymbolTableReplace(SymbolTable_t *tree, const char *identifier,
+                        void *data) {
+  size_t node = FindNode(tree, identifier);
+  if (node == NO_NODE) {
     return false;
   }
 
-  if (tree->items[index].header.data != data) {
-    DestroyData(tree, tree->items[index].header.data);
-    tree->items[index].header.data = data;
+  if (tree->items[node].entry.data != data) {
+    DestroyData(tree, tree->items[node].entry.data);
+    tree->items[node].entry.data = data;
   }
   return true;
 }
 
-static inline bool SymbolTreeRemoveLast(SymbolTree_t *tree) {
+static inline bool SymbolTableRemoveLast(SymbolTable_t *tree) {
   if (tree == NULL || tree->size == 0) {
     return false;
   }
@@ -302,7 +300,7 @@ static inline bool SymbolTreeRemoveLast(SymbolTree_t *tree) {
   return true;
 }
 
-static void Rotate(SymbolTree_t *tree, size_t node,
+static void Rotate(SymbolTable_t *tree, size_t node,
                    BtDirection_t direction) {
   if (tree == NULL || node >= tree->size) {
     return;
@@ -345,27 +343,27 @@ static void Rotate(SymbolTree_t *tree, size_t node,
   tree->items[node].parent = pivot;
 }
 
-static BtColor_t ColorOf(const SymbolTree_t *tree, size_t node) {
+static BtColor_t ColorOf(const SymbolTable_t *tree, size_t node) {
   /* Missing children are the black NIL leaves used by red-black algorithms. */
   return node == NO_NODE || node >= tree->size ? BT_BLACK
                                                : tree->items[node].color;
 }
 
-static void SetColor(SymbolTree_t *tree, size_t node, BtColor_t color) {
+static void SetColor(SymbolTable_t *tree, size_t node, BtColor_t color) {
   /* NIL leaves have no array slot and therefore cannot be recolored. */
   if (node != NO_NODE && node < tree->size) {
     tree->items[node].color = color;
   }
 }
 
-static void DestroyData(const SymbolTree_t *tree, void *data) {
+static void DestroyData(const SymbolTable_t *tree, void *data) {
   if (data != NULL && tree->destroyData != NULL) {
     tree->destroyData(data);
   }
 }
 
 /* Restore red-black invariants after insertion, mirroring cases by tree side. */
-static void InsertFixup(SymbolTree_t *tree, size_t node) {
+static void InsertFixup(SymbolTable_t *tree, size_t node) {
   while (node != tree->root &&
          ColorOf(tree, tree->items[node].parent) == BT_RED) {
     size_t parent = tree->items[node].parent;
@@ -415,7 +413,7 @@ static void InsertFixup(SymbolTree_t *tree, size_t node) {
   SetColor(tree, tree->root, BT_BLACK);
 }
 
-static void Transplant(SymbolTree_t *tree, size_t oldNode, size_t newNode) {
+static void Transplant(SymbolTable_t *tree, size_t oldNode, size_t newNode) {
   /*
    * Replace oldNode in its parent's link (or the root). The caller must handle
    * oldNode's children separately if they need to be retained.
@@ -434,7 +432,7 @@ static void Transplant(SymbolTree_t *tree, size_t oldNode, size_t newNode) {
   }
 }
 
-static size_t MinimumNode(const SymbolTree_t *tree, size_t node) {
+static size_t MinimumNode(const SymbolTable_t *tree, size_t node) {
   /* The leftmost node is the in-order successor candidate for deletion. */
   while (tree->items[node].left != NO_NODE) {
     node = tree->items[node].left;
@@ -442,7 +440,7 @@ static size_t MinimumNode(const SymbolTree_t *tree, size_t node) {
   return node;
 }
 
-static void DeleteAt(SymbolTree_t *tree, size_t node) {
+static void DeleteAt(SymbolTable_t *tree, size_t node) {
   /*
    * For a two-child node, move its in-order successor into its place. The color
    * removed from its original position determines whether balancing is needed.
@@ -488,8 +486,8 @@ static void DeleteAt(SymbolTree_t *tree, size_t node) {
     tree->items[moved].color = tree->items[node].color;
   }
 
-  DestroyData(tree, tree->items[node].header.data);
-  free(tree->items[node].header.identifier);
+  DestroyData(tree, tree->items[node].entry.data);
+  free(tree->items[node].entry.identifier);
   if (movedColor == BT_BLACK) {
     DeleteFixup(tree, replacement, replacementParent, replacementIsLeft);
   }
@@ -497,7 +495,7 @@ static void DeleteAt(SymbolTree_t *tree, size_t node) {
   SetColor(tree, tree->root, BT_BLACK);
 }
 
-static void DeleteFixup(SymbolTree_t *tree, size_t node, size_t parent,
+static void DeleteFixup(SymbolTable_t *tree, size_t node, size_t parent,
                         int nodeIsLeft) {
   /*
    * A missing replacement has no node from which to find its parent or side,
@@ -587,4 +585,120 @@ static void DeleteFixup(SymbolTree_t *tree, size_t node, size_t parent,
   }
 
   SetColor(tree, node, BT_BLACK);
+}
+
+bool SymbolTreeInit(SymbolTree_t *tree) {
+  return SymbolTreeInitWithDestructor(tree, NULL);
+}
+
+bool SymbolTreeInitWithDestructor(SymbolTree_t *tree,
+                                  SymbolDataDestroyFn_t destroyData) {
+  if (tree == NULL) {
+    return false;
+  }
+  tree->implementation = SymbolTableCreate(destroyData);
+  return tree->implementation != NULL;
+}
+
+void SymbolTreeDestroy(SymbolTree_t *tree) {
+  if (tree == NULL) {
+    return;
+  }
+  SymbolTableDestroy(tree->implementation);
+  tree->implementation = NULL;
+}
+
+bool SymbolTreeInsert(SymbolTree_t *tree, const char *identifier) {
+  return tree != NULL &&
+         SymbolTableInsert(tree->implementation, identifier, NULL);
+}
+
+bool SymbolTreeInsertWithData(SymbolTree_t *tree, const char *identifier,
+                              void *data) {
+  return tree != NULL &&
+         SymbolTableInsert(tree->implementation, identifier, data);
+}
+
+bool SymbolTreeSetDataAt(SymbolTree_t *tree, size_t index, void *data) {
+  if (tree == NULL || tree->implementation == NULL ||
+      index >= tree->implementation->size) {
+    return false;
+  }
+
+  SymbolEntry_t *entry = &tree->implementation->items[index].entry;
+  if (entry->data != data) {
+    DestroyData(tree->implementation, entry->data);
+    entry->data = data;
+  }
+  return true;
+}
+
+const SymbolHeader_t *SymbolTreeAt(const SymbolTree_t *tree, size_t index) {
+  if (tree == NULL || tree->implementation == NULL ||
+      index >= tree->implementation->size) {
+    return NULL;
+  }
+  return &tree->implementation->items[index].entry;
+}
+
+const SymbolHeader_t *SymbolTreeSearch(const SymbolTree_t *tree,
+                                       const char *identifier) {
+  if (tree == NULL) {
+    return NULL;
+  }
+  size_t node = FindNode(tree->implementation, identifier);
+  return node == NO_NODE ? NULL : &tree->implementation->items[node].entry;
+}
+
+SymbolHeader_t *SymbolTreeSearchMutable(SymbolTree_t *tree,
+                                        const char *identifier) {
+  if (tree == NULL) {
+    return NULL;
+  }
+  size_t node = FindNode(tree->implementation, identifier);
+  return node == NO_NODE ? NULL : &tree->implementation->items[node].entry;
+}
+
+bool SymbolTreeFindAllIndices(const SymbolTree_t *tree,
+                              const char *identifier,
+                              SymbolTreeIndexNode_t **indices) {
+  if (indices == NULL) {
+    return false;
+  }
+  *indices = NULL;
+  if (tree == NULL || tree->implementation == NULL || identifier == NULL) {
+    return false;
+  }
+
+  for (size_t index = 0; index < tree->implementation->size; index++) {
+    if (strcmp(tree->implementation->items[index].entry.identifier,
+               identifier) != 0) {
+      continue;
+    }
+
+    SymbolTreeIndexNode_t *match = malloc(sizeof *match);
+    if (match == NULL) {
+      SymbolTreeIndexListDestroy(*indices);
+      *indices = NULL;
+      return false;
+    }
+    match->index = index;
+    match->next = *indices;
+    *indices = match;
+  }
+  return true;
+}
+
+void SymbolTreeIndexListDestroy(SymbolTreeIndexNode_t *indices) {
+  while (indices != NULL) {
+    SymbolTreeIndexNode_t *next = indices->next;
+    free(indices);
+    indices = next;
+  }
+}
+
+void SymbolTreeDebugPrint(const SymbolTree_t *tree) {
+  if (tree != NULL) {
+    SymbolTableDebugPrint(tree->implementation);
+  }
 }
