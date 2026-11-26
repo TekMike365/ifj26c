@@ -40,6 +40,7 @@ typedef enum ASTKind_t {
   NODE_DOUBLE,
   NODE_STRING,
   NODE_UNIT,
+  NODE_BOOLEAN,
 } ASTKind_t;
 
 /* Data types */

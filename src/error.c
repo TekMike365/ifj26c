@@ -22,3 +22,16 @@ void ReportInternalError(const char *msg) {
   Message_t *message = MsgStart(MSG_ERROR, ERROR_INTERNAL, "%s", msg);
   MsgSend(message);
 }
+
+void ReportSyntaxError(MsgContext_t ctx, const char *msg, const char *detail,
+                       _Bool addContext) {
+  Message_t *message = MsgStart(MSG_ERROR, ERROR_SYNTAX, "%s", msg);
+  if (message == NULL) {
+    return;
+  }
+  if (addContext) {
+    MsgAddContext(message, ctx, "%s", detail);
+    MsgSend(message);
+  }
+}
+

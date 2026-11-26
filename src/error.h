@@ -1,5 +1,6 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Dominik Makuka <xmakukd00>
+ *            Ondrej Dedič  <xdedico00>
  * */
 
 // ###################################################
@@ -35,5 +36,8 @@ void ReportLexicalError(MsgContext_t ctx, const char *code, const char *msg,
                         _Bool addContext);
 
 void ReportInternalError(const char *msg);
+
+void ReportSyntaxError(MsgContext_t ctx, const char *msg, const char *detail,
+                       _Bool addContext);
 
 #endif // IFJ26_ERROR_H
