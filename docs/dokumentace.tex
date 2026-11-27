@@ -1,4 +1,3 @@
-
 \documentclass[11pt,a4paper]{article}
 \usepackage[
   top=2.5cm,
@@ -72,6 +71,26 @@
   % stručný popis rozdělení práce mezi členy týmu (uveďte výčtem nebo několika
   % větami, kdo a jak se podílel na jednotlivých částech projektu; povinně
   % zdůvodněte odchylky od rovnoměrného rozdělení bodů);
+
+  Práca bola rozdelená na hlavných častiach prekladača, tj.
+
+  \begin{tabular}{lrl}
+    1. & \textbf{lexikálna analýza (lexer/scanner)} -- architekt(i): & Dedič~O (návrh stavového automatu), \\
+       &                                                          & Makuka~D. (implementácia) \\
+    2. & \textbf{syntaktická analýza (parser)}      -- architekt(i): & Sklenka~M. (prvotná gramatika), \\
+       &                                                             & Dedič~O. (implementácia) \\
+    3. & \textbf{sémantická analýza}                -- architekt(i): & Sklenka~M. \\
+    4. & \textbf{generátor kódu}                    -- architekt(i): & Blšták~R. \\
+  \end{tabular}
+
+  Podporné štruktúry boli rozdelené takto
+
+  \begin{tabular}{rrl}
+    1. & \textbf{unit test framework}          -- architekt(i): & Makuka~D. \\
+    2. & \textbf{tabuľka symbolov}             -- architekt(i): & Blšták~R. \\
+    3. & \textbf{logovanie a výpis chýb}       -- architekt(i): & Sklenka~M. \\
+    4. & \textbf{abstraktný syntaktický strom} -- architekt(i): & Dedič~O. \\
+  \end{tabular}
 
   \section{Spolupráca a kvalita kódu}
   % stručný popis způsobu spolupráce, kultury code review a schvalování PR (max.
@@ -648,6 +667,63 @@
 
   \subsection{Strom symbolov}
 
+  Modul \texttt{bin\_tree} (\texttt{src/bin\_tree.c},
+  \texttt{src/bin\_tree.h}) implementuje červeno-čierny vyhľadávací strom
+  \texttt{SymbolTree\_t}. Uzly sú uložené v rastúcom poli; pri naplnení
+  kapacity sa úložisko zväčší. Väzby medzi rodičom a potomkami sú indexy do
+  tohto poľa, takže presun poľa pri realokácii neporuší väzby. Prázdny
+  potomok alebo koreň je označený hodnotou \texttt{SIZE\_MAX}.
+
+  Verejná štruktúra \texttt{SymbolTree\_t} uchováva pole, jeho veľkosť a
+  kapacitu, index koreňa a voliteľný callback na uvoľnenie payloadov.
+  Implementačný uzol \texttt{SymbolTreeNode} je definovaný iba v súbore
+  \texttt{.c}; obsahuje hlavičku symbolu, farbu a indexy ľavého, pravého a
+  rodičovského uzla. Vyvažovacie operácie, rotácie a typy farby a smeru nie sú
+  súčasťou verejného API.
+
+  Vkladanie skopíruje identifikátor do vlastníctva stromu. Kapacita začína na
+  ôsmich uzloch a pri potrebe sa zdvojnásobuje. Po vložení sa vykonajú
+  prefarbenia a rotácie, ktoré obnovia vlastnosti červeno-čierneho stromu.
+  Vyhľadávanie porovnáva identifikátory funkciou \texttt{strcmp}. Cesta
+  vyhľadávania a vyvažovania má vďaka vlastnostiam stromu zložitosť
+  \texttt{O(log n)}; pri zväčšení poľa môže realokácia presunúť všetky uzly.
+  Duplicitné identifikátory sú povolené. \texttt{SymbolTreeSearch} vráti
+  jeden zodpovedajúci symbol, zatiaľ čo \texttt{SymbolTreeAt} umožňuje
+  prechádzať položky podľa indexu poľa; toto poradie nie je lexikografické.
+  \texttt{SymbolTreeFindAllIndices} vyhľadá všetky výskyty identifikátora a
+  vráti ich indexy ako jednosmerný spájaný zoznam. Zoznam sa vytvára
+  pridávaním na začiatok, preto sú indexy v opačnom poradí, než v akom sú
+  položky v poli. Volajúci musí zoznam uvoľniť funkciou
+  \texttt{SymbolTreeIndexListDestroy}. Funkcia vracia \texttt{true} aj v
+  prípade, že neexistuje zhoda; pri neplatnom argumente alebo chybe alokácie
+  vráti \texttt{false} a výstupný ukazovateľ nastaví na \texttt{NULL}.
+
+  Hlavička \texttt{SymbolHeader\_t} obsahuje identifikátor a používateľský
+  payload typu \texttt{void *}. \texttt{SymbolTreeInsertWithData} pri úspechu
+  preberá vlastníctvo payloadu; pri chybe ho ponecháva volajúcemu. Ak bol
+  strom inicializovaný cez \texttt{SymbolTreeInitWithDestructor}, callback
+  uvoľní payload pri zničení stromu alebo pri jeho bezpečnej náhrade cez
+  \texttt{SymbolTreeSetDataAt}. Bez callbacku strom uvoľňuje iba vlastné
+  identifikátory a úložisko.
+
+  \texttt{SymbolTreeSearchMutable} poskytuje modifikovateľnú hlavičku
+  nájdeného symbolu, napríklad na úpravu obsahu payloadu. Identifikátor sa
+  nesmie meniť, pretože je kľúčom stromu. Priradením nového ukazovateľa do
+  \texttt{data} sa jeho vlastníctvo prenáša na strom, ale pôvodný payload sa
+  tým neuvoľní. Pri nahradení existujúceho payloadu treba použiť
+  \texttt{SymbolTreeSetDataAt}, aby sa zavolal destructor pôvodného payloadu.
+  Verejné API momentálne neposkytuje odstránenie položky.
+
+  Diagnostická funkcia \texttt{SymbolTreeDebugPrint} vykreslí štruktúru a
+  farby uzlov. Možno ju volať vo všetkých zostaveniach bez podmieneného
+  \texttt{\#ifdef}; v debug zostavení zapisuje jednotlivé riadky cez
+  \texttt{DLOG\_TRACE} na \texttt{stderr}, zatiaľ čo v release zostavení
+  nerobí nič. Nezasahuje tak do štandardného výstupu programu.
+
+  \subsection{Logovanie debugovacích správ}
+
+  Modul \texttt{logger} poskytuje úrovňovaný debug výpis. Jeho makrá a výstup
+  sú aktívne iba v zostavení s \texttt{DEBUG}; správy zapisuje na \texttt{stderr}.
   \texttt{src/bin\_tree.h} poskytuje kompatibilné rozhranie
   \texttt{SymbolTree\_t}, kým všeobecnejšia tabuľka je deklarovaná v
   \texttt{src/symtable.h}. Obe rozhrania implementuje
@@ -760,6 +836,22 @@
   \textit{SourceSpan\_t} a \textit{IndentInfo\_t}.
 
 
+
+  \subsection{Výpis chybových hlásení prekladača}
+
+  Modul \texttt{messenger} poskytuje jednotný výpis chybových správ prekladača.
+  Snaží sa pri tom vypísať kontext zo zdrojového súboru a neobmedziť preklad.
+
+  \subsection{Parser Predprocesor}
+
+  Modul \texttt{parser\_preprocessor} implementuje predprocesor popísaný v
+  sekcii \ref{sec:predprocessor}.
+
+  \subsection{Sémantická Analýza}
+
+  Modul \texttt{semantics} implementuje funkciu, ktorá prejde AST programu
+  a určí, či je sémanticky správny v opačnom prípade vypisuje ,,spústu''
+  hlásení.
 
   % TODO: bibliography
   % bibliografické citace všech převzatých zdrojů (vč. kódu, algoritmů);
