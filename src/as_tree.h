@@ -91,6 +91,7 @@ struct ASTNode_t {
     char *string;      /* NODE_STRING   */
     long long intVal;  /* NODE_INT      */
     double dblVal;     /* NODE_DOUBLE   */
+    bool boolVal;      /* NODE_BOOLEN   */
     ASTList_t program; /* NODE_PROGRAM  */
     ASTList_t block;   /* NODE_BLOCK    */
 
