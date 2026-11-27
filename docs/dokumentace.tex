@@ -21,6 +21,7 @@
 \usepackage{adjustbox}
 
 \usepackage{amsmath}
+\usepackage{amssymb}
 
 \usepackage[utf8]{inputenc}
 \DeclareUnicodeCharacter{03B5}{\ensuremath{\varepsilon}}
@@ -155,6 +156,142 @@
   % diagram automatu, který specifikuje lexikální analyzátor (podle konvencí
   % přednášených v IFJ; s případným slovním popisem odchylek od standardního
   % modelu konečného automatu);
+  Lexikálna analýza je rozdelená na dve časti: \textbf{Lexer} a
+  \textbf{Layout Filter}. Časť Lexer má za úlohu premeniť sled znakov na tokeny.
+  LayoutFilter potom využíva súbor príznakov, aby rozhodol, ktoré tokeny
+  prepustiť, ktoré pohltiť, ktoré uchovať pre neskoršiu emisiu a ktoré
+  synteticky vytvoriť (viď podsekciu \ref{subsec:layoutf}). 
+  Pre toto rozdelenie sme sa rozhodli, pretože charakter
+  jazyka IFJ26c vyžaduje okrem "čistej" lexikálnej analýzy aj istý kontext,
+  t.j. fyzicky vygenerovaný token nemusí byť nutne v danom kontexte logický
+  (napr. zmena indentácie na prázdnom riadku, uzavretie otvorenej indentácie
+  pri znaku EOF atď.).
+
+  \subsection{Lexer}
+  \label{subsec:lexer}
+  %TODO: token overview?
+  Úlohou vrstvy Lexer je premena sledu znakov na tokeny.
+
+  Znak je najprv pomocou mapy \textit{ASCIIMap} mapovaný na tzv.
+  \textit{CharType}. 
+  To umožňuje zoskupiť rovnako sa
+  správajúce znaky v rámci istej logickej skupiny (napr. znak abecedy v rámci
+  abecedy) a redukovať tak počet nutných prechodov automatu. Dôležitou
+  nuanciou, ktorú nemožno opomenúť, je viacnásobný význam istých znakov v
+  rôznych kontextoch. Príkladom nech sú znaky \verb+"d/D"+ a \verb+"e/E"+, ktoré sa v
+  kontexte identifikátora alebo reťazcového literálu správajú ako písmená
+  abecedy, avšak ktoré majú špeciálny význam ako špecifikátor pre typ
+  \textit{double} a
+  jeho exponent respektívne. Nemožno ich teda zoskupiť spolu s ostatnými znakmi do
+  skupiny \textit{CharAlpha} (riešením je abstrakcia \textit{CHAR\_GROUP}).
+
+  \pagebreak
+
+  \begin{figure}[H]
+	  \centering
+  	  \includegraphics[width=\textwidth]{"img/lexer_fsm.pdf"}
+  	  \caption{Lexer FSM.}
+	  \label{fig:lex_fsm}
+  \end{figure}
+
+  \pagebreak
+
+  Samotný stavový automat (viď \ref{fig:lex_fsm}) je potom implementovaný tabuľkou prechodov.
+  Usporiadaná dvojica $[t, S_n]$, kde $t \in CharType$ a stav
+  $S_n \in Q; S_0 = STATE\_START$, je mapovaná mapou
+  \textit{TransitionTable} na nasledujúci stav
+  $S_{n+1} \in \mathbb{Q}$. Mapovanie znaku na \textit{CharType} a následne so súčasným
+  stavom na nasledujúci stav
+  zabezpečuje funkcia \textit{GetRawToken} (modul \textit{lexer.h}). Stav $S_{n}$ je potom koncový, ak
+  sa v tejto funkcii vyskytuje ako case v \textit{switch
+  statement} (okrem výnimiek, viď ďalej).
+
+  Najvýraznejšiu deviáciu od čistého, t.j. striktného stavového automatu predstavuje spracovanie
+  vnorených viacriadkových komentárov, keďže vyžaduje počítanie delimiterov \verb+"/*"+ resp.
+  \verb+"*/"+, čo konečný stavový automat nedokáže. Ak teda automat prečíta
+  lexému \verb+"/*"+, dostane sa do stavu \textit{STATE\_\allowbreak
+  BLOCK\_\allowbreak COMMENT}. Napriek tomu,
+  že sa nachádza vo \textit{switch}, nejedná sa o koncový stav. Namiesto toho sa
+  zavolá funckia \textit{SkipBlockComment}, ktorá ho preskočí, nastaví príznak
+  \textit{IsMultiline} a nahradí komentár medzerou alebo LF podľa toho, či bol blokový
+  komentár viacriadkový. 
+
+  Aj keď sa nejedná o koncový stav navonok, t.j. nad
+  vrstvou \textit{Layout Filter} (\textit{Lexer je podmnožina} \textit{Layout
+  Filter}), 
+  automat v prípade viacriadkového blokového komentára
+  emituje špeciálny interný token \textit{TOKEN\_\allowbreak EXPECT\_\allowbreak EOL}, ktorý
+  \textit{Layout Filter}
+  potrebuje na kontrolu, či sa na poslednom riadku komentára nenachádza token
+  (okrem \textit{TOKEN\_NEWLINE}). V prípade, že sa nevráti
+  \textit{TOKEN\_EXPECT\_EOL}, prevedie
+  sa skok na návestie \textit{RESET} a automat pokračuje (Poznámka: na prvý pohľad
+  paradoxné je, že sa nejedná o koncový stav a predsa sa vracia token. Riešenie
+  je, že navonok sa nepozná rozdiel, keďže \textit{Layout Filter} tento token pohltí a
+  vtom istom volaní funkcie \textit{GetNextToken} (viď ďalej) sa vráti buď
+  \textit{TOKEN\_NEWLINE} alebo \textit{TOKEN\_ERROR}).
+
+  Funckia \textit{ParseIdentifier} rozhoduje, či sa jedná o identifikátor, alebo
+  \textit{keyword}. Kľúčové slová sú najprv rozdelené na triedy podľa dĺžky.
+  Identifikátor, ktorý je teda kratší/dlhší môže byť rovno vyhodnotený. V rámci
+  jednotlivých tried dĺžok sa potom používa hľadanie v prefixovom strome,
+  implementovaným \textit{switch} nad ďalším znakom, pokým neexistuje jediný kandidát.
+  Zvyšok je vyhodnotený funckiou \textit{MatchKeywordSuffix}.
+
+  Ďalšiu odchýlku od čistého automatu predstavuje spracovanie indentácie,
+  kde je použitá funkcia \textit{MeasureIndent}.
+
+  Spracovanie medzier a jednoriadkových komentárov je prenechané funkciám
+  \textit{SkipWhitespace} a \textit{SkipLineComment}, v tomto poradí. Tu sa ale nejedná o limitáciu
+  konečného automatu, ktorý je plne schopný tieto lexémy spracovať. Dôvodom
+  tohto rozdelenia je optimalizácia - prečítané znaky sa ukladajú do dynamickej štruktúry
+  \textit{CharBuffer}. Keďže medzeri ani komentáre nemajú hlbší lexikálny význam, t.j.
+  nepredávajú sa ďalej ako tokeny, je zbytočné ich do \textit{CharBuffer} ukladať (čo
+  potenciálne vyžaduje, a v prípade dlhých komentárov je takmer garantované,
+  volanie funkcie \textit{realloc}). 
+
+  \subsection{Layout Filter}
+  \label{subsec:layoutf}
+  Vrstva \textit{Layout Filter} stojí medzi lexikálnym a syntaktickým analyzátorom,
+  avšak je stále súčasť lexikálnej analýzy. Jej jadro predstavuje funkcia
+  \textit{GetNextToken},
+  ktorá už vracia spracovaný token pre parser. Funckia volá funkciu
+  \textit{GetRawToken} (modul \textit{lexer.h}) a nastavuje svoje interné príznaky dovtedy, dokým nemôže vrátiť token.
+  %TODO: specify the flags?
+  \textit{Layout Filter} zabezpečuje:
+
+  \begin{enumerate}
+	  \item{Aktualizáciu štruktúry \textit{Indent Stack} pomocou funkcie
+		  \textit{UpdateIndentStack}.}
+	  \item{Emisiu tokenov \textit{TOKEN\_DEDENT} v počte určenom príznakom
+		  \textit{pendingDedents}.}
+	  \item{Emisiu tokenu \textit{TOKEN\_INDENT}.}
+	  \item{Spracúvanie interného tokenu \textit{TOKEN\_EXPECT\_EOL}.}
+	  \item{Spracúvanie tokenu \textit{TOKEN\_NEWLINE}, t.j. jeho emisiu na logickom
+		  riadku. \textit{TOKEN\_NEWLINE} je zároveň nositeľ informácie o
+		  indentácii, ktorá je tu spracovaná.}
+	  \item{Uzavretie všetkých otvorených indentácií pred emisiou
+		  \textit{TOKEN\_EOF}.}
+	  \item{Uloženie prichádzajúceho tokenu pre prioritnú emisiu tokenu
+		  \textit{TOKEN\_ERROR}}
+  \end{enumerate}
+
+  \subsection{Lexer pipeline}
+  Celú lexikálnu analýzu potom možno znázorniť:
+
+  \begin{figure}[H]
+	  \centering
+  	  \includegraphics[width=0.7\textwidth]{"img/lexer_pipeline.pdf"}
+  	  \caption{Pipeline lexikálnej analýzy.}
+	  \label{fig:lex_pip}
+  \end{figure}
+
+  \textit{GetRawToken} z vrstvy \textit{Lexer} opakovane získava znak zo zdrojového súboru, ktorý pomocou FSM mapuje na
+  \textit{CharType} a následne na nasledujúci stav. Ak je tento stav koncový, emituje sa
+  token. \textit{GetNextToken} z vrstvy \textit{Layout Filter} potom volá
+  funkciu \textit{GetRawToken} dovtedy,
+  kým nie je schopná emitovať token pre parser.
+
 
   \clearpage
   \section{Syntaktický analyzátor}
@@ -579,6 +716,43 @@
   Modul \texttt{as\_tree}, (\texttt{src/as\_tree.h, src/as\_tree.c}) 
   implementuje štruktúru, ktorá obsahuje typ uzla a \texttt{union} detí,
   alebo hodnôt literálov či identifikátorov.
+
+  \subsection{Char buffer}
+  Modul \texttt{char\_buf} (\texttt{src/char\_buf.c}, \texttt{src/char\_buf.h})
+  implementuje ADT \textit{Char Buffer}, nafukovacie pole, ukladajúce typ \textit{char}.
+  \textit{GetRawToken} doň zapisuje prečítané znaky.
+
+  \subsection{Error}
+  Modul \texttt{error} (\texttt{src/error.c}, \texttt{src/error.h}) definuje chybové
+  kódy a funkcie pre ich ohlasovanie pomocou \texttt{messenger.h}.
+
+  \subsection{Int stack}
+  Modul \texttt{int\_stack} (\texttt{src/int\_stack.c}, \texttt{src/int\_stack.h})
+  implementuje ADT \textit{Integer Stack}, zásobník typu \textit{int}.
+  \textit{Layout Filter} ho používa ako zásobník indentácie.
+
+  \subsection{Lexer}
+  Modul \texttt{lexer} (\texttt{src/lexer.c}, \texttt{src/lexer.h}) definuje
+  typ \textit{Lexer\_t} a
+  implementuje funkciu \textit{GetRawToken} a pomocné funckie pre spracovanie
+  lexém. Je priamou implementáciou stavového automatu.
+
+  \subsection{Lexer FSM}
+  Modul \texttt{lexer\_fsm} (\texttt{src/lexer\_fsm.h}) definuje typ
+  \textit{CharType\_t}, stavy automatu (typ \textit{Statei\_t}) a jeho
+  prechody.
+
+  \subsection{Layout Filter}
+  Modul \texttt{layout\_filter} (\texttt{src/layout\_filter.c},
+  \texttt{src/layout\_filter.h}) definuje typ \textit{LayoutFilter\_t} a
+  implementuje funkciu \textit{GetNextToken}.
+
+  \subsection{Token}
+  Modul \texttt{token} (\texttt{src/token.c}, \texttt{src/token.h}) definuje
+  typ \textit{Token\_t} a operácie nad ním. Ďalej definuje typy
+  \textit{SourceSpan\_t} a \textit{IndentInfo\_t}.
+
+
 
   % TODO: bibliography
   % bibliografické citace všech převzatých zdrojů (vč. kódu, algoritmů);
