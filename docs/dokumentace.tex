@@ -21,6 +21,7 @@
 \usepackage{adjustbox}
 
 \usepackage{amsmath}
+\usepackage{amssymb}
 
 \def\variant{vv-BVS}
 \def\repo{https://github.com/TekMike365/ifj26c.git}
@@ -153,8 +154,8 @@
   % diagram automatu, který specifikuje lexikální analyzátor (podle konvencí
   % přednášených v IFJ; s případným slovním popisem odchylek od standardního
   % modelu konečného automatu);
-  Lexikálna analýza je rozdelená na dve časti: \textb{Lexer} a
-  \textb{Layout Filter}. Časť Lexer má za úlohu premeniť sled znakov na tokeny.
+  Lexikálna analýza je rozdelená na dve časti: \textbf{Lexer} a
+  \textbf{Layout Filter}. Časť Lexer má za úlohu premeniť sled znakov na tokeny.
   LayoutFilter potom využíva súbor príznakov, aby rozhodol, ktoré tokeny
   prepustiť, ktoré pohltiť, ktoré uchovať pre neskoršiu emisiu a ktoré
   synteticky vytvoriť (viď podsekciu \ref{subsec:layoutf}). 
@@ -182,11 +183,22 @@
   jeho exponent respektívne. Nemožno ich teda zoskupiť spolu s ostatnými znakmi do
   skupiny \textit{CharAlpha} (riešením je abstrakcia \textit{CHAR\_GROUP}).
 
-  Samotný stavový automat je potom implementovaný tabuľkou prechodov.
-  Usporiadaná dvojica $[t, S_n]$, kde $t \in \mathb{CharType}$ a stav
-  $S_n \in \mathb{Q}, S_0 = STATE\_START$, je mapovaná mapou
+  \pagebreak
+
+  \begin{figure}[H]
+	  \centering
+  	  \includegraphics[width=\textwidth]{"img/lexer_fsm.pdf"}
+  	  \caption{Lexer FSM.}
+	  \label{fig:lex_fsm}
+  \end{figure}
+
+  \pagebreak
+
+  Samotný stavový automat (viď \ref{fig:lex_fsm}) je potom implementovaný tabuľkou prechodov.
+  Usporiadaná dvojica $[t, S_n]$, kde $t \in CharType$ a stav
+  $S_n \in Q; S_0 = STATE\_START$, je mapovaná mapou
   \textit{TransitionTable} na nasledujúci stav
-  $S_{n+1} \in \mathb{Q}$. Mapovanie znaku na \textit{CharType} a následne so súčasným
+  $S_{n+1} \in \mathbb{Q}$. Mapovanie znaku na \textit{CharType} a následne so súčasným
   stavom na nasledujúci stav
   zabezpečuje funkcia \textit{GetRawToken} (modul \textit{lexer.h}). Stav $S_{n}$ je potom koncový, ak
   sa v tejto funkcii vyskytuje ako case v \textit{switch
@@ -195,7 +207,8 @@
   Najvýraznejšiu deviáciu od čistého, t.j. striktného stavového automatu predstavuje spracovanie
   vnorených viacriadkových komentárov, keďže vyžaduje počítanie delimiterov \verb+"/*"+ resp.
   \verb+"*/"+, čo konečný stavový automat nedokáže. Ak teda automat prečíta
-  lexému \verb+"/*"+, dostane sa do stavu \textit{STATE\_BLOCK\_COMMENT}. Napriek tomu,
+  lexému \verb+"/*"+, dostane sa do stavu \textit{STATE\_\allowbreak
+  BLOCK\_\allowbreak COMMENT}. Napriek tomu,
   že sa nachádza vo \textit{switch}, nejedná sa o koncový stav. Namiesto toho sa
   zavolá funckia \textit{SkipBlockComment}, ktorá ho preskočí, nastaví príznak
   \textit{IsMultiline} a nahradí komentár medzerou alebo LF podľa toho, či bol blokový
@@ -205,7 +218,7 @@
   vrstvou \textit{Layout Filter} (\textit{Lexer je podmnožina} \textit{Layout
   Filter}), 
   automat v prípade viacriadkového blokového komentára
-  emituje špeciálny interný token \textit{TOKEN\_EXPECT\_EOL}, ktorý
+  emituje špeciálny interný token \textit{TOKEN\_\allowbreak EXPECT\_\allowbreak EOL}, ktorý
   \textit{Layout Filter}
   potrebuje na kontrolu, či sa na poslednom riadku komentára nenachádza token
   (okrem \textit{TOKEN\_NEWLINE}). V prípade, že sa nevráti
@@ -250,7 +263,7 @@
 		  \textit{UpdateIndentStack}.}
 	  \item{Emisiu tokenov \textit{TOKEN\_DEDENT} v počte určenom príznakom
 		  \textit{pendingDedents}.}
-	  \item{Emisiu tokenu \texti{TOKEN\_INDENT}.}
+	  \item{Emisiu tokenu \textit{TOKEN\_INDENT}.}
 	  \item{Spracúvanie interného tokenu \textit{TOKEN\_EXPECT\_EOL}.}
 	  \item{Spracúvanie tokenu \textit{TOKEN\_NEWLINE}, t.j. jeho emisiu na logickom
 		  riadku. \textit{TOKEN\_NEWLINE} je zároveň nositeľ informácie o
@@ -264,7 +277,7 @@
   \subsection{Lexer pipeline}
   Celú lexikálnu analýzu potom možno znázorniť:
 
-  \begin{figure}[htbp]
+  \begin{figure}[H]
 	  \centering
   	  \includegraphics[width=0.7\textwidth]{"img/lexer_pipeline.pdf"}
   	  \caption{Pipeline lexikálnej analýzy.}
