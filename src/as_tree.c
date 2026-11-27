@@ -363,8 +363,7 @@ static void ASTDumpNode(const ASTNode_t *node, const char *prefix,
     break;
 
   case NODE_INT:
-    LOG_NODE("INT %lld [type: %s]", (long long)node->intVal,
-             DataTypeToStr(node->type));
+    LOG_NODE("INT %lld [type: %s]", node->intVal, DataTypeToStr(node->type));
     break;
 
   case NODE_DOUBLE:

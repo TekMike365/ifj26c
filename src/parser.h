@@ -6,6 +6,7 @@
 
 #include "as_tree.h"
 #include "parser_preprocessor.h"
+#include "error.h"
 #include <string.h>
 
 // parser structure

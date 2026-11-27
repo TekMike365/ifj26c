@@ -60,7 +60,7 @@ ASTNode_t *Parse(ErrorCode_t *errOut) {
   if (errOut == NULL)
     return NULL;
 
-  Parser_t p;
+  Parser_t p = {0};
 
   if (!ParserInit(&p)) {
     *errOut = p.errorCode;
@@ -201,7 +201,7 @@ static bool ConsumeId(Parser_t *p, const char *name) {
   return true;
 }
 
-// temporary layoutfilter
+// of failure, return false and set error
 static bool ParserInit(Parser_t *p) {
   p->errorCode = ERROR_NOERR;
   p->pp = PPCreate();

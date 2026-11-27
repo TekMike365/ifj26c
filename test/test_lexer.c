@@ -26,49 +26,49 @@
 
 TESTFUNC(RecognizeIdentifier, "myVar", {
   Token_t next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_IDENTIFIER);
   TerminateToken(&next);
 })
 
 TESTFUNC(RecognizeKeyword, "for", {
   Token_t next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_KW_FOR);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_KW_FOR);
 })
 
 TESTFUNC(RecognizeInt, "12343", {
   Token_t next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_INT);
-  ASSERT_INT_EQ(next.lexemeI, 12343);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_INT);
+  ASSERT_INT_EQ(next.lexemeI, (long long)12343);
 })
 
 TESTFUNC(RecognizeIntUnderscore, "12_34_3", {
   Token_t next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_INT);
-  ASSERT_INT_EQ(next.lexemeI, 12343);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_INT);
+  ASSERT_INT_EQ(next.lexemeI, (long long)12343);
 })
 
 TESTFUNC(RecognizeEOF, "Int", {
   Token_t next = GetNextToken(filter);
   next = GetNextToken(filter);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_EOF);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_EOF);
 })
 
 TESTFUNC(RecognizeNewline, "i\n", {
   Token_t next = GetNextToken(filter);
   TerminateToken(&next);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_NEWLINE);
 })
 
 TESTFUNC(RecognizeIndent, "i\n  x\n", {
   Token_t next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_IDENTIFIER);
   TerminateToken(&next);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_NEWLINE);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_INDENT);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_INDENT);
   next = GetNextToken(filter); // 'x' is in stash, call once more to avoid
                                // mem leak
   TerminateToken(&next);
@@ -76,29 +76,29 @@ TESTFUNC(RecognizeIndent, "i\n  x\n", {
 
 TESTFUNC(RecognizeDedent, "i\n  x\n=", {
   Token_t next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_IDENTIFIER);
   TerminateToken(&next);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_NEWLINE);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_INDENT);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_INDENT);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_IDENTIFIER);
   TerminateToken(&next);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_NEWLINE);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_DEDENT);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_DEDENT);
 })
 
 TESTFUNC(RejectToken, "i /* helo\n s*/  x", {
   Token_t next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_IDENTIFIER);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_IDENTIFIER);
   TerminateToken(&next);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_NEWLINE);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_NEWLINE);
   next = GetNextToken(filter);
-  ASSERT_INT_EQ(next.type, TOKEN_ERROR);
+  ASSERT_INT_EQ((long long)next.type, (long long)TOKEN_ERROR);
   next = GetNextToken(filter);
   TerminateToken(&next);
 })

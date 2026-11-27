@@ -49,6 +49,18 @@ static ASTNode_t *CreateLeaf(Parser_t *p) {
     node->dblVal = p->current.lexemeD;
     return node;
 
+  case TOKEN_KW_BOOL_TRUE:
+    node->kind = NODE_BOOLEAN;
+    node->type = TYPE_BOOLEAN;
+    node->boolVal = true;
+    return node;
+
+  case TOKEN_KW_BOOL_FALSE:
+    node->kind = NODE_BOOLEAN;
+    node->type = TYPE_BOOLEAN;
+    node->boolVal = true;
+    return node;
+
   default:
     break;
   }
