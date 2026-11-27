@@ -603,13 +603,27 @@ RESET:
     break;
 
   case STATE_ERROR:
-
+  case STATE_INT_UNDERSCORE:
+  case STATE_START_EXPONENT:
+  case STATE_SIGN:
+  case STATE_EXPONENT_UNDERSCORE:
+  case STATE_START_DOUBLE:
+  case STATE_DOUBLE_UNDERSCORE:
+  case STATE_QUOTE:
+  case STATE_ESCAPE:
+  case STATE_STRING:
+  case STATE_MULTILINE_STR:
+  case STATE_END_QUOTE:
+  case STATE_END_DQUOTE:
     TokenSetError(ERROR_LEX, &new);
 
     ReportLexicalError(
         MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
                       .hlEndCol = new.pos.end, .poiCol = new.pos.end),
-        CharBufGetBuf(lexer->buf), "Unexpected character sequence.", 1);
+        CharBufGetBuf(lexer->buf),
+        current == STATE_ERROR ? "Unexpected character sequence."
+                               : "Incomplete character sequence.",
+        1);
 
     break;
 

@@ -11,8 +11,10 @@
 #include <stdlib.h>
 
 #define AST_LIST_FOREACH(list, epAST)                                          \
-  for (ASTNode_t *epAST = (list).items[0], **_epp_ = (list).items;             \
-       _epp_ != (list).items + (list).count; epAST = *(_epp_++))
+  for (ASTNode_t *epAST = NULL, **_epp_ = (list).items;                        \
+       (_epp_ != (list).items + (list).count ? (epAST = *_epp_, true)          \
+                                             : false);                         \
+       _epp_++)
 
 /* Node type, selects union members in node */
 typedef enum ASTKind_t {
@@ -41,17 +43,21 @@ typedef enum ASTKind_t {
   NODE_DOUBLE,
   NODE_STRING,
   NODE_UNIT,
+  NODE_BOOLEAN,
 } ASTKind_t;
 
 /* Data types */
 typedef enum DataType_t {
-  TYPE_NA = 0, /* Non applicable */
+  TYPE_UNKNOWN = 0,
+  TYPE_NA, /* Non applicable */
   TYPE_STRING,
   TYPE_DOUBLE,
   TYPE_INT,
   TYPE_UNIT,
   TYPE_BOOLEAN,
-  TYPE_UNKNOWN,
+
+  /* for builtin functions */
+  TYPE_ANY,
 } DataType_t;
 
 const char *DataTypeToStr(DataType_t type);
@@ -96,13 +102,13 @@ struct ASTNode_t {
   SourceSpan_t pos; /* Position in source code for error handling */
 
   union {
-    char *name;        /* NODE_ID          */
-    char *string;      /* NODE_STRING      */
-    long long intVal;  /* NODE_INT         */
-    double dblVal;     /* NODE_DOUBLE      */
-    ASTList_t program; /* NODE_PROGRAM     */
-    ASTList_t block;   /* NODE_BLOCK       */
+    char *name;        /* NODE_ID       */
+    char *string;      /* NODE_STRING   */
+    long long intVal;  /* NODE_INT      */
+    double dblVal;     /* NODE_DOUBLE   */
     ASTNode_t *value;  /* NODE_CONV_DOUBLE */
+    ASTList_t program; /* NODE_PROGRAM  */
+    ASTList_t block;   /* NODE_BLOCK    */
 
     /* NODE_FNDEF, declType may be unknown */
     struct {
