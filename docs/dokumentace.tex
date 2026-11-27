@@ -1,4 +1,3 @@
-
 \documentclass[11pt,a4paper]{article}
 \usepackage[
   top=2.5cm,
@@ -457,8 +456,26 @@
   \texttt{DLOG\_TRACE} na \texttt{stderr}, zatiaľ čo v release zostavení
   nerobí nič. Nezasahuje tak do štandardného výstupu programu.
 
+  \subsection{Logovanie debugovacích správ}
+
   Modul \texttt{logger} poskytuje úrovňovaný debug výpis. Jeho makrá a výstup
   sú aktívne iba v zostavení s \texttt{DEBUG}; správy zapisuje na \texttt{stderr}.
+
+  \subsection{Výpis chybových hlásení prekladača}
+
+  Modul \texttt{messenger} poskytuje jednotný výpis chybových správ prekladača.
+  Snaží sa pri tom vypísať kontext zo zdrojového súboru a neobmedziť preklad.
+
+  \subsection{Parser Predprocesor}
+
+  Modul \texttt{parser\_preprocessor} implementuje predprocesor popísaný v
+  sekcii \ref{sec:predprocessor}.
+
+  \subsection{Sémantická Analýza}
+
+  Modul \texttt{semantics} implementuje funkciu, ktorá prejde AST programu
+  a určí, či je sémanticky správny v opačnom prípade vypisuje ,,spústu''
+  hlásení.
 
   % TODO: bibliography
   % bibliografické citace všech převzatých zdrojů (vč. kódu, algoritmů);
