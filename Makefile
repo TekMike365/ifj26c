@@ -11,6 +11,7 @@ OBJDIR_TEST := $(OBJDIR)/test
 
 SRCDIR := src
 TESTDIR := test
+IFJCODE_INTERPRETER ?= ../ic26int-linux-x86_64 #change path to your interpreter if you want to test the pipeline
 
 # Target
 TARGET := ifj26c
@@ -52,6 +53,10 @@ build-tests: $(TEST_TARGETS)
 .PHONY: test
 test: build-tests
 	@for test in $(TEST_TARGETS); do ./$$test; done
+
+.PHONY: test-e2e
+test-e2e: $(TARGET)
+	IFJCODE_INTERPRETER="$(IFJCODE_INTERPRETER)" bash $(TESTDIR)/test_pipeline.sh
 
 
 # Target rules
