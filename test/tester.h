@@ -36,12 +36,12 @@ void PrintSummary(void);
     }                                                                          \
   } while (0)
 
-// assert that the integer val equals reference ref
+// assert that the long long val equals reference ref
 #define ASSERT_INT_EQ(val, ref)                                                \
   do {                                                                         \
     if ((val) != (ref)) {                                                      \
-      printf("[FAIL] %s, %d: Expected '%s' (%d) equal '%s' (%d)\n", __FILE__,  \
-             __LINE__, #val, (val), #ref, (ref));                              \
+      printf("[FAIL] %s, %d: Expected '%s' (%lld) equal '%s' (%lld)\n",        \
+             __FILE__, __LINE__, #val, (val), #ref, (ref));                    \
       g_currentFailed = 1;                                                     \
       return;                                                                  \
     }                                                                          \
