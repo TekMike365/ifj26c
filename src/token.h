@@ -101,7 +101,7 @@ typedef struct {
   SourceSpan_t pos; // position
   // attributes
   union {
-    int lexemeI;         // integer lexeme
+    long long lexemeI;   // integer lexeme
     double lexemeD;      // double lexeme
     char *lexemeS;       // string literal lexeme
     IndentInfo_t indent; // used by TOKEN_NEWLINE
