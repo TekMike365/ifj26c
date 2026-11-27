@@ -20,10 +20,14 @@
 \usepackage{adjustbox}
 
 \usepackage{amsmath}
+\usepackage{amssymb}
+
+\usepackage[utf8]{inputenc}
+\DeclareUnicodeCharacter{03B5}{\ensuremath{\varepsilon}}
 
 \def\variant{vv-BVS}
 \def\repo{https://github.com/TekMike365/ifj26c.git}
-\def\extensions{}
+\def\extensions{FUNEXP, BOOLTHEN, CONTROL}
 
 % custom commands
 \newcommand*\rid[1]{\begin{adjustbox}{angle=90}\texttt{#1}\end{adjustbox}}
@@ -168,10 +172,145 @@
   % komponenty předávají informace. Z diagramu a jeho textového popisu musí být
   % jasné vstupy, výstupy, význam komponent a jejich propojení;
 
-  \section{Lexikálny analyzátor}
   % diagram automatu, který specifikuje lexikální analyzátor (podle konvencí
   % přednášených v IFJ; s případným slovním popisem odchylek od standardního
   % modelu konečného automatu);
+  Lexikálna analýza je rozdelená na dve časti: \textbf{Lexer} a
+  \textbf{Layout Filter}. Časť Lexer má za úlohu premeniť sled znakov na tokeny.
+  LayoutFilter potom využíva súbor príznakov, aby rozhodol, ktoré tokeny
+  prepustiť, ktoré pohltiť, ktoré uchovať pre neskoršiu emisiu a ktoré
+  synteticky vytvoriť (viď podsekciu \ref{subsec:layoutf}). 
+  Pre toto rozdelenie sme sa rozhodli, pretože charakter
+  jazyka IFJ26c vyžaduje okrem "čistej" lexikálnej analýzy aj istý kontext,
+  t.j. fyzicky vygenerovaný token nemusí byť nutne v danom kontexte logický
+  (napr. zmena indentácie na prázdnom riadku, uzavretie otvorenej indentácie
+  pri znaku EOF atď.).
+
+  \subsection{Lexer}
+  \label{subsec:lexer}
+  %TODO: token overview?
+  Úlohou vrstvy Lexer je premena sledu znakov na tokeny.
+
+  Znak je najprv pomocou mapy \textit{ASCIIMap} mapovaný na tzv.
+  \textit{CharType}. 
+  To umožňuje zoskupiť rovnako sa
+  správajúce znaky v rámci istej logickej skupiny (napr. znak abecedy v rámci
+  abecedy) a redukovať tak počet nutných prechodov automatu. Dôležitou
+  nuanciou, ktorú nemožno opomenúť, je viacnásobný význam istých znakov v
+  rôznych kontextoch. Príkladom nech sú znaky \verb+"d/D"+ a \verb+"e/E"+, ktoré sa v
+  kontexte identifikátora alebo reťazcového literálu správajú ako písmená
+  abecedy, avšak ktoré majú špeciálny význam ako špecifikátor pre typ
+  \textit{double} a
+  jeho exponent respektívne. Nemožno ich teda zoskupiť spolu s ostatnými znakmi do
+  skupiny \textit{CharAlpha} (riešením je abstrakcia \textit{CHAR\_GROUP}).
+
+  \pagebreak
+
+  \begin{figure}[H]
+	  \centering
+  	  \includegraphics[width=\textwidth]{"img/lexer_fsm.pdf"}
+  	  \caption{Lexer FSM.}
+	  \label{fig:lex_fsm}
+  \end{figure}
+
+  \pagebreak
+
+  Samotný stavový automat (viď \ref{fig:lex_fsm}) je potom implementovaný tabuľkou prechodov.
+  Usporiadaná dvojica $[t, S_n]$, kde $t \in CharType$ a stav
+  $S_n \in Q; S_0 = STATE\_START$, je mapovaná mapou
+  \textit{TransitionTable} na nasledujúci stav
+  $S_{n+1} \in \mathbb{Q}$. Mapovanie znaku na \textit{CharType} a následne so súčasným
+  stavom na nasledujúci stav
+  zabezpečuje funkcia \textit{GetRawToken} (modul \textit{lexer.h}). Stav $S_{n}$ je potom koncový, ak
+  sa v tejto funkcii vyskytuje ako case v \textit{switch
+  statement} (okrem výnimiek, viď ďalej).
+
+  Najvýraznejšiu deviáciu od čistého, t.j. striktného stavového automatu predstavuje spracovanie
+  vnorených viacriadkových komentárov, keďže vyžaduje počítanie delimiterov \verb+"/*"+ resp.
+  \verb+"*/"+, čo konečný stavový automat nedokáže. Ak teda automat prečíta
+  lexému \verb+"/*"+, dostane sa do stavu \textit{STATE\_\allowbreak
+  BLOCK\_\allowbreak COMMENT}. Napriek tomu,
+  že sa nachádza vo \textit{switch}, nejedná sa o koncový stav. Namiesto toho sa
+  zavolá funckia \textit{SkipBlockComment}, ktorá ho preskočí, nastaví príznak
+  \textit{IsMultiline} a nahradí komentár medzerou alebo LF podľa toho, či bol blokový
+  komentár viacriadkový. 
+
+  Aj keď sa nejedná o koncový stav navonok, t.j. nad
+  vrstvou \textit{Layout Filter} (\textit{Lexer je podmnožina} \textit{Layout
+  Filter}), 
+  automat v prípade viacriadkového blokového komentára
+  emituje špeciálny interný token \textit{TOKEN\_\allowbreak EXPECT\_\allowbreak EOL}, ktorý
+  \textit{Layout Filter}
+  potrebuje na kontrolu, či sa na poslednom riadku komentára nenachádza token
+  (okrem \textit{TOKEN\_NEWLINE}). V prípade, že sa nevráti
+  \textit{TOKEN\_EXPECT\_EOL}, prevedie
+  sa skok na návestie \textit{RESET} a automat pokračuje (Poznámka: na prvý pohľad
+  paradoxné je, že sa nejedná o koncový stav a predsa sa vracia token. Riešenie
+  je, že navonok sa nepozná rozdiel, keďže \textit{Layout Filter} tento token pohltí a
+  vtom istom volaní funkcie \textit{GetNextToken} (viď ďalej) sa vráti buď
+  \textit{TOKEN\_NEWLINE} alebo \textit{TOKEN\_ERROR}).
+
+  Funckia \textit{ParseIdentifier} rozhoduje, či sa jedná o identifikátor, alebo
+  \textit{keyword}. Kľúčové slová sú najprv rozdelené na triedy podľa dĺžky.
+  Identifikátor, ktorý je teda kratší/dlhší môže byť rovno vyhodnotený. V rámci
+  jednotlivých tried dĺžok sa potom používa hľadanie v prefixovom strome,
+  implementovaným \textit{switch} nad ďalším znakom, pokým neexistuje jediný kandidát.
+  Zvyšok je vyhodnotený funckiou \textit{MatchKeywordSuffix}.
+
+  Ďalšiu odchýlku od čistého automatu predstavuje spracovanie indentácie,
+  kde je použitá funkcia \textit{MeasureIndent}.
+
+  Spracovanie medzier a jednoriadkových komentárov je prenechané funkciám
+  \textit{SkipWhitespace} a \textit{SkipLineComment}, v tomto poradí. Tu sa ale nejedná o limitáciu
+  konečného automatu, ktorý je plne schopný tieto lexémy spracovať. Dôvodom
+  tohto rozdelenia je optimalizácia - prečítané znaky sa ukladajú do dynamickej štruktúry
+  \textit{CharBuffer}. Keďže medzeri ani komentáre nemajú hlbší lexikálny význam, t.j.
+  nepredávajú sa ďalej ako tokeny, je zbytočné ich do \textit{CharBuffer} ukladať (čo
+  potenciálne vyžaduje, a v prípade dlhých komentárov je takmer garantované,
+  volanie funkcie \textit{realloc}). 
+
+  \subsection{Layout Filter}
+  \label{subsec:layoutf}
+  Vrstva \textit{Layout Filter} stojí medzi lexikálnym a syntaktickým analyzátorom,
+  avšak je stále súčasť lexikálnej analýzy. Jej jadro predstavuje funkcia
+  \textit{GetNextToken},
+  ktorá už vracia spracovaný token pre parser. Funckia volá funkciu
+  \textit{GetRawToken} (modul \textit{lexer.h}) a nastavuje svoje interné príznaky dovtedy, dokým nemôže vrátiť token.
+  %TODO: specify the flags?
+  \textit{Layout Filter} zabezpečuje:
+
+  \begin{enumerate}
+	  \item{Aktualizáciu štruktúry \textit{Indent Stack} pomocou funkcie
+		  \textit{UpdateIndentStack}.}
+	  \item{Emisiu tokenov \textit{TOKEN\_DEDENT} v počte určenom príznakom
+		  \textit{pendingDedents}.}
+	  \item{Emisiu tokenu \textit{TOKEN\_INDENT}.}
+	  \item{Spracúvanie interného tokenu \textit{TOKEN\_EXPECT\_EOL}.}
+	  \item{Spracúvanie tokenu \textit{TOKEN\_NEWLINE}, t.j. jeho emisiu na logickom
+		  riadku. \textit{TOKEN\_NEWLINE} je zároveň nositeľ informácie o
+		  indentácii, ktorá je tu spracovaná.}
+	  \item{Uzavretie všetkých otvorených indentácií pred emisiou
+		  \textit{TOKEN\_EOF}.}
+	  \item{Uloženie prichádzajúceho tokenu pre prioritnú emisiu tokenu
+		  \textit{TOKEN\_ERROR}}
+  \end{enumerate}
+
+  \subsection{Lexer pipeline}
+  Celú lexikálnu analýzu potom možno znázorniť:
+
+  \begin{figure}[H]
+	  \centering
+  	  \includegraphics[width=0.7\textwidth]{"img/lexer_pipeline.pdf"}
+  	  \caption{Pipeline lexikálnej analýzy.}
+	  \label{fig:lex_pip}
+  \end{figure}
+
+  \textit{GetRawToken} z vrstvy \textit{Lexer} opakovane získava znak zo zdrojového súboru, ktorý pomocou FSM mapuje na
+  \textit{CharType} a následne na nasledujúci stav. Ak je tento stav koncový, emituje sa
+  token. \textit{GetNextToken} z vrstvy \textit{Layout Filter} potom volá
+  funkciu \textit{GetRawToken} dovtedy,
+  kým nie je schopná emitovať token pre parser.
+
 
   \clearpage
   \section{Syntaktický analyzátor}
@@ -185,105 +324,185 @@
   \subsection{LL Gramatika}
 
   \begin{verbatim}
-    # <expr> a <cond> sú riešené precedenčnou SA
+    # <expr> je riešený precedenčnou SA
 
     ####### Root #######
     rt1: <root> :: <prolog> <prog>
 
     ####### Optional types #######
     ty1: <type?> :: : type
-    ty2: <type?> :: {}
+    ty2: <type?> :: ε
 
-    ex1: <expr?> :: <expr>
-    ex2: <expr?> :: {}
+    ix1: <if_or_expr?> :: <if_or_expr>
+    ix2: <if_or_expr?> :: ε
 
     ####### Program #######
     pg1: <prolog> :: import ifj26.* LF
 
     pr1: <prog> :: <main> <prog>
     pr2: <prog> :: <fndef> <prog>
-    pr3: <prog> :: {}
+    pr3: <prog> :: LF <prog>
+    pr4: <prog> :: ε
 
     ma1: <main>    :: @main <maindef>
+
     md1: <maindef> :: LF <fndef>
     md2: <maindef> :: <fndef>
 
     ####### Block & Statements #######
     bl1: <block> :: LF INDENT <stmnts> DEDENT
 
-    # ,,sc2'' a ,,sc3'' sú rozlíšené pozeraním sa o jeden token dopredu:
-    #   LF predict(<stmnt>) -> sc2
-    #   LF DEDENT           -> sc3
-    ss1: <stmnts>   :: <stmnt> <stmnts_c> LF
-    sc1: <stmnts_c> :: ; <stmnt> <stmnts_c>
-    sc2: <stmnts_c> :: LF <stmnt> <stmnts_c>
-    sc3: <stmnts_c> :: {}
+    bo1: <body> :: <assign>
+    bo2: <body> :: <ifelse>
+    bo3: <body> :: return <if_or_expr?>
+    bo4: <body> :: <block>
+    bo5: <body> :: <for>
+    bo6: <body> :: <while>
+    bo7: <body> :: <expr>
 
-    # ,,st1'' a ,,st3'' sú rozlíšené (v prípade, že obe začínajú ,,id'')
+    ss1: <stmnts> :: <stmnt> <stmnts_c>
+
+    # ,,sc1'' a ,,sc2'' sú rozlíšené pozeraním sa o jeden token dopredu:
+    #   predict(<stmnt>) -> sc1
+    #   DEDENT           -> sc2
+    #   LF               -> sc3
+    sc1: <stmnts_c> :: <stmnt> <stmnts_c>
+    sc2: <stmnts_c> :: ε
+    sc3: <stmnts_c> :: LF <stmnts_c>
+    
+    st1: <stmnt>  :: <basic> <basic_c>
+    st2: <stmnt>  :: <indented> 
+
+    bc1: <basic_c> :: ; <basic> <basic_c>
+    bc2: <basic_c> :: ε
+
+    # ,,bs1'' a ,,bs3'' sú rozlíšené v prípade, že obe začínajú ,,id''
     # pozeraním sa o jeden token dopredu:
-    #   id =             -> st1
-    #   id predict(expr) -> st3
-    st1: <stmnt> :: <assign>
-    st2: <stmnt> :: <vardef>
-    st3: <stmnt> :: <expr>
-    st4: <stmnt> :: <ifelse>
-    st5: <stmnt> :: <while>
-    st6: <stmnt> :: return <expr?>
+    #   id =               -> bs1
+    #   id predict(<expr>) -> bs3
+    bs1: <basic> :: <assign>
+    bs2: <basic> :: <vardef>
+    bs3: <basic> :: <expr>
+    bs4: <basic> :: return <if_or_expr?>
+
+    in1: <indented> :: <ifelse>
+    in2: <indented> :: <while>
+    in3: <indented> :: <for>
 
     ####### Statement types #######
-    vd1: <vardef> :: val id <type?> = <expr> LF
-    vd2: <vardef> :: var id <type?> = <expr> LF
+    vd1: <vardef> :: val id <type?> = <if_or_expr>
+    vd2: <vardef> :: var id <type?> = <if_or_expr>
 
-    as1: <assign> :: id = <expr> LF
+    as1: <assign> :: id = <if_or_expr>
 
     fd1: <fndef>  :: def id ( <params> ) <type?> = <fnbody>
-    fb1: <fnbody> :: <expr> LF
+
+    fb1: <fnbody> :: <if_or_expr>
     fb2: <fnbody> :: <block>
 
-    ie1: <ifelse> :: if <cond> then <block> else <block>
+    if1: <ifelse> :: if <expr> then <body> <else?>
 
-    wh1: <while> :: while <cond> do <block>
+    # ,,el1'' a ,,el2'' sú rozlíšené pozeraním sa o jeden token dopredu:
+    #  LF else   -> el1
+    #  LF        -> el2
+    el1: <else?> :: LF else <body>
+    el2: <else?> :: ε
+    el3: <else?> :: else <body>
+
+    wh1: <while> :: while <expr> do <body>
 
     ####### Params #######
     pa1: <param> :: id : type
 
-    ps1: <params>   :: <param> <params_c>
-    ps2: <params>   :: {}
+    ps1: <params> :: <param> <params_c>
+    ps2: <params> :: ε
+
     pc1: <params_c> :: , <param> <params_c>
-    pc2: <params_c> :: {}
+    pc2: <params_c> :: ε
+
+    ####### If Expression #######
+    ie1: <ifexpr> :: if <expr> then <expr_branch> <ifexpr_else>
+
+    eb1: <expr_branch> :: <if_or_expr>
+    eb2: <expr_branch> :: <block>
+
+    ee2: <ifexpr_else> :: else <expr_branch>    #ELSE
+    ee3: <ifexpr_else> :: LF else <expr_branch> #LF
+    
+    ix3: <if_or_expr> :: <expr>
+    ix4: <if_or_expr> :: <ifexpr>
+    
+    
+    ####### For Loop #######
+    fo1: <for> :: for <loop>
+
+    lp1: <loop> :: <gen> do <body>
+    lp2: <loop> :: LF INDENT <gen> <guards> 
+
+    ge1: <gen> :: id <- <expr> <gen_end>
+
+    ge2: <gen_end> :: to <expr> <step>
+    ge3: <gen_end> :: until <expr> <step>
+
+    sp1: <step> :: by <expr>
+    sp2: <step> :: ε
+    
+    gu1: <guards> :: LF <guard>
+
+    gu2: <guard> :: if <expr> <guards>
+    gu3: <guard> :: DEDENT do <body>
+
+
   \end{verbatim}
 
   \begin{table}[H]
     \centering
     \begin{adjustbox}{width=\textwidth}
-      \begin{tabular}{|r||c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+      \begin{tabular}{|r||c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
         \hline
-                         & \rid{id}   & \rid{LF}   & \rid{EOF} & \rid{import ifj26.*$\;$} & \rid{@main} & \id{;}   & \id{,}   & \id{:}   & \id{=}   & \id{+}   & \id{-}   & \id{)}   & \rid{var} & \rid{val} & \rid{def} & \rid{if} & \rid{while} & \rid{return}  \\ \hline
+                            & \rid{import ifj26.*$\;$} & \rid{@main} & \rid{def} & \rid{EOF} & \rid{LF}   & \rid{id}   & \rid{expr\_tok} & \rid{var} & \rid{val} & \rid{return} & \rid{if} & \rid{while} & \rid{for} & \rid{DEDENT} & \rid{else} & \id{;}   & \rid{to} & \rid{until} & \rid{do} & \rid{by} & \id{,}   & \id{:}   & \id{=}   & \id{)}   \\ \hline
         \hline
-        \id{<root>}      & \id{   }   & \id{   }   & \id{   }  & \id{rt1}                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<type?>}     & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{ty1} & \id{ty2} & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<expr?>}     & \id{ex1}   & \id{ex2}   & \id{ex2}  & \id{   }                 & \id{   }    & \id{ex2} & \id{   } & \id{   } & \id{   } & \id{ex1} & \id{ex1} & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<prolog>}    & \id{   }   & \id{   }   & \id{   }  & \id{pg1}                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<prog>}      & \id{   }   & \id{pr3}   & \id{pr3}  & \id{   }                 & \id{pr1}    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{pr2}  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<main>}      & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{ma1}    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<maindef>}   & \id{   }   & \id{md1}   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{md2}  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<block>}     & \id{   }   & \id{bl1}   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<stmnts>}    & \id{ss1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{ss1} & \id{ss1} & \id{   } & \id{ss1}  & \id{ss1}  & \id{   }  & \id{ss1} & \id{ss1}    & \id{ss1}      \\ \hline
-        \id{<stmnts\_c>} & \id{   }   & \id{sc2/3} & \id{   }  & \id{   }                 & \id{   }    & \id{sc1} & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<stmnt>}     & \id{st1/3} & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{st3} & \id{st3} & \id{   } & \id{st2}  & \id{st2}  & \id{   }  & \id{st4} & \id{st5}    & \id{st6}      \\ \hline
-        \id{<vardef>}    & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{vd2}  & \id{vd1}  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<assign>}    & \id{as1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<fndef>}     & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{fd1}  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<fnbody>}    & \id{fb1}   & \id{fb2}   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{fb1} & \id{fb1} & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<ifelse>}    & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{ie1} & \id{   }    & \id{   }      \\ \hline
-        \id{<while>}     & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{wh1}    & \id{   }      \\ \hline
-        \id{<param>}     & \id{pa1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<params>}    & \id{ps1}   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{ps2} & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
-        \id{<params\_c>} & \id{   }   & \id{   }   & \id{   }  & \id{   }                 & \id{   }    & \id{   } & \id{pc1} & \id{   } & \id{   } & \id{   } & \id{   } & \id{pc2} & \id{   }  & \id{   }  & \id{   }  & \id{   } & \id{   }    & \id{   }      \\ \hline
+        \hline
+        \id{<root>}          & \id{rt1}                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<prolog>}        & \id{pg1}                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<main>}          & \id{   }                 & \id{ma1}    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<prog>}          & \id{   }                 & \id{pr1}    & \id{pr2}  & \id{pr4}  & \id{pr3}   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<maindef>}       & \id{   }                 & \id{   }    & \id{md2}  & \id{   }  & \id{md1}   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<fndef>}         & \id{   }                 & \id{   }    & \id{fd1}  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<block>}         & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{bl1}   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<body>}          & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{bo4}   & \id{bo1/7} & \id{bo7}    & \id{   }  & \id{   }  & \id{bo3}     & \id{bo2} & \id{bo6}    & \id{bo5}  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<stmnts>}        & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{ss1}   & \id{ss1}    & \id{ss1}  & \id{ss1}  & \id{ss1}     & \id{ss1} & \id{ss1}    & \id{ss1}  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<stmnts\_c>}     & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{sc3}   & \id{sc1}   & \id{sc1}    & \id{sc1}  & \id{sc1}  & \id{sc1}     & \id{sc1} & \id{sc1}    & \id{sc1}  & \id{sc2}     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<stmnt>}         & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{st1}   & \id{st1}    & \id{st1}  & \id{st1}  & \id{st1}     & \id{st2} & \id{st2}    & \id{st2}  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<basic>}         & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{bs1/3} & \id{bs3}    & \id{bs2}  & \id{bs2}  & \id{bs4}     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<basic\_c>}      & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{bc2}   & \id{bc2}   & \id{bc2}    & \id{bc2}  & \id{bc2}  & \id{bc2}     & \id{bc2} & \id{bc2}    & \id{bc2}  & \id{bc2}     & \id{   }   & \id{bc1} & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<indented>}      & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{in1} & \id{in2}    & \id{in3}  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<assign>}        & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{as1}   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<vardef>}        & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{vd2}  & \id{vd1}  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<while>}         & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{wh1}    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<for>}           & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{fo1}  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<loop>}          & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{lp2}   & \id{lp1}   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<gen>}           & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{ge1}   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<gen\_end>}      & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{ge2} & \id{ge3}    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<step>}          & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{sp2}   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{sp2} & \id{sp1} & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<guards>}        & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{gu1}   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<guard>}         & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{gu2} & \id{   }    & \id{   }  & \id{gu3}     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<else?>}         & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{el1/2} & \id{el2}   & \id{el2}    & \id{el2}  & \id{el2}  & \id{el2}     & \id{el2} & \id{el2}    & \id{el2}  & \id{el2}     & \id{el3}   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<ifelse>}        & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{if1} & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<ifexpr>}        & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{ie1} & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<ifexpr\_else>}  & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{ee3}   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{ee2}   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<expr\_branch>}  & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{eb2}   & \id{eb1}   & \id{eb1}    & \id{   }  & \id{   }  & \id{   }     & \id{eb1} & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<if\_or\_expr?>} & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{ix2}   & \id{ix1}   & \id{ix1}    & \id{ix2}  & \id{ix2}  & \id{ix2}     & \id{ix1} & \id{ix2}    & \id{ix2}  & \id{ix2}     & \id{ix2}   & \id{ix2} & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<if\_or\_expr>}  & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{ix3}   & \id{ix3}    & \id{   }  & \id{   }  & \id{   }     & \id{ix4} & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<fnbody>}        & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{fb2}   & \id{fb1}   & \id{fb1}    & \id{   }  & \id{   }  & \id{   }     & \id{fb1} & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<param>}         & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{pa1}   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } \\ \hline
+        \id{<params>}        & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{ps1}   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{   } & \id{   } & \id{ps2} \\ \hline
+        \id{<params\_c>}     & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{pc1} & \id{   } & \id{   } & \id{pc2} \\ \hline
+        \id{<type?>}         & \id{   }                 & \id{   }    & \id{   }  & \id{   }  & \id{   }   & \id{   }   & \id{   }    & \id{   }  & \id{   }  & \id{   }     & \id{   } & \id{   }    & \id{   }  & \id{   }     & \id{   }   & \id{   } & \id{   } & \id{   }    & \id{   } & \id{   } & \id{   } & \id{ty1} & \id{ty2} & \id{   } \\ \hline
       \end{tabular}
     \end{adjustbox}
-    \caption{LL tabuľka.}
-  \end{table}
+  \caption[LL tabuľka.]{LL tabuľka. Stĺpec \id{expr\_tok} zastupuje terminály, ktoré sa odovzdávaju precedenčnej syntaktickej analýze (literály, \id{(} a unárne operátory \id{!}, \id{+}, \id{-}).}
+\end{table}
 
   \subsection{Precedenčná syntaktická analýza}
 
@@ -293,10 +512,13 @@
       \hline
       Priorita & Operátor     & Asociativita \\ \hline
              1 & unárne +, -  & pravá        \\ \hline
+             2 & !            & pravá        \\ \hline
              2 & *, /         & ľavá         \\ \hline
              3 & +, -         & ľavá         \\ \hline
              4 & <, <=, >, >= & žiadna       \\ \hline
              5 & ==, !=       & žiadna       \\ \hline
+             6 & \&\&         & ľavá         \\ \hline
+             7 & ||           & ľavá         \\ \hline
     \end{tabular}
     \caption{priority operátorov od 1 (najvyššia).}
   \end{table}
@@ -325,52 +547,59 @@
     <expr> :: <expr> + <expr>
     <expr> :: <expr> - <expr>
 
-    ####### Conditions #######
-    <cond> :: <expr> < <expr>
-    <cond> :: <expr> <= <expr>
-    <cond> :: <expr> > <expr>
-    <cond> :: <expr> >= <expr>
+    ####### expritions #######
+    <expr> :: <expr> < <expr>
+    <expr> :: <expr> <= <expr>
+    <expr> :: <expr> > <expr>
+    <expr> :: <expr> >= <expr>
+    
+    <expr> :: <expr> && <expr>
+    <expr> :: ! <expr>
 
-    <cond> :: <expr> == <expr>
-    <cond> :: <expr> != <expr>
+    <expr> :: <expr> == <expr>
+    <expr> :: <expr> != <expr>
 
     ####### Function call #######
     <fncall> :: id ( <args> )
     <args>   :: <expr> <args_c>
-    <args>   :: {}
+    <args>   :: ε
     <args_c> :: , <expr> <args_c>
-    <args_c> :: {}
+    <args_c> :: ε
   \end{verbatim}
 
   \begin{table}[H]
     \centering
-    \begin{tabular}{|r||c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+    \begin{tabular}{|r||c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|c|}
       \hline
-               & \id{id} & \id{val} & \id{,} & \id{u+} & \id{u-} & \id{(} & \id{)} & \id{*} & \id{/} & \id{+} & \id{-} & \id{<} & \id{<=} & \id{>} & \id{>=} & \id{==} & \id{!=} & \id{\$} \\ \hline
+               & \id{id} & \id{val} & \id{,} & \id{u+} & \id{u-} & \id{(} & \id{)} & \id{*} & \id{/} & \id{+} & \id{-} & \id{<} & \id{<=} & \id{>} & \id{>=} & \id{==} & \id{!=} & \id{!} & \id{\&\&} & \id{||} & \id{\$} \\ \hline
       \hline
-      \id{id}  & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{=} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{val} & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{ } & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{,}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{u+}  & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{u-}  & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{(}   & \id{<}  & \id{<}   & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{=} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
-      \id{)}   & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{ } & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{id}  & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{=} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{ } & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{val} & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{ } & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{ } & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{,}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{ } & \id{ } & \id{ } & \id{>}  \\ \hline
+      \id{u+}  & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{u-}  & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{(}   & \id{<}  & \id{<}   & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{=} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{<} & \id{<} & \id{<} & \id{ }  \\ \hline
+      \id{)}   & \id{ }  & \id{ }   & \id{>} & \id{ }  & \id{ }  & \id{ } & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{ } & \id{>} & \id{>} & \id{>}  \\ \hline
 
-      \id{*}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{/}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{*}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{/}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
 
-      \id{+}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
-      \id{-}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{>}  \\ \hline
+      \id{+}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{-}   & \id{<}  & \id{<}   & \id{>} & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
 
-      \id{<}   & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{<=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{>}   & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{>=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
+      \id{<}   & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{<=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{>}   & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{>=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
 
-      \id{==}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-      \id{!=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{ } & \id{ }  & \id{ } & \id{ }  & \id{ }  & \id{ }  & \id{>}  \\ \hline
-
-      \id{\$}  & \id{<}  & \id{<}   & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{ } & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{ }  \\ \hline
+      \id{==}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{ }  & \id{ }  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{!=}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{ }  & \id{ }  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      
+      \id{!}   & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>} & \id{>}  & \id{>} & \id{>}  & \id{>}  & \id{>}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{\&\&} & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{>} & \id{>}  \\ \hline
+      \id{||}  & \id{<}  & \id{<}   & \id{ } & \id{<}  & \id{<}  & \id{<} & \id{>} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{<} & \id{<} & \id{>} & \id{>}  \\ \hline
+      
+      \id{\$}  & \id{<}  & \id{<}   & \id{<} & \id{<}  & \id{<}  & \id{<} & \id{ } & \id{<} & \id{<} & \id{<} & \id{<} & \id{<} & \id{<}  & \id{<} & \id{<}  & \id{<}  & \id{<}  & \id{<} & \id{<} & \id{<} & \id{ }  \\ \hline
     \end{tabular}
     \caption{precedenčná tabuľka.}
   \end{table}
@@ -421,6 +650,15 @@
   \end{table}
 
   \section{Moduly}
+  \subsection{Riadenie prekladu}
+
+  Funkcia \texttt{main} v \texttt{src/main.c} postupne inicializuje
+  spracovanie správ, parsuje vstup, sémanticky skontroluje AST a až potom
+  generuje IFJcode26 na \texttt{stdout}. Kontroluje návratové chyby aj zápis
+  výstupu, pri ukončení uvoľní vytvorený AST a ukončí modul správ. Chyby
+  parsovania zachováva, sémantické chyby mapuje na \texttt{ERROR\_SEM\_OTHER}
+  a chyby pamäte alebo generovania na \texttt{ERROR\_INTERNAL}.
+
   \subsection{Strom symbolov}
 
   Modul \texttt{bin\_tree} (\texttt{src/bin\_tree.c},
@@ -480,6 +718,117 @@
 
   Modul \texttt{logger} poskytuje úrovňovaný debug výpis. Jeho makrá a výstup
   sú aktívne iba v zostavení s \texttt{DEBUG}; správy zapisuje na \texttt{stderr}.
+  \texttt{src/bin\_tree.h} poskytuje kompatibilné rozhranie
+  \texttt{SymbolTree\_t}, kým všeobecnejšia tabuľka je deklarovaná v
+  \texttt{src/symtable.h}. Obe rozhrania implementuje
+  \texttt{src/symtable.c}, ktorý sémantická analýza používa na evidenciu
+  funkcií a premenných.
+
+  Strom je červeno-čierny a uzly ukladá do dynamického poľa. Väzby medzi
+  uzlami používajú indexy, takže realokácia nevyžaduje ich opravu. Naopak,
+  ukazovatele na prvky vrátené rozhraním sú vypožičané a môžu sa po vložení,
+  ktoré realokuje pole, zneplatniť. Kapacita poľa sa začína na ôsmich uzloch
+  a zdvojnásobuje sa. Vyhľadanie jednej zhody a vyvažovanie vkladania majú
+  zložitosť \texttt{O(log n)}, kým získanie všetkých zhôd prehľadáva celé
+  pole v čase \texttt{O(n)}. Samotná realokácia môže tiež trvať
+  \texttt{O(n)}.
+
+  Identifikátory sa kopírujú a po úspešnom vložení tabuľka preberá vlastníctvo
+  hodnôt.
+  Duplicitné kľúče sú povolené a jednoduché vyhľadanie pri nich neurčuje,
+  ktorú zhodu vráti. Voliteľný callback uvoľňuje hodnoty pri zničení tabuľky
+  alebo pri ich nahradení. Zoznam zhôd uvoľňuje volajúci, nie však hodnoty,
+  na ktoré odkazuje.
+
+  \subsection{Generovanie IFJcode26}
+
+  \texttt{IFJCode26Generate} v \texttt{src/ifjcode26.h} prijíma AST programu
+  a výstupný prúd. Generátor v súbore\\ \texttt{src/ifjcode26.c} overí jeho štruktúru vrátane práve jednej bezparametrickej funkcie \texttt{@main}.
+  Pri chybe vráti \texttt{false}, pričom výstup môže byť neúplný.
+
+  Výrazy vyhodnocuje pomocou zásobníka IFJcode26. Operátory odoberajú
+  operandy zo zásobníka a ukladajú naň výsledok, takže vnorené výrazy možno
+  generovať priamo rekurzívnym prechodom AST. Lokálne premenné a parametre
+  majú očíslované miesta v rámci funkcie (\texttt{LF@vN} a
+  \texttt{LF@argN}). Každá deklarácia lokálnej premennej dostane vlastné
+  miesto. Vyhľadávanie mien uprednostňuje najnovšiu aktívnu väzbu, čo
+  zabezpečuje tienenie v blokoch. Generátor tiež vytvára návestia pre riadenie
+  toku, escapuje reťazce a emituje podporované výrazy, príkazy a volania
+  funkcií.
+
+  \subsection{Parser}
+  Modul \texttt{parser}, (\texttt{src\/parser.h}, 
+  \texttt{src\/parser\_internal.c}, \texttt{src\/parser.c}) implementuje
+  analýzu zhora dole a vytváranie abstraktného syntaktického stromu. Využíva
+  rekurzívny zostup a funkcie kopírujú pravidlá pre neterminály spísané v 
+  gramatike. Od gramatiky sa líši v drobných zmenách ako napríklad funkcia
+  \texttt{ParseProg} alebo \texttt{ParseStatements} ktoré namiesto rekurzie 
+  prechádzajú programom v cykle. Ďaľším spomenuteľným odklonením od gramatiky je 
+  pozeranie sa na predcházdajúci token vo funkcii \texttt{ParseStatements}, čím 
+  zjednodušuje vyhodnocovanie zložitejších výrazov s odsadením.
+
+  \subsection{Precedenčná syntaktická analýza}
+  Modul \texttt{expression}, (\texttt{src/expression.c}) implementuje 
+  \texttt{parser} zdola hore pre výrazy a volania funkcií. Pracuje nad 
+  precedenčnou tabuľkou a využíva zásobník. Pri použití redukčných pravidiel sa 
+  uzly \texttt{AST} redukovaných prvokv na zásobníku spájajú podľa príslušného 
+  pravidla a ich výsledný koreň sa vloží do novovytvoreného neterminálu.
+
+  \subsection{Tabuľka pre precedenčnú SA}
+  Modul \texttt{psa\_table}, (\texttt{src/psa\_table.h}, \texttt{src/psa\_table.c})
+  implementuje precedenčnú tabuľku pomocou \texttt{2D} poľa znakov a ponúka
+  funkciu pre prevod typu tokenu na typ \texttt{PTSym\_t} používaný v precedenčnej
+  tabuľke a funkciu na prevod typu symbolu na typ \texttt{OpType\_t}.
+
+  \subsection{Zásobník pre precedenčnú SA}
+  Modul \texttt{psa\_stack}, (\texttt{src/psa\_stack.c}, \texttt{src/psa\_stack.h})
+  implementuje zásobník pomocou dynamicky alokovaného jednosmerne viazaného
+  zoznamu. Okrem vkladania na vrch možnuje vkladanie zarážky \id{'<'} za 
+  najvrchnejší terminál a vrátenie hodnoty najvrchnejšieho teminálu. Prvok
+  zásobníku obsahuje symbol ktorý ho reprezentuje a uzol abstraktného
+  syntaktického stromu.
+
+  \subsection{Abstraktný syntaktický strom}
+  Modul \texttt{as\_tree}, (\texttt{src/as\_tree.h, src/as\_tree.c}) 
+  implementuje štruktúru, ktorá obsahuje typ uzla a \texttt{union} detí,
+  alebo hodnôt literálov či identifikátorov.
+
+  \subsection{Char buffer}
+  Modul \texttt{char\_buf} (\texttt{src/char\_buf.c}, \texttt{src/char\_buf.h})
+  implementuje ADT \textit{Char Buffer}, nafukovacie pole, ukladajúce typ \textit{char}.
+  \textit{GetRawToken} doň zapisuje prečítané znaky.
+
+  \subsection{Error}
+  Modul \texttt{error} (\texttt{src/error.c}, \texttt{src/error.h}) definuje chybové
+  kódy a funkcie pre ich ohlasovanie pomocou \texttt{messenger.h}.
+
+  \subsection{Int stack}
+  Modul \texttt{int\_stack} (\texttt{src/int\_stack.c}, \texttt{src/int\_stack.h})
+  implementuje ADT \textit{Integer Stack}, zásobník typu \textit{int}.
+  \textit{Layout Filter} ho používa ako zásobník indentácie.
+
+  \subsection{Lexer}
+  Modul \texttt{lexer} (\texttt{src/lexer.c}, \texttt{src/lexer.h}) definuje
+  typ \textit{Lexer\_t} a
+  implementuje funkciu \textit{GetRawToken} a pomocné funckie pre spracovanie
+  lexém. Je priamou implementáciou stavového automatu.
+
+  \subsection{Lexer FSM}
+  Modul \texttt{lexer\_fsm} (\texttt{src/lexer\_fsm.h}) definuje typ
+  \textit{CharType\_t}, stavy automatu (typ \textit{Statei\_t}) a jeho
+  prechody.
+
+  \subsection{Layout Filter}
+  Modul \texttt{layout\_filter} (\texttt{src/layout\_filter.c},
+  \texttt{src/layout\_filter.h}) definuje typ \textit{LayoutFilter\_t} a
+  implementuje funkciu \textit{GetNextToken}.
+
+  \subsection{Token}
+  Modul \texttt{token} (\texttt{src/token.c}, \texttt{src/token.h}) definuje
+  typ \textit{Token\_t} a operácie nad ním. Ďalej definuje typy
+  \textit{SourceSpan\_t} a \textit{IndentInfo\_t}.
+
+
 
   \subsection{Výpis chybových hlásení prekladača}
 
@@ -502,5 +851,13 @@
 
   \section{Využitie AI}
   % popis využití prostředků AI (viz sekci 4 v zadaní).
+  Pred začiatkom projektu sme sa dohodli, že používanie AI obmedzíme na 
+  \texttt{DEBUG} účely a implementáciu úsekov kódu, ktorým rozumieme a sú 
+  triviálne. AI bolo konkrétne využité pri:
 
+   - generácia funkcie, 
+  ktorá vypíše abstraktný syntaktický strom na výstup pre \texttt{DEBUG} 
+  kódu 
+
+  - prevod PSA tabuľky z tabuľkového formátu do 2D poľa v \texttt{C}.
 \end{document}
