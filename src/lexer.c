@@ -78,7 +78,7 @@ static TokenType_t ParseIdentifier(const char *str) {
     case 'b':
       // match the rest with "y" as in "by"
       //                    rest has len 1 ---+
-      //                    		      |
+      //                                      |
       //                                      v
       return MatchKeywordSuffix(str + 1, "y", 1, TOKEN_KW_BY); // 'by'
     case 'd':
@@ -132,16 +132,13 @@ static TokenType_t ParseIdentifier(const char *str) {
       case 'y':
         return MatchKeywordSuffix(str + 2, "pe", 2,
                                   TOKEN_KW_TYPE); // 'type'
-
-      default:
-        return TOKEN_IDENTIFIER;
       }
+      break;
     case 'U':
       return MatchKeywordSuffix(str + 1, "nit", 3,
                                 TOKEN_KW_UNIT); // 'Unit'
     }
     break;
-
   case 5:
     switch (str[0]) {
     case 'c':
@@ -215,13 +212,13 @@ static inline int GetNextChar(Lexer_t *lexer) {
   return c;
 }
 
-/* Converts a string [+- ][0-9_]* into a decimal int
+/* Converts a string [+- ][0-9_]* into a decimal long long
  * !!! DESTRUCTIVE -- overwrites '_' (i.e. 1_2_34->1234)
  * nptr - pointer to the start of the number string
  * end - (may be NULL) pointer to the last read char
  * return - converted int
  */
-static int StrToInt(char *restrict nptr, char **restrict end) {
+static int StrToLL(char *restrict nptr, char **restrict end) {
   assert(nptr != NULL);
 
   size_t len = strlen(nptr);
@@ -233,7 +230,7 @@ static int StrToInt(char *restrict nptr, char **restrict end) {
   }
   *c = '\0';
 
-  return strtol(nptr, end, 10);
+  return strtoll(nptr, end, 10);
 }
 
 /* Converts a string of double into a decimal int
@@ -435,7 +432,8 @@ RESET:
     // STATE_START goes to STATE_ERROR
     // this case shouldn`t occurr
   case STATE_START:
-    new.type = TOKEN_ERROR;
+    TokenSetError(ERROR_INTERNAL, &new);
+
     ReportInternalError("Lexer terminated without reading characters.");
     break;
 
@@ -550,7 +548,7 @@ RESET:
 
   case STATE_INT:
     new.type = TOKEN_INT;
-    new.lexemeI = StrToInt(CharBufGetBuf(lexer->buf), NULL);
+    new.lexemeI = StrToLL(CharBufGetBuf(lexer->buf), NULL);
     break;
 
   case STATE_DOUBLE:
@@ -606,7 +604,7 @@ RESET:
 
   case STATE_ERROR:
 
-    new.type = TOKEN_ERROR;
+    TokenSetError(ERROR_LEX, &new);
 
     ReportLexicalError(
         MSG_CONTEXT_T(.lineNum = new.pos.line, .hlStartCol = new.pos.start,
@@ -616,7 +614,7 @@ RESET:
     break;
 
   default:
-    new.type = TOKEN_ERROR;
+    TokenSetError(ERROR_INTERNAL, &new);
 
     ReportInternalError("Unknown lexer state.");
     break;
