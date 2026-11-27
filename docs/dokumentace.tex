@@ -667,58 +667,27 @@
 
   \subsection{Strom symbolov}
 
-  Modul \texttt{bin\_tree} (\texttt{src/bin\_tree.c},
-  \texttt{src/bin\_tree.h}) implementuje červeno-čierny vyhľadávací strom
-  \texttt{SymbolTree\_t}. Uzly sú uložené v rastúcom poli; pri naplnení
-  kapacity sa úložisko zväčší. Väzby medzi rodičom a potomkami sú indexy do
-  tohto poľa, takže presun poľa pri realokácii neporuší väzby. Prázdny
-  potomok alebo koreň je označený hodnotou \texttt{SIZE\_MAX}.
+  \texttt{src/bin\_tree.h} poskytuje kompatibilné rozhranie
+  \texttt{SymbolTree\_t}, kým všeobecnejšia tabuľka je deklarovaná v
+  \texttt{src/symtable.h}. Obe rozhrania implementuje
+  \texttt{src/symtable.c}, ktorý sémantická analýza používa na evidenciu
+  funkcií a premenných.
 
-  Verejná štruktúra \texttt{SymbolTree\_t} uchováva pole, jeho veľkosť a
-  kapacitu, index koreňa a voliteľný callback na uvoľnenie payloadov.
-  Implementačný uzol \texttt{SymbolTreeNode} je definovaný iba v súbore
-  \texttt{.c}; obsahuje hlavičku symbolu, farbu a indexy ľavého, pravého a
-  rodičovského uzla. Vyvažovacie operácie, rotácie a typy farby a smeru nie sú
-  súčasťou verejného API.
+  Strom je červeno-čierny a uzly ukladá do dynamického poľa. Väzby medzi
+  uzlami používajú indexy, takže realokácia nevyžaduje ich opravu. Naopak,
+  ukazovatele na prvky vrátené rozhraním sú vypožičané a môžu sa po vložení,
+  ktoré realokuje pole, zneplatniť. Kapacita poľa sa začína na ôsmich uzloch
+  a zdvojnásobuje sa. Vyhľadanie jednej zhody a vyvažovanie vkladania majú
+  zložitosť \texttt{O(log n)}, kým získanie všetkých zhôd prehľadáva celé
+  pole v čase \texttt{O(n)}. Samotná realokácia môže tiež trvať
+  \texttt{O(n)}.
 
-  Vkladanie skopíruje identifikátor do vlastníctva stromu. Kapacita začína na
-  ôsmich uzloch a pri potrebe sa zdvojnásobuje. Po vložení sa vykonajú
-  prefarbenia a rotácie, ktoré obnovia vlastnosti červeno-čierneho stromu.
-  Vyhľadávanie porovnáva identifikátory funkciou \texttt{strcmp}. Cesta
-  vyhľadávania a vyvažovania má vďaka vlastnostiam stromu zložitosť
-  \texttt{O(log n)}; pri zväčšení poľa môže realokácia presunúť všetky uzly.
-  Duplicitné identifikátory sú povolené. \texttt{SymbolTreeSearch} vráti
-  jeden zodpovedajúci symbol, zatiaľ čo \texttt{SymbolTreeAt} umožňuje
-  prechádzať položky podľa indexu poľa; toto poradie nie je lexikografické.
-  \texttt{SymbolTreeFindAllIndices} vyhľadá všetky výskyty identifikátora a
-  vráti ich indexy ako jednosmerný spájaný zoznam. Zoznam sa vytvára
-  pridávaním na začiatok, preto sú indexy v opačnom poradí, než v akom sú
-  položky v poli. Volajúci musí zoznam uvoľniť funkciou
-  \texttt{SymbolTreeIndexListDestroy}. Funkcia vracia \texttt{true} aj v
-  prípade, že neexistuje zhoda; pri neplatnom argumente alebo chybe alokácie
-  vráti \texttt{false} a výstupný ukazovateľ nastaví na \texttt{NULL}.
-
-  Hlavička \texttt{SymbolHeader\_t} obsahuje identifikátor a používateľský
-  payload typu \texttt{void *}. \texttt{SymbolTreeInsertWithData} pri úspechu
-  preberá vlastníctvo payloadu; pri chybe ho ponecháva volajúcemu. Ak bol
-  strom inicializovaný cez \texttt{SymbolTreeInitWithDestructor}, callback
-  uvoľní payload pri zničení stromu alebo pri jeho bezpečnej náhrade cez
-  \texttt{SymbolTreeSetDataAt}. Bez callbacku strom uvoľňuje iba vlastné
-  identifikátory a úložisko.
-
-  \texttt{SymbolTreeSearchMutable} poskytuje modifikovateľnú hlavičku
-  nájdeného symbolu, napríklad na úpravu obsahu payloadu. Identifikátor sa
-  nesmie meniť, pretože je kľúčom stromu. Priradením nového ukazovateľa do
-  \texttt{data} sa jeho vlastníctvo prenáša na strom, ale pôvodný payload sa
-  tým neuvoľní. Pri nahradení existujúceho payloadu treba použiť
-  \texttt{SymbolTreeSetDataAt}, aby sa zavolal destructor pôvodného payloadu.
-  Verejné API momentálne neposkytuje odstránenie položky.
-
-  Diagnostická funkcia \texttt{SymbolTreeDebugPrint} vykreslí štruktúru a
-  farby uzlov. Možno ju volať vo všetkých zostaveniach bez podmieneného
-  \texttt{\#ifdef}; v debug zostavení zapisuje jednotlivé riadky cez
-  \texttt{DLOG\_TRACE} na \texttt{stderr}, zatiaľ čo v release zostavení
-  nerobí nič. Nezasahuje tak do štandardného výstupu programu.
+  Identifikátory sa kopírujú a po úspešnom vložení tabuľka preberá vlastníctvo
+  hodnôt.
+  Duplicitné kľúče sú povolené a jednoduché vyhľadanie pri nich neurčuje,
+  ktorú zhodu vráti. Voliteľný callback uvoľňuje hodnoty pri zničení tabuľky
+  alebo pri ich nahradení. Zoznam zhôd uvoľňuje volajúci, nie však hodnoty,
+  na ktoré odkazuje.
 
   \subsection{Logovanie debugovacích správ}
 
