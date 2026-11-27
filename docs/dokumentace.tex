@@ -145,12 +145,6 @@
   \end{verbatim}
 
   \section{Architektúra}
-  % blokové schéma architektury vašeho řešení, které bude obsahovat jednotlivé
-  % moduly překla- dače (např. lexikální, syntaktická, sémantická analýza atp.)
-  % a musí zobrazovat i datové toky mezi jednotlivými komponentami –
-  % specifikujte, v jakých strukturách (např. tokeny, AST, me- zikód) si
-  % komponenty předávají informace. Z diagramu a jeho textového popisu musí být
-  % jasné vstupy, výstupy, význam komponent a jejich propojení;
 
   % diagram automatu, který specifikuje lexikální analyzátor (podle konvencí
   % přednášených v IFJ; s případným slovním popisem odchylek od standardního
@@ -494,64 +488,54 @@
   \end{table}
 
   \section{Moduly}
+  \subsection{Riadenie prekladu}
+
+  Funkcia \texttt{main} v \texttt{src/main.c} postupne inicializuje
+  spracovanie správ, parsuje vstup, sémanticky skontroluje AST a až potom
+  generuje IFJcode26 na \texttt{stdout}. Kontroluje návratové chyby aj zápis
+  výstupu, pri ukončení uvoľní vytvorený AST a ukončí modul správ. Chyby
+  parsovania zachováva, sémantické chyby mapuje na \texttt{ERROR\_SEM\_OTHER}
+  a chyby pamäte alebo generovania na \texttt{ERROR\_INTERNAL}.
+
   \subsection{Strom symbolov}
 
-  Modul \texttt{bin\_tree} (\texttt{src/bin\_tree.c},
-  \texttt{src/bin\_tree.h}) implementuje červeno-čierny vyhľadávací strom
-  \texttt{SymbolTree\_t}. Uzly sú uložené v rastúcom poli; pri naplnení
-  kapacity sa úložisko zväčší. Väzby medzi rodičom a potomkami sú indexy do
-  tohto poľa, takže presun poľa pri realokácii neporuší väzby. Prázdny
-  potomok alebo koreň je označený hodnotou \texttt{SIZE\_MAX}.
+  \texttt{src/bin\_tree.h} poskytuje kompatibilné rozhranie
+  \texttt{SymbolTree\_t}, kým všeobecnejšia tabuľka je deklarovaná v
+  \texttt{src/symtable.h}. Obe rozhrania implementuje
+  \texttt{src/symtable.c}, ktorý sémantická analýza používa na evidenciu
+  funkcií a premenných.
 
-  Verejná štruktúra \texttt{SymbolTree\_t} uchováva pole, jeho veľkosť a
-  kapacitu, index koreňa a voliteľný callback na uvoľnenie payloadov.
-  Implementačný uzol \texttt{SymbolTreeNode} je definovaný iba v súbore
-  \texttt{.c}; obsahuje hlavičku symbolu, farbu a indexy ľavého, pravého a
-  rodičovského uzla. Vyvažovacie operácie, rotácie a typy farby a smeru nie sú
-  súčasťou verejného API.
+  Strom je červeno-čierny a uzly ukladá do dynamického poľa. Väzby medzi
+  uzlami používajú indexy, takže realokácia nevyžaduje ich opravu. Naopak,
+  ukazovatele na prvky vrátené rozhraním sú vypožičané a môžu sa po vložení,
+  ktoré realokuje pole, zneplatniť. Kapacita poľa sa začína na ôsmich uzloch
+  a zdvojnásobuje sa. Vyhľadanie jednej zhody a vyvažovanie vkladania majú
+  zložitosť \texttt{O(log n)}, kým získanie všetkých zhôd prehľadáva celé
+  pole v čase \texttt{O(n)}. Samotná realokácia môže tiež trvať
+  \texttt{O(n)}.
 
-  Vkladanie skopíruje identifikátor do vlastníctva stromu. Kapacita začína na
-  ôsmich uzloch a pri potrebe sa zdvojnásobuje. Po vložení sa vykonajú
-  prefarbenia a rotácie, ktoré obnovia vlastnosti červeno-čierneho stromu.
-  Vyhľadávanie porovnáva identifikátory funkciou \texttt{strcmp}. Cesta
-  vyhľadávania a vyvažovania má vďaka vlastnostiam stromu zložitosť
-  \texttt{O(log n)}; pri zväčšení poľa môže realokácia presunúť všetky uzly.
-  Duplicitné identifikátory sú povolené. \texttt{SymbolTreeSearch} vráti
-  jeden zodpovedajúci symbol, zatiaľ čo \texttt{SymbolTreeAt} umožňuje
-  prechádzať položky podľa indexu poľa; toto poradie nie je lexikografické.
-  \texttt{SymbolTreeFindAllIndices} vyhľadá všetky výskyty identifikátora a
-  vráti ich indexy ako jednosmerný spájaný zoznam. Zoznam sa vytvára
-  pridávaním na začiatok, preto sú indexy v opačnom poradí, než v akom sú
-  položky v poli. Volajúci musí zoznam uvoľniť funkciou
-  \texttt{SymbolTreeIndexListDestroy}. Funkcia vracia \texttt{true} aj v
-  prípade, že neexistuje zhoda; pri neplatnom argumente alebo chybe alokácie
-  vráti \texttt{false} a výstupný ukazovateľ nastaví na \texttt{NULL}.
+  Identifikátory sa kopírujú a po úspešnom vložení tabuľka preberá vlastníctvo
+  hodnôt.
+  Duplicitné kľúče sú povolené a jednoduché vyhľadanie pri nich neurčuje,
+  ktorú zhodu vráti. Voliteľný callback uvoľňuje hodnoty pri zničení tabuľky
+  alebo pri ich nahradení. Zoznam zhôd uvoľňuje volajúci, nie však hodnoty,
+  na ktoré odkazuje.
 
-  Hlavička \texttt{SymbolHeader\_t} obsahuje identifikátor a používateľský
-  payload typu \texttt{void *}. \texttt{SymbolTreeInsertWithData} pri úspechu
-  preberá vlastníctvo payloadu; pri chybe ho ponecháva volajúcemu. Ak bol
-  strom inicializovaný cez \texttt{SymbolTreeInitWithDestructor}, callback
-  uvoľní payload pri zničení stromu alebo pri jeho bezpečnej náhrade cez
-  \texttt{SymbolTreeSetDataAt}. Bez callbacku strom uvoľňuje iba vlastné
-  identifikátory a úložisko.
+  \subsection{Generovanie IFJcode26}
 
-  \texttt{SymbolTreeSearchMutable} poskytuje modifikovateľnú hlavičku
-  nájdeného symbolu, napríklad na úpravu obsahu payloadu. Identifikátor sa
-  nesmie meniť, pretože je kľúčom stromu. Priradením nového ukazovateľa do
-  \texttt{data} sa jeho vlastníctvo prenáša na strom, ale pôvodný payload sa
-  tým neuvoľní. Pri nahradení existujúceho payloadu treba použiť
-  \texttt{SymbolTreeSetDataAt}, aby sa zavolal destructor pôvodného payloadu.
-  Verejné API momentálne neposkytuje odstránenie položky.
+  \texttt{IFJCode26Generate} v \texttt{src/ifjcode26.h} prijíma AST programu
+  a výstupný prúd. Generátor v súbore\\ \texttt{src/ifjcode26.c} overí jeho štruktúru vrátane práve jednej bezparametrickej funkcie \texttt{@main}.
+  Pri chybe vráti \texttt{false}, pričom výstup môže byť neúplný.
 
-  Diagnostická funkcia \texttt{SymbolTreeDebugPrint} vykreslí štruktúru a
-  farby uzlov. Možno ju volať vo všetkých zostaveniach bez podmieneného
-  \texttt{\#ifdef}; v debug zostavení zapisuje jednotlivé riadky cez
-  \texttt{DLOG\_TRACE} na \texttt{stderr}, zatiaľ čo v release zostavení
-  nerobí nič. Nezasahuje tak do štandardného výstupu programu.
-
-  Modul \texttt{logger} poskytuje úrovňovaný debug výpis. Jeho makrá a výstup
-  sú aktívne iba v zostavení s \texttt{DEBUG}; správy zapisuje na \texttt{stderr}.
-
+  Výrazy vyhodnocuje pomocou zásobníka IFJcode26. Operátory odoberajú
+  operandy zo zásobníka a ukladajú naň výsledok, takže vnorené výrazy možno
+  generovať priamo rekurzívnym prechodom AST. Lokálne premenné a parametre
+  majú očíslované miesta v rámci funkcie (\texttt{LF@vN} a
+  \texttt{LF@argN}). Každá deklarácia lokálnej premennej dostane vlastné
+  miesto. Vyhľadávanie mien uprednostňuje najnovšiu aktívnu väzbu, čo
+  zabezpečuje tienenie v blokoch. Generátor tiež vytvára návestia pre riadenie
+  toku, escapuje reťazce a emituje podporované výrazy, príkazy a volania
+  funkcií.
 
   \subsection{Parser}
   Modul \texttt{parser}, (\texttt{src\/parser.h}, 
