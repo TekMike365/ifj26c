@@ -102,10 +102,12 @@ struct ASTNode_t {
   SourceSpan_t pos; /* Position in source code for error handling */
 
   union {
-    char *name;        /* NODE_ID       */
-    char *string;      /* NODE_STRING   */
-    long long intVal;  /* NODE_INT      */
-    double dblVal;     /* NODE_DOUBLE   */
+    char *name;        /* NODE_ID          */
+    char *string;      /* NODE_STRING      */
+    long long intVal;  /* NODE_INT         */
+    double dblVal;     /* NODE_DOUBLE      */
+    ASTList_t program; /* NODE_PROGRAM     */
+    ASTList_t block;   /* NODE_BLOCK       */
     ASTNode_t *value;  /* NODE_CONV_DOUBLE */
     ASTList_t program; /* NODE_PROGRAM  */
     ASTList_t block;   /* NODE_BLOCK    */
