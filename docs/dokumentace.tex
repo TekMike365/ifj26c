@@ -178,6 +178,8 @@
     \label{fig:architecture}
   \end{figure}
 
+  \section{Lexikálna analýza}
+
   % diagram automatu, který specifikuje lexikální analyzátor (podle konvencí
   % přednášených v IFJ; s případným slovním popisem odchylek od standardního
   % modelu konečného automatu);
@@ -210,18 +212,7 @@
   jeho exponent respektívne. Nemožno ich teda zoskupiť spolu s ostatnými znakmi do
   skupiny \textit{CharAlpha} (riešením je abstrakcia \textit{CHAR\_GROUP}).
 
-  \pagebreak
-
-  \begin{figure}[H]
-	  \centering
-  	  \includegraphics[width=\textwidth]{"img/lexer_fsm.pdf"}
-  	  \caption{Lexer FSM.}
-	  \label{fig:lex_fsm}
-  \end{figure}
-
-  \pagebreak
-
-  Samotný stavový automat (viď \ref{fig:lex_fsm}) je potom implementovaný tabuľkou prechodov.
+  Samotný stavový automat (viď Obr. \ref{fig:lex_fsm}) je potom implementovaný tabuľkou prechodov.
   Usporiadaná dvojica $[t, S_n]$, kde $t \in CharType$ a stav
   $S_n \in Q; S_0 = STATE\_START$, je mapovaná mapou
   \textit{TransitionTable} na nasledujúci stav
@@ -249,7 +240,7 @@
   \textit{Layout Filter}
   potrebuje na kontrolu, či sa na poslednom riadku komentára nenachádza token
   (okrem \textit{TOKEN\_NEWLINE}). V prípade, že sa nevráti
-  \textit{TOKEN\_EXPECT\_EOL}, prevedie
+  \textit{TOKEN\_\allowbreak EXPECT\_\allowbreak EOL}, prevedie
   sa skok na návestie \textit{RESET} a automat pokračuje (Poznámka: na prvý pohľad
   paradoxné je, že sa nejedná o koncový stav a predsa sa vracia token. Riešenie
   je, že navonok sa nepozná rozdiel, keďže \textit{Layout Filter} tento token pohltí a
@@ -274,6 +265,17 @@
   nepredávajú sa ďalej ako tokeny, je zbytočné ich do \textit{CharBuffer} ukladať (čo
   potenciálne vyžaduje, a v prípade dlhých komentárov je takmer garantované,
   volanie funkcie \textit{realloc}). 
+
+  \pagebreak
+
+  \begin{figure}[H]
+	  \centering
+  	  \includegraphics[width=\textwidth]{"img/lexer_fsm.pdf"}
+  	  \caption{Lexer FSM.}
+	  \label{fig:lex_fsm}
+  \end{figure}
+
+  \pagebreak
 
   \subsection{Layout Filter}
   \label{subsec:layoutf}
@@ -699,7 +701,7 @@
   vráti \texttt{false} a výstupný ukazovateľ nastaví na \texttt{NULL}.
 
   Hlavička \texttt{SymbolHeader\_t} obsahuje identifikátor a používateľský
-  payload typu \texttt{void *}. \texttt{SymbolTreeInsertWithData} pri úspechu
+  payload typu \texttt{void *}. \\ \texttt{SymbolTreeInsertWithData} pri úspechu
   preberá vlastníctvo payloadu; pri chybe ho ponecháva volajúcemu. Ak bol
   strom inicializovaný cez \texttt{SymbolTreeInitWithDestructor}, callback
   uvoľní payload pri zničení stromu alebo pri jeho bezpečnej náhrade cez
@@ -727,7 +729,7 @@
   \texttt{src/bin\_tree.h} poskytuje kompatibilné rozhranie
   \texttt{SymbolTree\_t}, kým všeobecnejšia tabuľka je deklarovaná v
   \texttt{src/symtable.h}. Obe rozhrania implementuje
-  \texttt{src/symtable.c}, ktorý sémantická analýza používa na evidenciu
+  \\\texttt{src/symtable.c}, ktorý sémantická analýza používa na evidenciu
   funkcií a premenných.
 
   Strom je červeno-čierny a uzly ukladá do dynamického poľa. Väzby medzi
