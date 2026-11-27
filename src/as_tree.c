@@ -163,8 +163,6 @@ void ASTFree(ASTNode_t *node) {
   free(node); /* free current node as well */
 }
 
-#ifdef DEBUG
-
 const char *DataTypeToStr(DataType_t type) {
   switch (type) {
   case TYPE_INT:
@@ -177,9 +175,14 @@ const char *DataTypeToStr(DataType_t type) {
     return "Unit";
   case TYPE_STRING:
     return "String";
-  default:
-    return "?";
+  case TYPE_NA:
+    return "<NA>";
+  case TYPE_ANY:
+    return "<ANY>";
+  case TYPE_UNKNOWN:
+    return "<?>";
   }
+  return "<unknown type>";
 }
 
 const char *OpToChar(Operator_t op) {
@@ -214,10 +217,14 @@ const char *OpToChar(Operator_t op) {
     return "&&";
   case OP_OR:
     return "||";
+  case OP_ERR:
+    return "<E>";
   default:
     return "<?>";
   }
 }
+
+#ifdef DEBUG
 
 static void ASTDumpNode(const ASTNode_t *node, const char *prefix, bool isLast);
 
