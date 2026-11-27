@@ -46,6 +46,8 @@ typedef enum {
   TOKEN_KW_RETURN,
   TOKEN_KW_STRING,
   TOKEN_KW_BOOLEAN,
+  TOKEN_KW_BOOL_TRUE,
+  TOKEN_KW_BOOL_FALSE,
   TOKEN_KW_EXTENSION,
   TOKEN_EQ,
   TOKEN_EXPECT_EOL, // internal token emitted after multiline block comment
