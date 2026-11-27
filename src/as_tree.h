@@ -1,5 +1,6 @@
 /* Implementace překladače imperativního jazyka IFJ26.
  * Author[s]: Ondrej Dedič <xdedico00>
+ *            Michael Sklenka <xsklenm00>
  */
 #ifndef IFJ26C_AS_TREE_H
 #define IFJ26C_AS_TREE_H
@@ -8,6 +9,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#define AST_LIST_FOREACH(list, epAST)                                          \
+  for (ASTNode_t *epAST = (list).items[0], **_epp_ = (list).items;             \
+       _epp_ != (list).items + (list).count; epAST = *(_epp_++))
 
 /* Node type, selects union members in node */
 typedef enum ASTKind_t {
@@ -29,6 +34,7 @@ typedef enum ASTKind_t {
   NODE_BINOP,
   NODE_COND,
   NODE_FNCALL,
+  NODE_CONV_DOUBLE,
   /* lists */
   NODE_ID,
   NODE_INT,
@@ -48,6 +54,8 @@ typedef enum DataType_t {
   TYPE_BOOLEAN,
   TYPE_UNKNOWN,
 } DataType_t;
+
+const char *DataTypeToStr(DataType_t type);
 
 /* Operator types*/
 typedef enum Operator_t {
@@ -70,6 +78,8 @@ typedef enum Operator_t {
   OP_ERR,
 } Operator_t;
 
+const char *OpToChar(Operator_t op);
+
 typedef struct ASTNode_t ASTNode_t;
 
 typedef struct ASTList_t { /* for NODES with variable count (i.e. params...) */
@@ -87,13 +97,14 @@ struct ASTNode_t {
   SourceSpan_t pos; /* Position in source code for error handling */
 
   union {
-    char *name;        /* NODE_ID       */
-    char *string;      /* NODE_STRING   */
-    long long intVal;  /* NODE_INT      */
-    double dblVal;     /* NODE_DOUBLE   */
-    bool boolVal;      /* NODE_BOOLEN   */
-    ASTList_t program; /* NODE_PROGRAM  */
-    ASTList_t block;   /* NODE_BLOCK    */
+    char *name;        /* NODE_ID          */
+    char *string;      /* NODE_STRING      */
+    long long intVal;  /* NODE_INT         */
+    double dblVal;     /* NODE_DOUBLE      */
+    bool boolVal;      /* NODE_BOOLEN      */
+    ASTList_t program; /* NODE_PROGRAM     */
+    ASTList_t block;   /* NODE_BLOCK       */
+    ASTNode_t *value;  /* NODE_CONV_DOUBLE */
 
     /* NODE_FNDEF, declType may be unknown */
     struct {
