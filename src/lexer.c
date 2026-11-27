@@ -132,9 +132,6 @@ static TokenType_t ParseIdentifier(const char *str) {
       case 'y':
         return MatchKeywordSuffix(str + 2, "pe", 2,
                                   TOKEN_KW_TYPE); // 'type'
-      case 'r':
-        return MatchKeywordSuffix(str + 2, "ue", 2,
-                                  TOKEN_KW_BOOL_TRUE); // 'true'
 
       default:
         return TOKEN_IDENTIFIER;
@@ -159,9 +156,7 @@ static TokenType_t ParseIdentifier(const char *str) {
     case 'w':
       return MatchKeywordSuffix(str + 1, "hile", 4,
                                 TOKEN_KW_WHILE); // 'while'
-    case 'f':
-      return MatchKeywordSuffix(str + 1, "alse", 4,
-                                TOKEN_KW_BOOL_FALSE); // 'false'
+
     }
     break;
   case 6:
