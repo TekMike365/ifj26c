@@ -24,6 +24,17 @@ static ASTNode_t *CreateLeaf(Parser_t *p) {
       break;
     node->kind = NODE_ID;
     node->string = StrDup(p->current.lexemeS);
+    
+    if (!strcmp(node->string, "true")) {
+      node->kind = NODE_BOOLEAN;
+      node->type = TYPE_BOOLEAN;
+      node->boolVal = true;
+    }
+    if (!strcmp(node->string, "false")) {
+      node->kind = NODE_BOOLEAN;
+      node->type = TYPE_BOOLEAN;
+      node->boolVal = false;
+    }
     return node;
 
   /* get string from token */
